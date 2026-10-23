@@ -1,7 +1,9 @@
 import type { Types } from 'mongoose';
 import { decryptSecret } from '../../lib/crypto.js';
+import { consume } from '../billing/billing.service.js';
 import { contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
+import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import type { ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
@@ -104,6 +106,17 @@ export async function runAgent(args: {
   if (keyword) {
     await log('escalated');
     return { outcome: 'handoff', answer: '', reason: `Customer used the escalation word "${keyword}".`, sources: [], error: null };
+  }
+
+  // Test chats are free; everything that can answer a customer counts toward the plan.
+  if (purpose !== 'test') {
+    try {
+      await consume(workspace._id, 'ai_replies');
+    } catch (err) {
+      if (!(err instanceof AppError)) throw err;
+      await log('error', { error: err.message });
+      return { outcome: 'handoff', answer: '', reason: err.message, sources: [], error: err.code };
+    }
   }
 
   const hits = await searchKnowledge(workspace._id, question);

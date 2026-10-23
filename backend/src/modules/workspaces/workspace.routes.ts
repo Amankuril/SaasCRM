@@ -8,6 +8,9 @@ import { invitationRouter } from '../invitations/invitation.routes.js';
 import { campaignRouter } from '../campaigns/campaign.routes.js';
 import { segmentRouter } from '../campaigns/segment.routes.js';
 import { aiRouter } from '../ai/ai.routes.js';
+import { analyticsRouter } from '../analytics/analytics.routes.js';
+import { billingRouter } from '../billing/billing.routes.js';
+import { getEntitlements } from '../billing/billing.service.js';
 import { developerRouter } from '../developer/developer.routes.js';
 import { contactRouter } from '../contacts/contact.routes.js';
 import { flowRouter } from '../flows/flow.routes.js';
@@ -53,8 +56,14 @@ workspacesRouter.post('/', async (req, res) => {
 const scoped = Router({ mergeParams: true });
 workspacesRouter.use('/:workspaceId', loadWorkspace, scoped);
 
-scoped.get('/', requirePermission('workspace:read'), (req, res) => {
-  res.json(workspaceContext(req.workspace!, req.membership!));
+scoped.get('/', requirePermission('workspace:read'), async (req, res) => {
+  const e = await getEntitlements(req.workspace!._id);
+  const s = e.subscription;
+  res.json({
+    ...workspaceContext(req.workspace!, req.membership!),
+    // Enough for the app-wide plan banner; details live on the Billing page.
+    subscription: { planCode: s.planCode, planName: e.plan.name, status: s.status, access: e.access, trialEndsAt: s.trialEndsAt, graceEndsAt: s.graceEndsAt, currentPeriodEnd: s.currentPeriodEnd, cancelAtPeriodEnd: s.cancelAtPeriodEnd, features: e.features },
+  });
 });
 
 scoped.patch('/', requirePermission('workspace:update'), async (req, res) => {
@@ -88,3 +97,5 @@ scoped.use('/flows', flowRouter);
 scoped.use('/ai', aiRouter);
 scoped.use('/forms', formRouter);
 scoped.use('/developer', developerRouter);
+scoped.use('/billing', billingRouter);
+scoped.use('/analytics', analyticsRouter);

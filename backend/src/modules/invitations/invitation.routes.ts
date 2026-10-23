@@ -8,6 +8,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { mailer } from '../../services/mailer.js';
 import { audit } from '../audit/audit.service.js';
+import { assertWithinLimit } from '../billing/billing.service.js';
 import { User } from '../auth/user.model.js';
 import { ROLES, canAssignRole, type Role } from '../roles.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
@@ -50,6 +51,13 @@ invitationRouter.post('/', async (req, res) => {
   if (existingUser && (await WorkspaceMember.exists({ workspaceId: workspace._id, userId: existingUser._id }))) {
     throw conflict('ALREADY_MEMBER', 'This person is already a member of the workspace.');
   }
+
+  // Seats = members + pending invitations (a re-invite of the same email doesn't take another seat).
+  const [members, pendingOthers] = await Promise.all([
+    WorkspaceMember.countDocuments({ workspaceId: workspace._id }),
+    Invitation.countDocuments({ workspaceId: workspace._id, email: { $ne: email }, acceptedAt: null, revokedAt: null, expiresAt: { $gt: new Date() } }),
+  ]);
+  await assertWithinLimit(workspace._id, 'seats', members + pendingOthers);
 
   // Re-inviting replaces any earlier pending invite for the same email.
   await Invitation.updateMany(
@@ -136,6 +144,9 @@ publicInvitationRouter.post('/:token/accept', requireAuth, async (req, res) => {
   if (invitation.email !== req.user!.email) {
     throw forbidden(`This invitation was sent to ${invitation.email}. Log in with that email to accept it.`, 'INVITE_EMAIL_MISMATCH');
   }
+
+  // The plan may have shrunk since the invite was sent.
+  await assertWithinLimit(invitation.workspaceId, 'seats', await WorkspaceMember.countDocuments({ workspaceId: invitation.workspaceId }));
 
   // Claim the invitation atomically so it can only be used once.
   const claimed = await Invitation.findOneAndUpdate(

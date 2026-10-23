@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { Types } from 'mongoose';
 import { AppError, forbidden, unauthorized } from '../../lib/errors.js';
+import { assertFeature, getEntitlements, track } from '../billing/billing.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
 import type { ApiScope } from './catalog.js';
 import { ApiKey, type ApiKeyDoc } from './developer.model.js';
@@ -42,6 +43,7 @@ export async function createApiKey(input: {
   expiresAt: Date | null;
   createdBy: Types.ObjectId;
 }): Promise<{ apiKey: ApiKeyDoc; key: string }> {
+  await assertFeature(input.workspaceId, 'api');
   const active = await ApiKey.countDocuments({ workspaceId: input.workspaceId, revokedAt: null });
   if (active >= MAX_ACTIVE_KEYS) throw new AppError(409, 'TOO_MANY_KEYS', `A workspace can have at most ${MAX_ACTIVE_KEYS} active API keys. Revoke one first.`);
   const generated = generateApiKey();
@@ -80,7 +82,7 @@ function readKey(req: Parameters<RequestHandler>[0]): string | null {
  * Authenticates `/api/v1` calls with a workspace API key (Authorization: Bearer or
  * X-API-Key; never a query string). Sets req.workspace and req.apiKey.
  */
-export const requireApiKey: RequestHandler = async (req, _res, next) => {
+export const requireApiKey: RequestHandler = async (req, res, next) => {
   const key = readKey(req);
   if (!key) throw unauthorized('Send your API key in the Authorization header: "Bearer zc_live_…".', 'API_KEY_MISSING');
   if (!KEY_PATTERN.test(key)) throw unauthorized('This API key is not valid.', 'API_KEY_INVALID');
@@ -96,6 +98,13 @@ export const requireApiKey: RequestHandler = async (req, _res, next) => {
   if (workspace.status === 'suspended' && !READ_METHODS.has(req.method)) {
     throw new AppError(403, 'WORKSPACE_SUSPENDED', 'This workspace is suspended. Contact support to restore access.');
   }
+
+  // Plan gate: API access must be in the plan; the per-minute rate comes from it too.
+  const ent = await getEntitlements(workspace._id);
+  if (!ent.features.api) throw new AppError(402, 'FEATURE_NOT_IN_PLAN', `API access is not included in the ${ent.plan.name} plan.`, { feature: 'api', plan: ent.plan.code });
+  if (!ent.access && !READ_METHODS.has(req.method)) throw new AppError(402, 'SUBSCRIPTION_INACTIVE', 'Your subscription is not active. Renew it on the Billing page.', { status: ent.subscription.status });
+  res.locals.apiRateLimit = ent.limits.apiRequestsPerMinute ?? 1_000;
+  void track(workspace._id, ent.subscription.currentPeriodStart, 'api_requests');
 
   // Throttle last-used writes to once a minute per key.
   if (!apiKey.lastUsedAt || Date.now() - apiKey.lastUsedAt.getTime() > 60_000) {

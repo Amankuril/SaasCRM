@@ -26,7 +26,7 @@ export async function recordInboundOnConversation(workspaceId: Types.ObjectId, c
     },
     { upsert: true, new: true },
   );
-  await Conversation.updateOne({ _id: conv!._id, workspaceId, status: 'resolved' }, { status: 'open', openedAt: at, resolvedAt: null });
+  await Conversation.updateOne({ _id: conv!._id, workspaceId, status: 'resolved' }, { status: 'open', openedAt: at, resolvedAt: null, firstReplyAt: null });
   notify(workspaceId, conv!._id, true);
   return conv!;
 }

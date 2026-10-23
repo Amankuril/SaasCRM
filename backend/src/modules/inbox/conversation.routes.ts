@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { ConversationCycle } from '../analytics/analytics.model.js';
 import { apiConversation, contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { Types } from 'mongoose';
@@ -234,12 +235,14 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     conv.status = input.status;
     if (input.status === 'resolved') {
       conv.resolvedAt = new Date();
+      await ConversationCycle.create({ workspaceId: conv.workspaceId, conversationId: conv._id, assigneeId: conv.assigneeId, openedAt: conv.openedAt, firstReplyAt: conv.firstReplyAt, resolvedAt: conv.resolvedAt });
       conv.botPaused = false; // automations may greet the customer again next time
       conv.aiReplyCount = 0;
     }
     if (from === 'resolved') {
       conv.openedAt = new Date();
       conv.resolvedAt = null;
+      conv.firstReplyAt = null;
     }
     await audit(req, { workspaceId: conv.workspaceId, action: 'conversation.status_changed', targetType: 'conversation', targetId: conv.id, metadata: { from, to: input.status } });
   }

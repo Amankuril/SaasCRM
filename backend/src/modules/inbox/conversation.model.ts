@@ -28,6 +28,8 @@ const conversationSchema = new Schema(
     lastInboundAt: { type: Date, default: null },
     openedAt: { type: Date, default: () => new Date() },
     resolvedAt: { type: Date, default: null },
+    // First teammate reply since the conversation (re)opened: drives first-response-time reports.
+    firstReplyAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

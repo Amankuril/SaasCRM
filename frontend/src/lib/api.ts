@@ -164,6 +164,23 @@ export interface WorkspaceSummary extends Workspace {
 export interface WorkspaceContextPayload {
   workspace: Workspace;
   membership: { id: string; role: Role; permissions: Permission[] };
+  subscription: SubscriptionSummary;
+}
+
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'cancelled' | 'expired';
+export type LimitKey = 'contacts' | 'seats' | 'monthlyMessages' | 'activeFlows' | 'forms' | 'aiRepliesPerMonth' | 'apiRequestsPerMinute';
+export type FeatureKey = 'campaigns' | 'flows' | 'forms' | 'ai' | 'api';
+
+export interface SubscriptionSummary {
+  planCode: string;
+  planName: string;
+  status: SubscriptionStatus;
+  access: boolean;
+  trialEndsAt: string | null;
+  graceEndsAt: string | null;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  features: Record<FeatureKey, boolean>;
 }
 
 export interface WhatsAppConnection {
@@ -521,4 +538,100 @@ export interface DeveloperCatalog {
   apiVersion: string;
   scopes: { id: string; description: string }[];
   events: { id: string; description: string }[];
+}
+
+export interface PlanInfo {
+  code: string;
+  name: string;
+  description: string;
+  currency: string;
+  priceMonthly: number;
+  priceYearly: number;
+  limits: Record<LimitKey, number | null>;
+  features: Record<FeatureKey, boolean>;
+  trialDays: number;
+  graceDays: number;
+  isPublic: boolean;
+  purchasable: { monthly: boolean; yearly: boolean };
+}
+
+export interface SubscriptionInfo {
+  planCode: string;
+  status: SubscriptionStatus;
+  access: boolean;
+  cycle: 'monthly' | 'yearly';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialEndsAt: string | null;
+  graceEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  endedAt: string | null;
+  provider: 'razorpay' | 'sandbox' | 'manual' | 'none';
+  pending: { planCode: string; cycle: string; checkoutUrl: string; createdAt: string } | null;
+  lastPaymentAt: string | null;
+}
+
+export interface InvoiceInfo {
+  id: string;
+  number: string;
+  planCode: string;
+  cycle: string;
+  amount: number;
+  currency: string;
+  status: 'paid' | 'failed';
+  periodStart: string | null;
+  periodEnd: string | null;
+  failureReason: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface BillingOverview {
+  subscription: SubscriptionInfo;
+  plan: PlanInfo;
+  usage: Record<Exclude<LimitKey, 'apiRequestsPerMinute'>, number> & { apiRequests: number };
+  plans: PlanInfo[];
+  provider: 'razorpay' | 'sandbox';
+  invoices: InvoiceInfo[];
+}
+
+export interface DurationStats {
+  count: number;
+  avgMs: number | null;
+  medianMs: number | null;
+}
+
+export interface Analytics {
+  range: { days: number; since: string; until: string; timezone: string };
+  contacts: { total: number; new: number };
+  messages: {
+    inbound: number;
+    outbound: Record<string, number>;
+    deliveryRate: number | null;
+    readRate: number | null;
+    failureRate: number | null;
+    daily: { day: string; inbound: number; outbound: number }[];
+  };
+  inbox: {
+    openNow: number;
+    pendingNow: number;
+    unassignedOpen: number;
+    resolved: number;
+    firstResponse: DurationStats;
+    resolution: DurationStats;
+    agents: { userId: string; name: string; open: number; resolved: number; firstResponse: DurationStats }[];
+  };
+  campaigns: { id: string; name: string; status: string; launchedAt: string; total: number; delivered: number; read: number; replied: number; failed: number; skipped: number }[];
+  automation: {
+    flowId: string;
+    name: string;
+    started: number;
+    completed: number;
+    active: number;
+    exited: number;
+    failed: number;
+    goals: number;
+    dropOffs: { nodeId: string; type: string; label: string | null; status: string; count: number }[];
+  }[];
+  ai: { total: number; answered: number; handedOff: number; errors: number; resolvedRate: number | null; avgLatencyMs: number | null; inputTokens: number; outputTokens: number };
 }

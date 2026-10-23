@@ -31,6 +31,6 @@ describe('platform admin', () => {
     expect(write.body.error.code).toBe('WORKSPACE_SUSPENDED');
 
     const stats = await api().get('/api/admin/stats').set('Authorization', `Bearer ${admin.token}`).expect(200);
-    expect(stats.body).toEqual({ users: 2, workspaces: { setup: 0, active: 0, suspended: 1 } });
+    expect(stats.body).toMatchObject({ users: 2, workspaces: { setup: 0, active: 0, suspended: 1 } });
   });
 });

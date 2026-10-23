@@ -16,6 +16,7 @@ export interface JobPayloads {
   'campaign.dispatch': { workspaceId: string; campaignId: string };
   'flow.resume': { workspaceId: string; executionId: string; token: string };
   'integration.webhook': { workspaceId: string; deliveryId: string; token: string };
+  'billing.sweep': Record<string, never>;
 }
 export type JobName = keyof JobPayloads;
 
@@ -32,6 +33,7 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'campaign.dispatch': 'campaigns',
   'flow.resume': 'flows',
   'integration.webhook': 'integration-webhooks',
+  'billing.sweep': 'billing',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -40,6 +42,7 @@ const CONCURRENCY: Record<JobName, number> = {
   'campaign.dispatch': 2,
   'flow.resume': 10,
   'integration.webhook': 20,
+  'billing.sweep': 1,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {
@@ -50,6 +53,8 @@ const DEFAULT_JOB_OPTIONS: JobsOptions = {
 };
 
 const processors = new Map<JobName, Processor<JobName>>();
+/** Jobs the scheduler runs on an interval (durable: BullMQ job schedulers live in Redis). */
+const repeating = new Map<JobName, number>();
 const queues = new Map<JobName, Queue>();
 const workers: Worker[] = [];
 let connection: Redis | undefined;
@@ -62,6 +67,10 @@ function redis(): Redis {
 
 export function registerProcessor<K extends JobName>(name: K, processor: Processor<K>): void {
   processors.set(name, processor as Processor<JobName>);
+}
+
+export function registerRepeating(name: JobName, everyMs: number): void {
+  repeating.set(name, everyMs);
 }
 
 export async function enqueue<K extends JobName>(
@@ -103,7 +112,30 @@ export function startWorkers(): void {
     });
     workers.push(worker);
   }
+  for (const [name, every] of repeating) {
+    let queue = queues.get(name);
+    if (!queue) {
+      queue = new Queue(QUEUE_NAMES[name], { connection: redis(), defaultJobOptions: DEFAULT_JOB_OPTIONS });
+      queues.set(name, queue);
+    }
+    void queue.upsertJobScheduler(`${name}-every`, { every }, { name, data: {} }).catch((err) => logger.error({ err, job: name }, 'Could not schedule repeating job'));
+  }
   logger.info({ queues: [...processors.keys()] }, 'Queue workers started');
+}
+
+/** Job counts per queue for the ops dashboard (null with the inline driver). */
+export async function queueStats(): Promise<Record<string, Record<string, number>> | null> {
+  if (env.QUEUE_DRIVER === 'inline') return null;
+  const out: Record<string, Record<string, number>> = {};
+  for (const name of Object.keys(QUEUE_NAMES) as JobName[]) {
+    let queue = queues.get(name);
+    if (!queue) {
+      queue = new Queue(QUEUE_NAMES[name], { connection: redis(), defaultJobOptions: DEFAULT_JOB_OPTIONS });
+      queues.set(name, queue);
+    }
+    out[name] = await queue.getJobCounts('waiting', 'active', 'delayed', 'failed', 'completed');
+  }
+  return out;
 }
 
 export async function closeQueues(): Promise<void> {

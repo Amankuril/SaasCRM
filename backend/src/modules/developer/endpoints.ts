@@ -5,6 +5,7 @@ import { encryptSecret } from '../../lib/crypto.js';
 import { AppError, notFound } from '../../lib/errors.js';
 import { assertSafeOutboundUrl } from '../../lib/safeFetch.js';
 import { objectId } from '../../lib/validate.js';
+import { assertFeature } from '../billing/billing.service.js';
 import { WEBHOOK_EVENTS } from './catalog.js';
 import { WebhookEndpoint, type WebhookEndpointDoc } from './developer.model.js';
 import { MAX_ENDPOINTS, SECRET_GRACE_MS, encryptNewSecret, generateWebhookSecret, requeueHeld } from './webhook.service.js';
@@ -48,6 +49,7 @@ export async function findEndpoint(workspaceId: Types.ObjectId, id: unknown): Pr
 }
 
 export async function createEndpoint(workspaceId: Types.ObjectId, input: z.infer<typeof createEndpointSchema>, createdBy: Types.ObjectId | null) {
+  await assertFeature(workspaceId, 'api');
   if ((await WebhookEndpoint.countDocuments({ workspaceId })) >= MAX_ENDPOINTS) {
     throw new AppError(409, 'TOO_MANY_WEBHOOKS', `A workspace can have at most ${MAX_ENDPOINTS} webhook endpoints.`);
   }

@@ -6,6 +6,7 @@ import { safeRequest } from '../../lib/safeFetch.js';
 import { logger } from '../../lib/logger.js';
 import { enqueue, type JobContext } from '../../jobs/queue.js';
 import { getAgent, runAgent } from '../ai/ai.service.js';
+import { hasAccess } from '../billing/billing.service.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { resolveVariables, type VariableSpec } from '../campaigns/campaign.service.js';
 import { Contact, type ContactDoc } from '../contacts/contact.model.js';
@@ -216,6 +217,7 @@ async function runLocked(
     if (!workspace || workspace.status === 'suspended') return await end(exec, 'exited', 'workspace_unavailable');
     if (!contact) return await end(exec, 'exited', 'contact_deleted');
     if (contact.consent?.status === 'opted_out') return await end(exec, 'exited', 'contact_opted_out');
+    if (!(await hasAccess(workspaceId))) return await end(exec, 'exited', 'subscription_inactive');
 
     const ctx: RunContext = { workspace, version, graph: version.graph as Graph, contact, exec, depth };
     let current = startNodeId;

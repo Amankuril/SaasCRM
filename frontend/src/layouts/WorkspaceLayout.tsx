@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import {
+  BarChart3,
   Bot,
   ChevronsUpDown,
   ClipboardList,
   Code2,
+  CreditCard,
   Contact,
   FileText,
   LayoutDashboard,
@@ -21,7 +23,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Logo } from '../components/Logo';
@@ -42,7 +44,13 @@ interface NavItem {
 }
 
 const NAV: { section: string; items: NavItem[] }[] = [
-  { section: 'Overview', items: [{ to: '', label: 'Dashboard', icon: LayoutDashboard }] },
+  {
+    section: 'Overview',
+    items: [
+      { to: '', label: 'Dashboard', icon: LayoutDashboard },
+      { to: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'conversations:view_all' },
+    ],
+  },
   {
     section: 'Conversations',
     items: [
@@ -70,6 +78,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
       { to: 'developer', label: 'Developers', icon: Code2, permission: 'developer:manage' },
+      { to: 'billing', label: 'Billing & usage', icon: CreditCard },
       { to: 'team', label: 'Team', icon: Users, permission: 'members:read' },
       { to: 'settings', label: 'Settings', icon: Settings },
       { to: 'audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },
@@ -122,6 +131,7 @@ export function WorkspaceLayout() {
           </header>
 
           <main className={cn('flex-1', fullBleed ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-y-auto')}>
+            <PlanBanner />
             {value!.workspace.status === 'suspended' && (
               <div className="border-b border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
                 This workspace is suspended and read-only. Contact support to restore access.
@@ -141,6 +151,28 @@ export function WorkspaceLayout() {
       </div>
     </WorkspaceContext.Provider>
   );
+}
+
+/** App-wide notice for trials ending, failed payments and read-only plans. */
+function PlanBanner() {
+  const { workspace, subscription: s, can } = useWorkspace();
+  const billing = <Link to={`/w/${workspace.id}/billing`} className="font-semibold underline">{can('billing:manage') ? 'Choose a plan' : 'Billing'}</Link>;
+  const daysLeft = (d: string | null) => (d ? Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000)) : 0);
+  let tone = '';
+  let text: ReactNode = null;
+  if (s.status === 'trialing' && daysLeft(s.trialEndsAt) <= 5) {
+    tone = 'border-amber-200 bg-amber-50 text-amber-800';
+    text = <>Your free trial ends in {daysLeft(s.trialEndsAt)} day(s). {billing} to keep sending.</>;
+  } else if (s.status === 'past_due') {
+    tone = 'border-amber-200 bg-amber-50 text-amber-800';
+    text = <>Your last payment failed. Everything keeps working until {new Date(s.graceEndsAt!).toLocaleDateString()}. {billing}</>;
+  } else if (!s.access) {
+    tone = 'border-red-200 bg-red-50 text-red-700';
+    const why = s.status === 'expired' ? 'Your free trial has ended' : s.status === 'suspended' ? 'Your subscription payment is overdue' : 'Your subscription has ended';
+    text = <>{why}: sending, broadcasts and automations are paused. Your data is safe and exportable. {billing}</>;
+  }
+  if (!text) return null;
+  return <div className={cn('border-b px-6 py-2.5 text-sm', tone)}>{text}</div>;
 }
 
 function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {

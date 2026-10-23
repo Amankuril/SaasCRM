@@ -1,5 +1,6 @@
 import type { Types } from 'mongoose';
 import { z } from 'zod';
+import { assertWithinLimit } from '../billing/billing.service.js';
 import { Contact } from './contact.model.js';
 import { LIFECYCLE_STAGES } from './contact.model.js';
 import { normalizePhone } from './contact.service.js';
@@ -83,6 +84,9 @@ export async function importContacts(workspaceId: Types.ObjectId, country: strin
 
   const existing = await Contact.find({ workspaceId, phoneE164: { $in: parsed.map((p) => p.phone) } }).lean();
   const byPhone = new Map(existing.map((c) => [c.phoneE164, c]));
+
+  const newCount = parsed.filter((p) => !byPhone.has(p.phone)).length;
+  if (newCount) await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }), newCount);
 
   const inserts: Record<string, unknown>[] = [];
   const updates: { filter: Record<string, unknown>; update: Record<string, unknown> }[] = [];

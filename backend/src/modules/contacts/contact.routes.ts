@@ -6,6 +6,7 @@ import { emailSchema, objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { publish } from '../../realtime/bus.js';
 import { audit } from '../audit/audit.service.js';
+import { assertWithinLimit } from '../billing/billing.service.js';
 import { contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { onTagsAdded } from '../flows/triggers.js';
@@ -117,6 +118,7 @@ contactRouter.post('/', requirePermission('contacts:manage'), async (req, res) =
   const phoneE164 = normalizePhone(input.phone, req.workspace!.country);
   if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { phone: ['Enter a valid phone number.'] });
   if (await Contact.exists({ workspaceId, phoneE164 })) throw conflict('CONTACT_EXISTS', 'A contact with this phone number already exists.');
+  await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }));
 
   const contact = await Contact.create({
     workspaceId,

@@ -11,7 +11,9 @@ import { ProviderError, whatsappProvider, type OutboundMessage, type StatusEvent
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } from '../inbox/conversation.service.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
+import { Conversation } from '../inbox/conversation.model.js';
 import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
+import { consume, refund } from '../billing/billing.service.js';
 import { apiMessage } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
 
@@ -77,6 +79,8 @@ export async function queueOutboundMessage(
     content = buildTemplateContent(template, input.headerParams ?? [], input.bodyParams ?? []);
   }
 
+  // Counts against the plan's message allowance (accepted sends, not deliveries).
+  await consume(workspace._id, 'messages');
   try {
     const message = await Message.create({
       workspaceId: workspace._id,
@@ -91,10 +95,13 @@ export async function queueOutboundMessage(
       aiGenerated: options.aiGenerated ?? false,
     });
     await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
+    // A teammate's first reply since the conversation opened (bots and broadcasts don't count).
+    if (user) await Conversation.updateOne({ workspaceId: workspace._id, contactId: contact._id, firstReplyAt: null }, { firstReplyAt: new Date() });
     await enqueue('whatsapp.send', { workspaceId: workspace.id as string, messageId: message.id as string }, { jobId: `send-${message.id}` });
     return { message: (await Message.findOne({ _id: message._id, workspaceId: workspace._id }))!, duplicate: false };
   } catch (err) {
     // Two concurrent requests with the same idempotency key: return the winner.
+    await refund(workspace._id, 'messages');
     if ((err as { code?: number }).code === 11000 && idempotencyKey) {
       const existing = await Message.findOne({ workspaceId: workspace._id, idempotencyKey });
       if (existing) return { message: existing, duplicate: true };
@@ -115,14 +122,17 @@ export async function queueCampaignMessage(
   idempotencyKey: string,
 ): Promise<MessageDoc> {
   const { contactId, campaignId } = recipient;
+  const existing = await Message.findOne({ workspaceId, idempotencyKey }).select('_id').lean();
+  if (!existing) await consume(workspaceId, 'messages');
   let message: MessageDoc;
   try {
     message = await Message.create({ workspaceId, contactId, campaignId, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey });
   } catch (err) {
+    if (!existing) await refund(workspaceId, 'messages');
     if ((err as { code?: number }).code !== 11000) throw err;
-    const existing = (await Message.findOne({ workspaceId, idempotencyKey }))!;
-    await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { messageId: existing._id, status: existing.status });
-    return existing;
+    const winner = (await Message.findOne({ workspaceId, idempotencyKey }))!;
+    await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { messageId: winner._id, status: winner.status });
+    return winner;
   }
   // Link before sending so every later status change finds its recipient row.
   await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { messageId: message._id });

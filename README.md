@@ -74,7 +74,18 @@ scripts/    dev.mjs: starts both apps together
 - Flow builder: "Started by API" trigger (`POST /v1/flows/:id/runs` with variables) and an "HTTP request" step (placeholders, JSON-escaped bodies, response → `{{vars.*}}`, success/failed branches)
 - SSRF guard on every customer URL (https only, public IPs, no redirects, timeouts, size caps); `ALLOW_PRIVATE_OUTBOUND_URLS=true` allows localhost in development only
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 8 (billing, quotas, analytics).
+**Phase 8: Billing, quotas & analytics** (done)
+
+- Plan catalog (Free trial, Starter, Growth, Pro; prices in paise, editable by platform admins) with limits (contacts, seats, messages and AI replies per billing period, live flows, forms, API rate) and feature flags
+- Subscriptions per workspace: `trialing → active → past_due (grace) → suspended`, `cancelled` (at period end), `expired` (trial over); 14-day trial created automatically
+- Razorpay Subscriptions: hosted checkout, signed webhooks (`/api/webhooks/razorpay`, deduped by event id), plan switch only after payment, failed renewals with grace days, invoice history; `BILLING_PROVIDER=sandbox` simulates checkout for development
+- Server-side enforcement everywhere: sends (inbox, API, flows, AI, broadcasts) count against the message allowance atomically; broadcasts pause at the limit; seats, contacts, flows, forms, AI and API gated by plan. Lapsed plans are read-only for messaging (data and export stay available), automations stop, running broadcasts pause
+- Durable hourly billing job (BullMQ job scheduler): trial/grace/period transitions and reminder emails (each sent once)
+- Billing & usage page with quota bars and counting rules, app-wide banner for trials ending, failed payments and lapsed plans
+- Analytics page (7/30/90 days, workspace timezone): sends, delivery/read/failure rates, daily chart, inbox first-response and resolution times, agent workload, broadcasts, flow runs with drop-off steps, AI resolution rate
+- Super Admin: plan editor, per-tenant plan/status overrides (audited), MRR estimate, operations view (queues, failures, backlogs, trials ending, overdue payments)
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA alerts, GST tax invoices (PDF), multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 9 (catalog, payments, OTP, Click-to-WhatsApp ads, Instagram).
 
 ## Getting started
 

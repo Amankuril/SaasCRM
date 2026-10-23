@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { z } from 'zod';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
+import { assertFeature, assertWithinLimit } from '../billing/billing.service.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { audit } from '../audit/audit.service.js';
 import { Contact } from '../contacts/contact.model.js';
@@ -64,6 +65,8 @@ formRouter.get('/', requirePermission('workspace:read'), async (req, res) => {
 
 formRouter.post('/', requirePermission('forms:manage'), async (req, res) => {
   const { name } = parse(z.object({ name: z.string().trim().min(1).max(80).default('Untitled form') }), req.body);
+  await assertFeature(req.workspace!._id, 'forms');
+  await assertWithinLimit(req.workspace!._id, 'forms', await Form.countDocuments({ workspaceId: req.workspace!._id }));
   const form = await Form.create({
     workspaceId: req.workspace!._id,
     name,
@@ -101,6 +104,7 @@ formRouter.delete('/:formId', requirePermission('forms:manage'), async (req, res
 formRouter.post('/:formId/publish', requirePermission('forms:manage'), async (req, res) => {
   const workspaceId = req.workspace!._id;
   const form = await findForm(workspaceId, req.params.formId);
+  await assertFeature(workspaceId, 'forms');
   const fields = form.fields as FormField[];
   const issues = validateFields(fields);
   if (issues.length) throw new AppError(422, 'FORM_INVALID', 'Fix the form before publishing.', { issues });

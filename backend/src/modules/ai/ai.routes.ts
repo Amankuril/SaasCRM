@@ -6,6 +6,7 @@ import { encryptSecret } from '../../lib/crypto.js';
 import { AppError, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
+import { assertFeature } from '../billing/billing.service.js';
 import { audit } from '../audit/audit.service.js';
 import { AI_MODELS, AiAgent, AiUsage, type AiAgentDoc } from './ai.model.js';
 import { runAgent } from './ai.service.js';
@@ -85,6 +86,7 @@ aiRouter.put('/settings', requirePermission('ai:manage'), async (req, res) => {
   const workspaceId = req.workspace!._id;
   const agent = (await AiAgent.findOne({ workspaceId }).select('+apiKeyEncrypted')) ?? new AiAgent({ workspaceId });
   agent.set(input);
+  if (agent.enabled && agent.isModified('enabled')) await assertFeature(workspaceId, 'ai');
   if (apiKey !== undefined) {
     agent.apiKeyEncrypted = apiKey ? encryptSecret(apiKey) : null;
     agent.apiKeyLast4 = apiKey ? apiKey.slice(-4) : null;

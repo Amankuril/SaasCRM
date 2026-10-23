@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestContext.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { billingWebhookRouter } from './modules/billing/billing.routes.js';
 import { publicApiRouter } from './modules/developer/publicApi.routes.js';
 import { publicInvitationRouter } from './modules/invitations/invitation.routes.js';
 import { webhookRouter } from './modules/whatsapp/webhook.routes.js';
@@ -40,6 +41,7 @@ export function createApp() {
   app.use(cors({ origin: env.APP_URL, credentials: true }));
   // Before express.json(): webhook signatures are checked against the raw body.
   app.use('/api/webhooks', webhookRouter);
+  app.use('/api/webhooks', billingWebhookRouter);
   // Large enough for CSV contact imports (up to 5,000 rows).
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());

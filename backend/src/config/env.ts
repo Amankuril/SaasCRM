@@ -41,6 +41,12 @@ const envSchema = z.object({
   // Platform-wide key; a workspace may bring its own key instead (stored encrypted).
   ANTHROPIC_API_KEY: optionalString,
 
+  // Subscription payments: `razorpay`, or `sandbox` (fake checkout, development/demos).
+  BILLING_PROVIDER: z.enum(['razorpay', 'sandbox']).default('razorpay'),
+  RAZORPAY_KEY_ID: optionalString,
+  RAZORPAY_KEY_SECRET: optionalString,
+  RAZORPAY_WEBHOOK_SECRET: optionalString,
+
   // Lets webhooks and flow HTTP steps call http:// and private/localhost addresses.
   // Development only: in production customer URLs must be public https.
   ALLOW_PRIVATE_OUTBOUND_URLS: z

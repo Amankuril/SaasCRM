@@ -19,6 +19,8 @@ export default defineConfig({
       RUN_WORKERS: 'false',
       META_APP_SECRET: 'test-app-secret',
       META_WEBHOOK_VERIFY_TOKEN: 'test-verify-token',
+      BILLING_PROVIDER: 'sandbox',
+      RAZORPAY_WEBHOOK_SECRET: 'test-razorpay-secret',
     },
   },
 });

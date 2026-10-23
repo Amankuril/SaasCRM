@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError, badRequest, conflict } from '../../lib/errors.js';
+import { assertFeature, hasAccess } from '../billing/billing.service.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { logger } from '../../lib/logger.js';
 import { enqueue, type JobContext } from '../../jobs/queue.js';
@@ -143,6 +144,7 @@ function renderContent(template: TemplateDoc, contact: Parameters<typeof fieldVa
  */
 export async function launchCampaign(workspace: WorkspaceDoc, campaign: CampaignDoc, user: UserDoc, scheduledAt: Date | null): Promise<CampaignDoc> {
   if (campaign.status !== 'draft') throw conflict('CAMPAIGN_NOT_DRAFT', 'Only draft campaigns can be launched.');
+  await assertFeature(workspace._id, 'campaigns');
   const conn = await getConnection(workspace._id);
   if (!conn || conn.status !== 'connected') throw conflict('WHATSAPP_NOT_CONNECTED', 'Connect a working WhatsApp number first.');
 
@@ -223,6 +225,8 @@ export async function processCampaignDispatch(data: { workspaceId: string; campa
   const workspace = await Workspace.findById(workspaceId);
   if (!workspace || workspace.status === 'suspended') return pause(campaign, 'Workspace is suspended.');
 
+  if (!(await hasAccess(workspaceId))) return pause(campaign, 'Paused because the subscription is not active. Renew to resume.');
+
   const waitMs = quietHoursWait(campaign, workspace.timezone);
   if (waitMs > 0) return scheduleDispatch(campaign, waitMs);
 
@@ -246,6 +250,12 @@ export async function processCampaignDispatch(data: { workspaceId: string; campa
       const content = buildTemplateContent(liveTemplate, recipient.headerParams, recipient.bodyParams);
       await queueCampaignMessage(workspaceId, recipient, content, `campaign:${campaign.id}:${recipient.contactId}`);
     } catch (err) {
+      const code = (err as AppError).code;
+      if (code === 'PLAN_LIMIT_REACHED' || code === 'SUBSCRIPTION_INACTIVE') {
+        // Out of allowance: put the recipient back and stop until the plan allows more.
+        await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { status: 'pending', queuedAt: null });
+        return pause(campaign, `${(err as AppError).message} Resume the campaign after upgrading.`);
+      }
       logger.error({ err, campaignId: campaign.id }, 'Failed to queue campaign message');
       await CampaignRecipient.updateOne(
         { _id: recipient._id, workspaceId },

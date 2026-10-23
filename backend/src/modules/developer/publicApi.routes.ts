@@ -6,6 +6,7 @@ import { isTest } from '../../config/env.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { emailSchema, objectId, parse } from '../../lib/validate.js';
 import { publish } from '../../realtime/bus.js';
+import { assertWithinLimit } from '../billing/billing.service.js';
 import { Campaign } from '../campaigns/campaign.model.js';
 import { campaignStats } from '../campaigns/campaign.service.js';
 import { Contact, LIFECYCLE_STAGES, type ContactDoc } from '../contacts/contact.model.js';
@@ -37,7 +38,8 @@ export const publicApiRouter = Router();
 
 const keyLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 300,
+  // Per plan (set by requireApiKey).
+  limit: (_req, res) => Number(res.locals.apiRateLimit ?? 60),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skip: () => isTest,
@@ -184,6 +186,7 @@ publicApiRouter.post('/contacts', requireScope('contacts:write'), idempotent, as
 
   let contact = await Contact.findOne({ workspaceId, phoneE164 });
   const created = !contact;
+  if (created) await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }));
   contact ??= new Contact({ workspaceId, phoneE164, source: 'api' });
   applyContactFields(contact, input);
   let added: Types.ObjectId[] = [];
@@ -409,6 +412,7 @@ publicApiRouter.post('/flows/:flowId/runs', requireScope('flows:run'), idempoten
   const phoneE164 = normalizePhone(input.phone, workspace.country);
   if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { phone: ['Enter a valid phone number.'] });
   const existed = await Contact.exists({ workspaceId: workspace._id, phoneE164 });
+  if (!existed) await assertWithinLimit(workspace._id, 'contacts', await Contact.countDocuments({ workspaceId: workspace._id }));
   const contact = await findOrCreateContact(workspace._id, phoneE164, 'api');
   if (!existed) await emitEvent(workspace._id, 'contact.created', { contact: await serializeContact(workspace._id, contact) });
   if (contact.consent?.status === 'opted_out') throw new AppError(422, 'CONTACT_OPTED_OUT', 'This contact has opted out of WhatsApp messages.');

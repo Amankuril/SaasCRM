@@ -5,6 +5,7 @@ import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { audit } from '../audit/audit.service.js';
+import { assertFeature, assertWithinLimit } from '../billing/billing.service.js';
 import { Contact } from '../contacts/contact.model.js';
 import { normalizePhone } from '../contacts/contact.service.js';
 import { exitExecutions, startExecution } from './engine.js';
@@ -78,6 +79,7 @@ flowRouter.post('/:flowId/validate', requirePermission('workspace:read'), async 
 flowRouter.post('/:flowId/publish', requirePermission('flows:manage'), async (req, res) => {
   const workspaceId = req.workspace!._id;
   const flow = await findFlow(workspaceId, req.params.flowId);
+  await assertFlowAllowed(workspaceId, flow);
   const graph = graphSchema.parse(flow.draftGraph);
   const issues = await validateFlow(workspaceId, flow._id, graph);
   if (issues.length) throw new AppError(422, 'FLOW_INVALID', 'Fix the highlighted steps before publishing.', { issues });
@@ -99,10 +101,17 @@ flowRouter.post('/:flowId/publish', requirePermission('flows:manage'), async (re
   res.json({ flow: detail(flow) });
 });
 
+/** Plan check before a flow goes live: the feature, and the live-flow limit if it isn't live yet. */
+async function assertFlowAllowed(workspaceId: Types.ObjectId, flow: { _id: Types.ObjectId; status: string }) {
+  await assertFeature(workspaceId, 'flows');
+  if (flow.status !== 'active') await assertWithinLimit(workspaceId, 'activeFlows', await Flow.countDocuments({ workspaceId, status: 'active', _id: { $ne: flow._id } }));
+}
+
 flowRouter.post('/:flowId/activate', requirePermission('flows:manage'), async (req, res) => {
   const workspaceId = req.workspace!._id;
   const flow = await findFlow(workspaceId, req.params.flowId);
   if (!flow.publishedVersionId) throw conflict('NOT_PUBLISHED', 'Publish the flow first.');
+  await assertFlowAllowed(workspaceId, flow);
   const version = await FlowVersion.findOne({ _id: flow.publishedVersionId, workspaceId });
   const issues = (await validateFlow(workspaceId, flow._id, version!.graph as Graph)).filter((i) => /already uses|already used/.test(i.message));
   if (issues.length) throw new AppError(422, 'FLOW_INVALID', issues[0]!.message, { issues });

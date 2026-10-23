@@ -1,6 +1,7 @@
 import type { Types } from 'mongoose';
 import { logger } from '../../lib/logger.js';
 import { autoReply } from '../ai/ai.service.js';
+import { hasAccess } from '../billing/billing.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
 import type { ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
@@ -34,6 +35,8 @@ export async function onInboundMessage(
   createdContact: boolean,
 ): Promise<void> {
   try {
+    // Read-only plans: messages are stored, but no automation or AI runs.
+    if (!(await hasAccess(workspaceId))) return;
     const waiting = await FlowExecution.findOne({ workspaceId, contactId: contact._id, status: 'waiting', 'waiting.kind': 'reply' }).sort({ updatedAt: -1 });
     if (waiting && (await deliverReply(waiting, message))) return;
 
