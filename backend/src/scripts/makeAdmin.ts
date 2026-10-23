@@ -1,6 +1,6 @@
 /**
  * Grants platform super-admin to an existing account:
- *   npm run make-admin -w backend -- someone@example.com
+ *   npm --prefix backend run make-admin -- someone@example.com
  */
 import '../loadEnv.js';
 import { env } from '../config/env.js';
@@ -9,7 +9,7 @@ import { User } from '../modules/auth/user.model.js';
 
 const email = process.argv[2]?.trim().toLowerCase();
 if (!email) {
-  console.error('Usage: npm run make-admin -w backend -- <email>');
+  console.error('Usage: npm --prefix backend run make-admin -- <email>');
   process.exit(1);
 }
 

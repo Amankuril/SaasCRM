@@ -1,11 +1,14 @@
 # Zeta Connect
 
-Multi-tenant WhatsApp automation SaaS (MERN monorepo): businesses get private workspaces to run a shared inbox, contacts/CRM, broadcasts, flow automations and an AI agent on their own WhatsApp Business number.
+Multi-tenant WhatsApp automation SaaS (MERN): businesses get private workspaces to run a shared inbox, contacts/CRM, broadcasts, flow automations and an AI agent on their own WhatsApp Business number.
 
 ```
-backend/    Express 5 + Mongoose 8 + TypeScript API
-frontend/   React 19 + Vite + Tailwind 4 dashboard
+backend/    Express 5 + Mongoose 8 + TypeScript API   (own package.json, package-lock.json, node_modules)
+frontend/   React 19 + Vite + Tailwind 4 dashboard   (own package.json, package-lock.json, node_modules)
+scripts/    dev.mjs: starts both apps together
 ```
+
+`backend/` and `frontend/` are independent npm projects. The root `package.json` has no dependencies, only helper scripts, so the root never gets a `node_modules` folder.
 
 ## Status
 
@@ -60,28 +63,31 @@ Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification
 Requirements: Node 20+, MongoDB (Atlas free tier, a local install, or `docker compose up -d`) and Redis (for BullMQ).
 
 ```bash
-npm install
+npm run install:all                    # = npm install in backend/ and in frontend/
 cp backend/.env.example backend/.env   # set MONGODB_URI, JWT_ACCESS_SECRET, ENCRYPTION_KEY
 npm run dev                            # API on :4000 (with queue workers), web app on http://localhost:5173
 ```
 
+Each app can also be run on its own: `cd backend && npm run dev`, `cd frontend && npm run dev`.
+
 Set `WHATSAPP_PROVIDER=sandbox` to try everything without a Meta account (fake numbers, simulated receipts and template approval). With `meta`, configure the webhook in your Meta app using `PUBLIC_API_URL/api/webhooks/whatsapp`, `META_WEBHOOK_VERIFY_TOKEN` and `META_APP_SECRET` (use an ngrok/cloudflared tunnel locally).
 
-In production run the worker separately: `RUN_WORKERS=false` on the API and `npm run start:worker -w backend`.
+In production run the worker separately: `RUN_WORKERS=false` on the API and `npm --prefix backend run start:worker`.
 
 Make yourself Super Admin (sign up first):
 
 ```bash
-npm run make-admin -w backend -- you@example.com
+npm --prefix backend run make-admin -- you@example.com
 ```
 
 ## Scripts
 
-| Command | What it does |
+| Command (from the repo root) | What it does |
 |---|---|
+| `npm run install:all` | Installs backend and frontend dependencies (each in its own folder) |
 | `npm run dev` | API (tsx watch) + web app (Vite) together |
 | `npm test` | Backend tests (Vitest + Supertest + in-memory MongoDB) |
-| `npm run typecheck` | TypeScript checks for both packages |
+| `npm run typecheck` | TypeScript checks for both apps |
 | `npm run build` | Production builds (`backend/dist`, `frontend/dist`) |
 
 ## Multi-tenancy rules
