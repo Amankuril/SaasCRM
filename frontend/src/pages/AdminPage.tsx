@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Building2, Layers } from 'lucide-react';
+import { Activity, ArrowLeft, Building2, Layers, LogOut } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
@@ -52,7 +52,7 @@ const SUB_TONE: Record<SubscriptionStatus, 'blue' | 'green' | 'amber' | 'red' | 
 type Tab = 'tenants' | 'plans' | 'ops';
 
 export function AdminPage() {
-  const { user } = useAuth();
+  const { user, workspaces, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('tenants');
   const stats = useQuery({ queryKey: ['admin', 'stats'], queryFn: () => api.get<Stats>('/admin/stats'), enabled: !!user?.isPlatformAdmin });
 
@@ -63,9 +63,16 @@ export function AdminPage() {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6 flex items-center justify-between">
         <Logo />
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
-          <ArrowLeft className="size-4" /> Back to app
-        </Link>
+        {/* An admin without a business has no app to go back to ("/" leads here). */}
+        {workspaces.length > 0 ? (
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="size-4" /> Back to app
+          </Link>
+        ) : (
+          <button onClick={() => void logout('/admin/login')} className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
+            <LogOut className="size-4" /> Log out
+          </button>
+        )}
       </div>
       <PageHeader title="Super Admin" description="All businesses (tenants), plans and platform health." />
 

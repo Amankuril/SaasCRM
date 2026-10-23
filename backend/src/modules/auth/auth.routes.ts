@@ -2,7 +2,7 @@ import { Router, type CookieOptions, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { env, isProd, isTest } from '../../config/env.js';
-import { conflict, unauthorized } from '../../lib/errors.js';
+import { conflict, forbidden, unauthorized } from '../../lib/errors.js';
 import { emailSchema, parse, passwordSchema } from '../../lib/validate.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { listUserWorkspaces } from '../workspaces/workspace.service.js';
@@ -48,6 +48,8 @@ const signupSchema = z.object({
 const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1).max(128),
+  // `admin`: the Super Admin login (/admin/login) only accepts platform admins.
+  portal: z.enum(['app', 'admin']).default('app'),
 });
 
 export const authRouter = Router();
@@ -73,6 +75,8 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   const valid = await verifyPassword(body.password, user?.passwordHash);
   if (!user || !valid) throw unauthorized('Incorrect email or password.', 'INVALID_CREDENTIALS');
   if (user.status !== 'active') throw unauthorized('Your account has been disabled.', 'ACCOUNT_INACTIVE');
+  // Checked after the password, so it reveals nothing to someone without it. No session is created.
+  if (body.portal === 'admin' && !user.isPlatformAdmin) throw forbidden('This account does not have Super Admin access.', 'NOT_PLATFORM_ADMIN');
 
   user.lastLoginAt = new Date();
   await user.save();

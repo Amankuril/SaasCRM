@@ -14,7 +14,7 @@ interface AuthContextValue {
   status: 'loading' | 'authenticated' | 'anonymous';
   user: User | null;
   workspaces: WorkspaceSummary[];
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, portal?: 'app' | 'admin') => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   /** Logs out and goes to `redirectTo` (default: the login page). */
   logout: (redirectTo?: string) => Promise<void>;
@@ -67,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       workspaces,
       reload,
-      login: async (email, password) => {
-        const res = await api.post<AuthPayload>('/auth/login', { email, password });
+      login: async (email, password, portal = 'app') => {
+        const res = await api.post<AuthPayload>('/auth/login', { email, password, portal });
         setAccessToken(res.accessToken);
         await reload();
       },

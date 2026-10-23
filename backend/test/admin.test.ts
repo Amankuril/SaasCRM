@@ -3,6 +3,23 @@ import { User } from '../src/modules/auth/user.model.js';
 import { api, createWorkspace, signup } from './helpers.js';
 
 describe('platform admin', () => {
+  it('has its own login that refuses non-admin accounts without starting a session', async () => {
+    const admin = await signup({ email: 'root@example.com' });
+    await User.updateOne({ email: admin.email }, { isPlatformAdmin: true });
+    const owner = await signup({ email: 'clinic@example.com' });
+
+    const ok = await api().post('/api/auth/login').send({ email: admin.email, password: 'password123', portal: 'admin' }).expect(200);
+    expect(ok.body.user.isPlatformAdmin).toBe(true);
+
+    const denied = await api().post('/api/auth/login').send({ email: owner.email, password: 'password123', portal: 'admin' }).expect(403);
+    expect(denied.body.error.code).toBe('NOT_PLATFORM_ADMIN');
+    expect(denied.headers['set-cookie']).toBeUndefined();
+    // A wrong password gets the usual answer, so the admin portal reveals nothing extra.
+    expect((await api().post('/api/auth/login').send({ email: owner.email, password: 'wrong-pass', portal: 'admin' }).expect(401)).body.error.code).toBe('INVALID_CREDENTIALS');
+    // Business login is unchanged.
+    await api().post('/api/auth/login').send({ email: owner.email, password: 'password123' }).expect(200);
+  });
+
   it('is forbidden for normal users', async () => {
     const user = await signup();
     await api().get('/api/admin/workspaces').set('Authorization', `Bearer ${user.token}`).expect(403);
