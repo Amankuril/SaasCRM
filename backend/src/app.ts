@@ -39,7 +39,8 @@ export function createApp() {
   app.use(cors({ origin: env.APP_URL, credentials: true }));
   // Before express.json(): webhook signatures are checked against the raw body.
   app.use('/api/webhooks', webhookRouter);
-  app.use(express.json({ limit: '1mb' }));
+  // Large enough for CSV contact imports (up to 5,000 rows).
+  app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
 
   app.get('/api/health', (_req, res) => {

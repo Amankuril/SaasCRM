@@ -22,6 +22,10 @@ export function setAccessToken(token: string | null) {
   accessToken = token;
 }
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export function setSessionExpiredHandler(handler: () => void) {
   onSessionExpired = handler;
 }
@@ -77,12 +81,29 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
   return data as T;
 }
 
+/** Authenticated file download (e.g. CSV export) that saves via a temporary link. */
+async function download(path: string, fallbackName: string): Promise<void> {
+  const go = () => fetch(`/api${path}`, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, credentials: 'include' });
+  let res = await go();
+  if (res.status === 401 && (await refreshAccessToken())) res = await go();
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.error?.code ?? 'UNKNOWN', data?.error?.message ?? 'Download failed.');
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   delete: <T = void>(path: string) => request<T>('DELETE', path),
+  download,
 };
 
 // ---- Shared API types ----
@@ -99,6 +120,13 @@ export type Permission =
   | 'provider:manage'
   | 'templates:manage'
   | 'messages:send'
+  | 'conversations:view_all'
+  | 'conversations:assign'
+  | 'contacts:manage'
+  | 'contacts:delete'
+  | 'contacts:import'
+  | 'contacts:export'
+  | 'tags:manage'
   | 'audit:read';
 
 export interface User {
@@ -187,4 +215,70 @@ export interface ChatMessage {
   status: MessageStatus;
   error: { code: string; title: string; message: string } | null;
   createdAt: string;
+}
+
+export type LifecycleStage = 'new' | 'contacted' | 'qualified' | 'follow_up' | 'converted' | 'lost';
+export type ConsentStatus = 'unknown' | 'opted_in' | 'opted_out';
+export type TagColor = 'gray' | 'red' | 'amber' | 'green' | 'blue' | 'violet' | 'pink';
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: TagColor;
+  contactCount?: number;
+}
+
+export interface Contact {
+  id: string;
+  phone: string;
+  name: string | null;
+  profileName: string | null;
+  displayName: string;
+  email: string | null;
+  tags: string[];
+  lifecycleStage: LifecycleStage;
+  ownerId: string | null;
+  customFields: Record<string, string>;
+  consent: { status: ConsentStatus; source: string | null; updatedAt: string | null };
+  source: string | null;
+  lastInboundAt: string | null;
+  createdAt: string;
+}
+
+export type ConversationStatus = 'open' | 'pending' | 'resolved';
+
+export interface ConversationSummary {
+  id: string;
+  status: ConversationStatus;
+  priority: 'normal' | 'high';
+  unreadCount: number;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  lastMessageDirection: 'inbound' | 'outbound' | null;
+  serviceWindowOpen: boolean;
+  contact: { id: string; phone: string; name: string; tags: string[] } | null;
+  assignee: { id: string; name: string } | null;
+}
+
+export type TimelineItem =
+  | {
+      kind: 'message';
+      id: string;
+      createdAt: string;
+      direction: 'inbound' | 'outbound';
+      type: string;
+      content: Record<string, unknown>;
+      status: MessageStatus;
+      error: { code: string; title: string; message: string } | null;
+      sentBy: string | null;
+    }
+  | { kind: 'note'; id: string; createdAt: string; body: string; author: string };
+
+export interface Member {
+  id: string;
+  userId: string;
+  name: string;
+  email: string | null;
+  role: Role;
+  joinedAt: string;
 }

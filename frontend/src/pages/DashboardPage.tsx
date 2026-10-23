@@ -22,6 +22,15 @@ export function DashboardPage() {
     queryFn: () => api.get<ConnectionPayload>(`/workspaces/${workspace.id}/whatsapp/connection`),
   });
   const connection = whatsapp.data?.connection;
+  const contacts = useQuery({
+    queryKey: ['contacts', workspace.id, 'total'],
+    queryFn: () => api.get<{ total: number }>(`/workspaces/${workspace.id}/contacts?limit=1`),
+  });
+  const counts = useQuery({
+    queryKey: ['conversation-counts', workspace.id],
+    queryFn: () => api.get<{ all: number; mine: number; unassigned: number }>(`/workspaces/${workspace.id}/conversations/counts`),
+  });
+  const contactTotal = contacts.data?.total ?? 0;
   const link = (to: string, label: string) => (
     <Link to={`${base}/${to}`} className="text-sm font-medium text-brand-700 hover:underline">
       {label}
@@ -64,7 +73,12 @@ export function DashboardPage() {
               description="Templates are needed for reminders, broadcasts and messages outside the 24-hour window."
               action={connection && can('templates:manage') ? link('templates', 'Open templates') : undefined}
             />
-            <Step pending title="Import your contacts" description="Upload a CSV of customers with tags and consent." />
+            <Step
+              done={contactTotal > 0}
+              title="Import your contacts"
+              description={contactTotal > 0 ? `${contactTotal} contact(s) in this workspace.` : 'Upload a CSV of customers with tags and consent.'}
+              action={contactTotal === 0 && can('contacts:import') ? link('contacts', 'Import') : undefined}
+            />
             <Step pending title="Send your first broadcast or build a flow" description="Campaigns and automations arrive in the next phases." />
           </ul>
         </Card>
@@ -75,13 +89,18 @@ export function DashboardPage() {
           </div>
           <h2 className="text-sm font-semibold text-ink">Messaging stats</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Conversations, delivery rates and campaign results will appear here with the inbox and campaigns (next phases).
+            Live numbers for this workspace. Delivery and campaign analytics arrive with broadcasts.
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            {['Contacts', 'Open chats', 'Messages sent', 'Delivery rate'].map((label) => (
+            {[
+              ['Contacts', contacts.data ? String(contacts.data.total) : '—'],
+              ['Open chats', counts.data ? String(counts.data.all) : '—'],
+              ['Unassigned', counts.data ? String(counts.data.unassigned) : '—'],
+              ['Delivery rate', '—'],
+            ].map(([label, value]) => (
               <div key={label} className="rounded-lg bg-slate-50 p-3">
                 <dt className="text-xs text-slate-500">{label}</dt>
-                <dd className="mt-1 font-semibold text-slate-400">—</dd>
+                <dd className={value === '—' ? 'mt-1 font-semibold text-slate-400' : 'mt-1 text-lg font-semibold text-ink'}>{value}</dd>
               </div>
             ))}
           </dl>

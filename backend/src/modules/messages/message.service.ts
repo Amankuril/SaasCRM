@@ -9,6 +9,7 @@ import type { UserDoc } from '../auth/user.model.js';
 import { credentialsOf, getConnection, markConnectionAuthError } from '../whatsapp/connection.service.js';
 import { ProviderError, whatsappProvider, type OutboundMessage, type StatusEvent, type TemplateComponent } from '../whatsapp/provider/index.js';
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
+import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } from '../inbox/conversation.service.js';
 import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
 
 export type SendInput =
@@ -39,6 +40,9 @@ export async function queueOutboundMessage(
   const phoneE164 = normalizePhone(input.to, workspace.country);
   if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { to: ['Enter a valid phone number.'] });
   const contact = await findOrCreateContact(workspace._id, phoneE164, 'manual_send');
+  if (contact.consent?.status === 'opted_out') {
+    throw new AppError(422, 'CONTACT_OPTED_OUT', 'This contact has opted out of WhatsApp messages.');
+  }
 
   let content: Record<string, unknown>;
   if (input.type === 'text') {
@@ -69,6 +73,7 @@ export async function queueOutboundMessage(
       idempotencyKey,
       sentBy: user?._id ?? null,
     });
+    await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
     await enqueue('whatsapp.send', { workspaceId: workspace.id as string, messageId: message.id as string }, { jobId: `send-${message.id}` });
     return { message: (await Message.findOne({ _id: message._id, workspaceId: workspace._id }))!, duplicate: false };
   } catch (err) {
@@ -124,6 +129,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
   const fail = async (code: string, title: string, text: string) => {
     message.set({ status: 'failed', failedAt: new Date(), error: { code, title, message: text } });
     await message.save();
+    await notifyMessagesChanged(message.workspaceId, message.contactId);
   };
 
   const conn = await getConnection(message.workspaceId, true);
@@ -154,6 +160,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
     message.set({ status: 'submitted', providerMessageId, submittedAt: new Date(), error: null });
     await message.save();
     await Contact.updateOne({ _id: contact._id, workspaceId: contact.workspaceId }, { lastOutboundAt: new Date() });
+    await notifyMessagesChanged(message.workspaceId, message.contactId);
   } catch (err) {
     if (!(err instanceof ProviderError)) throw err;
     const errorInfo = { code: err.code ?? err.kind, title: 'Send failed', message: err.message };
@@ -205,7 +212,10 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
     message.status = event.status;
   }
 
-  if (message.isModified()) await message.save();
+  if (message.isModified()) {
+    await message.save();
+    await notifyMessagesChanged(workspaceId, message.contactId);
+  }
   return true;
 }
 

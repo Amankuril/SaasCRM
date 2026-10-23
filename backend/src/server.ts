@@ -4,6 +4,8 @@ import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './db/connect.js';
 import { closeQueues, startWorkers } from './jobs/queue.js';
 import { logger } from './lib/logger.js';
+import { closeRealtime } from './realtime/bus.js';
+import { attachRealtime } from './realtime/socket.js';
 
 async function main() {
   await connectDatabase(env.MONGODB_URI);
@@ -11,11 +13,13 @@ async function main() {
   const server = createApp().listen(env.PORT, () => {
     logger.info(`Zeta Connect API listening on http://localhost:${env.PORT}`);
   });
+  attachRealtime(server);
 
   const shutdown = (signal: string) => {
     logger.info(`${signal} received, shutting down`);
     server.close(() => {
       void closeQueues()
+        .then(closeRealtime)
         .then(disconnectDatabase)
         .finally(() => process.exit(0));
     });

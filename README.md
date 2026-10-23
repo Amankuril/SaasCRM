@@ -27,7 +27,15 @@ frontend/   React 19 + Vite + Tailwind 4 dashboard
 - 24-hour customer service window enforced for free-form text; templates allowed any time
 - Templates: sync from WhatsApp, create with validation + live preview, review status via webhook
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media sending, and later phases (inbox, CRM, campaigns, flows, AI, billing).
+**Phase 3: CRM + Team Inbox** (done)
+
+- Contacts: search, tag/stage filters, lifecycle pipeline, owner, consent (opted-out contacts can't be messaged), custom fields
+- Tags (case-insensitive, coloured); CSV import with column mapping, skip / fill-empty / overwrite duplicate strategies and a per-row error report; CSV export (admins, audited, formula-injection safe)
+- Team inbox: one thread per contact, open / pending / resolved (customer replies reopen), unread counts, priority, assignment (managers assign anyone; agents claim/release and auto-take a thread when they reply), internal notes, template replies when the 24h window is closed
+- Visibility: owners/admins/managers see everything, analysts read-only, agents see unassigned + their own
+- Realtime: Socket.io + Redis pub/sub change signals (ids only; clients refetch through the permission-checked API)
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, saved segments, routing rules/SLA metrics, and later phases (campaigns, flows, AI, billing).
 
 ## Getting started
 

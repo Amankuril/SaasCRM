@@ -5,6 +5,7 @@ import { connectDatabase, disconnectDatabase } from './db/connect.js';
 import './jobs/index.js';
 import { closeQueues, startWorkers } from './jobs/queue.js';
 import { logger } from './lib/logger.js';
+import { closeRealtime } from './realtime/bus.js';
 
 await connectDatabase(env.MONGODB_URI);
 startWorkers();
@@ -12,6 +13,7 @@ startWorkers();
 const shutdown = (signal: string) => {
   logger.info(`${signal} received, stopping workers`);
   void closeQueues()
+    .then(closeRealtime)
     .then(disconnectDatabase)
     .finally(() => process.exit(0));
 };

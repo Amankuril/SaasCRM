@@ -9,6 +9,7 @@ export default defineConfig({
     // Same-origin API in development so the httpOnly refresh cookie just works.
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: false },
+      '/socket.io': { target: 'http://localhost:4000', ws: true },
     },
   },
 });

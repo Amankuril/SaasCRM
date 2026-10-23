@@ -1,6 +1,7 @@
 import type { Types } from 'mongoose';
 import { logger } from '../../lib/logger.js';
 import { phoneFromWaId, recordInboundContact } from '../contacts/contact.service.js';
+import { recordInboundOnConversation, messagePreview } from '../inbox/conversation.service.js';
 import { Message } from '../messages/message.model.js';
 import { applyStatusEvent } from '../messages/message.service.js';
 import { MessageTemplate } from '../templates/template.model.js';
@@ -72,9 +73,11 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
       receivedAt: event.timestamp,
     });
   } catch (err) {
-    // Redelivered webhook: the message is already stored.
-    if ((err as { code?: number }).code !== 11000) throw err;
+    // Redelivered webhook: the message is already stored (and counted).
+    if ((err as { code?: number }).code === 11000) return;
+    throw err;
   }
+  await recordInboundOnConversation(workspaceId, contact._id, messagePreview(event.type, event.content), event.timestamp);
 }
 
 // The sandbox provider emits simulated receipts straight into the same pipeline.

@@ -5,6 +5,9 @@ import { loadWorkspace, requirePermission } from '../../middleware/workspace.js'
 import { audit } from '../audit/audit.service.js';
 import { auditRouter } from '../audit/audit.routes.js';
 import { invitationRouter } from '../invitations/invitation.routes.js';
+import { contactRouter } from '../contacts/contact.routes.js';
+import { tagRouter } from '../contacts/tag.routes.js';
+import { conversationRouter } from '../inbox/conversation.routes.js';
 import { messageRouter } from '../messages/message.routes.js';
 import { templateRouter } from '../templates/template.routes.js';
 import { connectionRouter } from '../whatsapp/connection.routes.js';
@@ -70,3 +73,6 @@ scoped.use('/audit-logs', auditRouter);
 scoped.use('/whatsapp', connectionRouter);
 scoped.use('/templates', templateRouter);
 scoped.use('/messages', messageRouter);
+scoped.use('/contacts', contactRouter);
+scoped.use('/tags', tagRouter);
+scoped.use('/conversations', conversationRouter);

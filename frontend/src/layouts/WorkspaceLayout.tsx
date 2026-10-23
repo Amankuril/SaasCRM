@@ -20,12 +20,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
+import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Logo } from '../components/Logo';
 import { Alert, Spinner, cn } from '../components/ui';
 import { ApiError, api, type Permission, type WorkspaceContextPayload } from '../lib/api';
 import { ROLE_INFO } from '../lib/options';
+import { useRealtime } from '../lib/realtime';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { WorkspaceContext, useWorkspace, type WorkspaceContextValue } from './workspaceContext';
 
@@ -35,6 +36,7 @@ interface NavItem {
   icon: LucideIcon;
   permission?: Permission;
   soon?: boolean;
+  badge?: 'inbox';
 }
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -42,8 +44,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Conversations',
     items: [
-      { label: 'Team Inbox', icon: MessageSquare, soon: true },
-      { label: 'Contacts', icon: Contact, soon: true },
+      { to: 'inbox', label: 'Team Inbox', icon: MessageSquare, badge: 'inbox' },
+      { to: 'contacts', label: 'Contacts', icon: Contact },
     ],
   },
   {
@@ -74,6 +76,9 @@ const NAV: { section: string; items: NavItem[] }[] = [
 export function WorkspaceLayout() {
   const { workspaceId } = useParams();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The inbox uses the full height/width instead of the padded page container.
+  const fullBleed = useMatch('/w/:workspaceId/inbox');
+  useRealtime(workspaceId!);
 
   const query = useQuery({
     queryKey: ['workspace', workspaceId],
@@ -110,15 +115,21 @@ export function WorkspaceLayout() {
             <span className="truncate text-sm font-semibold text-ink">{value!.workspace.name}</span>
           </header>
 
-          <main className="flex-1 overflow-y-auto">
+          <main className={cn('flex-1', fullBleed ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-y-auto')}>
             {value!.workspace.status === 'suspended' && (
               <div className="border-b border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
                 This workspace is suspended and read-only. Contact support to restore access.
               </div>
             )}
-            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-              <Outlet />
-            </div>
+            {fullBleed ? (
+              <div className="min-h-0 flex-1">
+                <Outlet />
+              </div>
+            ) : (
+              <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+                <Outlet />
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -179,6 +190,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                       >
                         <item.icon className="size-4" />
                         {item.label}
+                        {item.badge === 'inbox' && <InboxBadge />}
                       </NavLink>
                     )}
                   </li>
@@ -262,6 +274,16 @@ function WorkspaceSwitcher({ onNavigate }: { onNavigate: () => void }) {
       )}
     </div>
   );
+}
+
+function InboxBadge() {
+  const { workspace } = useWorkspace();
+  const counts = useQuery({
+    queryKey: ['conversation-counts', workspace.id],
+    queryFn: () => api.get<{ all: number; mine: number; unassigned: number }>(`/workspaces/${workspace.id}/conversations/counts`),
+  });
+  const n = counts.data ? counts.data.mine + counts.data.unassigned : 0;
+  return n > 0 ? <span className="ml-auto rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{n}</span> : null;
 }
 
 function initials(name: string): string {

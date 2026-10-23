@@ -14,6 +14,13 @@ const PERMISSIONS = {
   'provider:manage': ['owner'],
   'templates:manage': ['owner', 'admin'],
   'messages:send': ['owner', 'admin', 'manager', 'agent'],
+  'conversations:view_all': ['owner', 'admin', 'manager', 'analyst'],
+  'conversations:assign': ['owner', 'admin', 'manager'],
+  'contacts:manage': ['owner', 'admin', 'manager', 'agent'],
+  'contacts:delete': ['owner', 'admin'],
+  'contacts:import': ['owner', 'admin'],
+  'contacts:export': ['owner', 'admin'],
+  'tags:manage': ['owner', 'admin', 'manager'],
   'audit:read': ['owner', 'admin'],
 } as const satisfies Record<string, readonly Role[]>;
 

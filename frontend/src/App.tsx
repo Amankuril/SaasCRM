@@ -13,6 +13,8 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SignupPage } from './pages/SignupPage';
 import { TeamPage } from './pages/TeamPage';
+import { ContactsPage } from './pages/ContactsPage';
+import { InboxPage } from './pages/InboxPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { WhatsAppPage } from './pages/WhatsAppPage';
 
@@ -36,6 +38,8 @@ export function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="audit" element={<AuditLogPage />} />
         <Route path="whatsapp" element={<WhatsAppPage />} />
+        <Route path="inbox" element={<InboxPage />} />
+        <Route path="contacts" element={<ContactsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
       </Route>
 

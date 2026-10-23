@@ -1,0 +1,20 @@
+import { Schema, model, type InferSchemaType } from 'mongoose';
+import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
+
+/** Internal team note on a conversation. Never sent to the customer. */
+const noteSchema = new Schema(
+  {
+    workspaceId: workspaceIdField,
+    conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation', required: true },
+    contactId: { type: Schema.Types.ObjectId, ref: 'Contact', required: true },
+    authorId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    body: { type: String, required: true, trim: true, maxlength: 4000 },
+  },
+  { timestamps: true },
+);
+
+noteSchema.plugin(tenantScoped);
+noteSchema.index({ workspaceId: 1, conversationId: 1, createdAt: -1 });
+
+export type NoteAttrs = InferSchemaType<typeof noteSchema>;
+export const ConversationNote = model('ConversationNote', noteSchema);
