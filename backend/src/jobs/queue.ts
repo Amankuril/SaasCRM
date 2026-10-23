@@ -13,6 +13,7 @@ import { logger } from '../lib/logger.js';
 export interface JobPayloads {
   'whatsapp.send': { workspaceId: string; messageId: string };
   'webhook.process': { eventId: string };
+  'campaign.dispatch': { workspaceId: string; campaignId: string };
 }
 export type JobName = keyof JobPayloads;
 
@@ -26,11 +27,13 @@ type Processor<K extends JobName> = (data: JobPayloads[K], ctx: JobContext) => P
 const QUEUE_NAMES: Record<JobName, string> = {
   'whatsapp.send': 'whatsapp-send',
   'webhook.process': 'webhooks',
+  'campaign.dispatch': 'campaigns',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
   'whatsapp.send': 10,
   'webhook.process': 20,
+  'campaign.dispatch': 2,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {
@@ -61,6 +64,8 @@ export async function enqueue<K extends JobName>(
   opts: { jobId?: string; delayMs?: number } = {},
 ): Promise<void> {
   if (env.QUEUE_DRIVER === 'inline') {
+    // Delayed jobs (schedules, next batch) are not run inline; tests drive them explicitly.
+    if (opts.delayMs && opts.delayMs > 0) return;
     const processor = processors.get(name);
     if (!processor) throw new Error(`No processor registered for ${name}`);
     try {

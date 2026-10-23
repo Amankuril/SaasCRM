@@ -55,3 +55,34 @@ export function formatDate(value: string, withTime = false): string {
     ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
   });
 }
+
+/** Offset (ms) of `timeZone` from UTC at instant `ts`. */
+function tzOffset(ts: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(ts);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - Math.floor(ts / 1000) * 1000;
+}
+
+/** "2026-10-24T10:30" meant in `timeZone` (e.g. the workspace's) -> ISO UTC string. */
+export function zonedLocalToIso(local: string, timeZone: string): string {
+  const [date = '', time = '00:00'] = local.split('T');
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  const guess = Date.UTC(y!, m! - 1, d!, hh!, mm!);
+  let utc = guess - tzOffset(guess, timeZone);
+  utc = guess - tzOffset(utc, timeZone); // correct across DST changes
+  return new Date(utc).toISOString();
+}
+
+export function formatInZone(value: string, timeZone: string): string {
+  return new Date(value).toLocaleString(undefined, { timeZone, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}

@@ -2,6 +2,8 @@ import type { Types } from 'mongoose';
 import { logger } from '../../lib/logger.js';
 import { phoneFromWaId, recordInboundContact } from '../contacts/contact.service.js';
 import { recordInboundOnConversation, messagePreview } from '../inbox/conversation.service.js';
+import { CampaignRecipient } from '../campaigns/campaign.model.js';
+import { Contact } from '../contacts/contact.model.js';
 import { Message } from '../messages/message.model.js';
 import { applyStatusEvent } from '../messages/message.service.js';
 import { MessageTemplate } from '../templates/template.model.js';
@@ -78,6 +80,30 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
     throw err;
   }
   await recordInboundOnConversation(workspaceId, contact._id, messagePreview(event.type, event.content), event.timestamp);
+  await applyConsentKeyword(workspaceId, contact._id, event);
+
+  // A reply within a week of a broadcast counts as a campaign reply.
+  await CampaignRecipient.updateMany(
+    {
+      workspaceId,
+      contactId: contact._id,
+      repliedAt: null,
+      status: { $in: ['submitted', 'sent', 'delivered', 'read'] },
+      createdAt: { $gte: new Date(event.timestamp.getTime() - 7 * 24 * 60 * 60 * 1000) },
+    },
+    { repliedAt: event.timestamp },
+  );
+}
+
+const OPT_OUT = /^\s*(stop|unsubscribe|opt[\s-]?out|stop all)\s*[.!]?\s*$/i;
+const OPT_IN = /^\s*(start|subscribe|opt[\s-]?in)\s*[.!]?\s*$/i;
+
+/** "STOP" opts a contact out of broadcasts; "START" opts them back in. */
+async function applyConsentKeyword(workspaceId: Types.ObjectId, contactId: Types.ObjectId, event: InboundMessageEvent) {
+  const text = event.type === 'text' ? String(event.content.text ?? '') : event.type === 'button' ? String(event.content.text ?? '') : '';
+  const status = OPT_OUT.test(text) ? 'opted_out' : OPT_IN.test(text) ? 'opted_in' : null;
+  if (!status) return;
+  await Contact.updateOne({ _id: contactId, workspaceId }, { consent: { status, source: 'keyword', updatedAt: event.timestamp } });
 }
 
 // The sandbox provider emits simulated receipts straight into the same pipeline.

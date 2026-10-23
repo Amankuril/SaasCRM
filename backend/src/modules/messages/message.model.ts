@@ -25,6 +25,8 @@ const messageSchema = new Schema(
     attempts: { type: Number, default: 0 },
     idempotencyKey: { type: String, default: null },
     sentBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    // Set for broadcast sends so delivery receipts can update the campaign report.
+    campaignId: { type: Schema.Types.ObjectId, ref: 'Campaign', default: null },
     submittedAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },

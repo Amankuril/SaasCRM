@@ -5,6 +5,8 @@ import { loadWorkspace, requirePermission } from '../../middleware/workspace.js'
 import { audit } from '../audit/audit.service.js';
 import { auditRouter } from '../audit/audit.routes.js';
 import { invitationRouter } from '../invitations/invitation.routes.js';
+import { campaignRouter } from '../campaigns/campaign.routes.js';
+import { segmentRouter } from '../campaigns/segment.routes.js';
 import { contactRouter } from '../contacts/contact.routes.js';
 import { tagRouter } from '../contacts/tag.routes.js';
 import { conversationRouter } from '../inbox/conversation.routes.js';
@@ -76,3 +78,5 @@ scoped.use('/messages', messageRouter);
 scoped.use('/contacts', contactRouter);
 scoped.use('/tags', tagRouter);
 scoped.use('/conversations', conversationRouter);
+scoped.use('/campaigns', campaignRouter);
+scoped.use('/segments', segmentRouter);

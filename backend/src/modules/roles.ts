@@ -21,6 +21,7 @@ const PERMISSIONS = {
   'contacts:import': ['owner', 'admin'],
   'contacts:export': ['owner', 'admin'],
   'tags:manage': ['owner', 'admin', 'manager'],
+  'campaigns:manage': ['owner', 'admin', 'manager'],
   'audit:read': ['owner', 'admin'],
 } as const satisfies Record<string, readonly Role[]>;
 

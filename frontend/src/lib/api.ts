@@ -127,6 +127,7 @@ export type Permission =
   | 'contacts:import'
   | 'contacts:export'
   | 'tags:manage'
+  | 'campaigns:manage'
   | 'audit:read';
 
 export interface User {
@@ -281,4 +282,51 @@ export interface Member {
   email: string | null;
   role: Role;
   joinedAt: string;
+}
+
+export interface AudienceFilter {
+  tagsAny: string[];
+  excludeTags: string[];
+  stages: LifecycleStage[];
+  requireOptIn: boolean;
+}
+
+export interface VariableSpec {
+  source: 'static' | 'field';
+  value: string;
+  fallback: string;
+}
+
+export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'cancelled' | 'failed';
+
+export interface Campaign {
+  id: string;
+  name: string;
+  status: CampaignStatus;
+  templateId: string | null;
+  templateName: string | null;
+  headerVariables: VariableSpec[];
+  bodyVariables: VariableSpec[];
+  audience: { type: 'all' | 'segment' | 'filter'; segmentId: string | null; filter: AudienceFilter };
+  sendRatePerMinute: number;
+  quietHours: { enabled: boolean; start: string; end: string };
+  scheduledAt: string | null;
+  launchedAt: string | null;
+  completedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  stats: Partial<Record<'total' | 'pending' | 'queued' | 'submitted' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped' | 'replied', number>>;
+}
+
+export interface Segment {
+  id: string;
+  name: string;
+  filter: AudienceFilter;
+}
+
+export interface CampaignPreview {
+  matched: number;
+  eligible: number;
+  skipped: Record<string, number>;
+  samples: { contact: string; phone: string; preview: string }[];
 }

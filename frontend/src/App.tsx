@@ -14,6 +14,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SignupPage } from './pages/SignupPage';
 import { TeamPage } from './pages/TeamPage';
 import { ContactsPage } from './pages/ContactsPage';
+import { CampaignPage } from './pages/CampaignPage';
+import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { WhatsAppPage } from './pages/WhatsAppPage';
@@ -40,6 +42,8 @@ export function App() {
         <Route path="whatsapp" element={<WhatsAppPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="contacts" element={<ContactsPage />} />
+        <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns/:campaignId" element={<CampaignPage />} />
         <Route path="templates" element={<TemplatesPage />} />
       </Route>
 

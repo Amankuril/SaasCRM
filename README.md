@@ -35,7 +35,16 @@ frontend/   React 19 + Vite + Tailwind 4 dashboard
 - Visibility: owners/admins/managers see everything, analysts read-only, agents see unassigned + their own
 - Realtime: Socket.io + Redis pub/sub change signals (ids only; clients refetch through the permission-checked API)
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, saved segments, routing rules/SLA metrics, and later phases (campaigns, flows, AI, billing).
+**Phase 4: Broadcast campaigns** (done)
+
+- Saved segments (tags any/exclude, lifecycle stages, opt-in only) with live reachable counts
+- Campaign editor: audience, approved template, per-variable mapping (contact field / custom field / static text, with fallback), send rate, quiet hours, send now or schedule in the workspace timezone
+- Preview shows exactly who gets it and why others are skipped (opted out, no opt-in, missing variable), with rendered sample messages
+- Launch snapshots recipients; a BullMQ dispatcher sends rate-limited batches with atomic claims + idempotency keys (re-runs never duplicate), pauses itself if the connection breaks or the template stops being approved
+- Pause / resume / cancel; recipient-level report (sent, delivered, read, replied, failed, skipped) that always reconciles
+- Customers can text STOP / START to opt out or back in
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, and later phases (flows, AI, billing).
 
 ## Getting started
 

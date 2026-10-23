@@ -51,7 +51,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Marketing',
     items: [
-      { label: 'Broadcasts', icon: Megaphone, soon: true },
+      { to: 'campaigns', label: 'Broadcasts', icon: Megaphone },
       { to: 'templates', label: 'Templates', icon: FileText },
     ],
   },
@@ -179,7 +179,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                     ) : (
                       <NavLink
                         to={`/w/${workspace.id}${item.to ? `/${item.to}` : ''}`}
-                        end
+                        end={!item.to}
                         onClick={onNavigate}
                         className={({ isActive }) =>
                           cn(

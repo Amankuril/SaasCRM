@@ -10,6 +10,7 @@ import { credentialsOf, getConnection, markConnectionAuthError } from '../whatsa
 import { ProviderError, whatsappProvider, type OutboundMessage, type StatusEvent, type TemplateComponent } from '../whatsapp/provider/index.js';
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } from '../inbox/conversation.service.js';
+import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
 
 export type SendInput =
@@ -86,8 +87,45 @@ export async function queueOutboundMessage(
   }
 }
 
+/**
+ * Broadcast send for one contact (templates only, so no 24h-window check). The
+ * idempotency key makes a re-run of the same campaign batch return the existing
+ * message instead of sending twice.
+ */
+export async function queueCampaignMessage(
+  workspaceId: Types.ObjectId,
+  recipient: { _id: Types.ObjectId; contactId: Types.ObjectId; campaignId: Types.ObjectId },
+  content: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<MessageDoc> {
+  const { contactId, campaignId } = recipient;
+  let message: MessageDoc;
+  try {
+    message = await Message.create({ workspaceId, contactId, campaignId, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey });
+  } catch (err) {
+    if ((err as { code?: number }).code !== 11000) throw err;
+    const existing = (await Message.findOne({ workspaceId, idempotencyKey }))!;
+    await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { messageId: existing._id, status: existing.status });
+    return existing;
+  }
+  // Link before sending so every later status change finds its recipient row.
+  await CampaignRecipient.updateOne({ _id: recipient._id, workspaceId }, { messageId: message._id });
+  await recordOutboundOnConversation(workspaceId, contactId, messagePreview('template', content), new Date());
+  await enqueue('whatsapp.send', { workspaceId: workspaceId.toString(), messageId: message.id as string }, { jobId: `send-${message.id}` });
+  return message;
+}
+
+/** Mirrors a broadcast message's delivery status onto its campaign recipient row. */
+async function syncCampaignRecipient(message: MessageDoc) {
+  if (!message.campaignId) return;
+  await CampaignRecipient.updateOne(
+    { workspaceId: message.workspaceId, messageId: message._id },
+    { status: message.status, error: message.status === 'failed' ? message.error : null },
+  );
+}
+
 /** Snapshot of the template + rendered parameters, so history stays accurate if the template changes. */
-function buildTemplateContent(template: TemplateDoc, headerParams: string[], bodyParams: string[]) {
+export function buildTemplateContent(template: TemplateDoc, headerParams: string[], bodyParams: string[]) {
   if (template.status !== 'APPROVED') {
     throw new AppError(422, 'TEMPLATE_NOT_APPROVED', `Template "${template.name}" is ${template.status.toLowerCase()}, not approved.`);
   }
@@ -129,6 +167,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
   const fail = async (code: string, title: string, text: string) => {
     message.set({ status: 'failed', failedAt: new Date(), error: { code, title, message: text } });
     await message.save();
+    await syncCampaignRecipient(message);
     await notifyMessagesChanged(message.workspaceId, message.contactId);
   };
 
@@ -159,6 +198,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
     const { providerMessageId } = await whatsappProvider().sendMessage(credentialsOf(conn), outbound);
     message.set({ status: 'submitted', providerMessageId, submittedAt: new Date(), error: null });
     await message.save();
+    await syncCampaignRecipient(message);
     await Contact.updateOne({ _id: contact._id, workspaceId: contact.workspaceId }, { lastOutboundAt: new Date() });
     await notifyMessagesChanged(message.workspaceId, message.contactId);
   } catch (err) {
@@ -214,6 +254,7 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
 
   if (message.isModified()) {
     await message.save();
+    await syncCampaignRecipient(message);
     await notifyMessagesChanged(workspaceId, message.contactId);
   }
   return true;
