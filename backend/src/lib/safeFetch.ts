@@ -28,13 +28,79 @@ export function isPrivateAddress(ip: string): boolean {
   return v6 === '::' || v6 === '::1' || v6.startsWith('fc') || v6.startsWith('fd') || v6.startsWith('fe80') || v6.startsWith('ff');
 }
 
-async function assertPublicHost(url: URL) {
-  if (url.protocol !== 'https:') throw new AppError(400, 'UNSAFE_URL', 'Only https:// links can be imported.');
+async function assertPublicHost(url: URL, allowPrivate = false) {
+  if (url.protocol !== 'https:' && !(allowPrivate && url.protocol === 'http:')) throw new AppError(400, 'UNSAFE_URL', 'Only https:// links are allowed.');
   if (url.username || url.password) throw new AppError(400, 'UNSAFE_URL', 'Links with credentials are not allowed.');
+  if (allowPrivate) return;
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
   if (!addresses.length) throw new AppError(400, 'UNSAFE_URL', 'That website could not be found.');
-  if (addresses.some(isPrivateAddress)) throw new AppError(400, 'UNSAFE_URL', 'That address points to a private network and cannot be imported.');
+  if (addresses.some(isPrivateAddress)) throw new AppError(400, 'UNSAFE_URL', 'That address points to a private network and cannot be used.');
+}
+
+/** Validates a customer-supplied outbound URL (webhook endpoint, flow HTTP step) before saving it. */
+export async function assertSafeOutboundUrl(rawUrl: string, allowPrivate = false): Promise<URL> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new AppError(400, 'UNSAFE_URL', 'Enter a valid URL.');
+  }
+  await assertPublicHost(url, allowPrivate);
+  return url;
+}
+
+export interface SafeResponse {
+  status: number;
+  headers: Headers;
+  /** First `maxBytes` of the body as text. */
+  body: string;
+  durationMs: number;
+}
+
+/**
+ * Server-to-customer HTTP call (webhook deliveries, flow HTTP steps) with the same
+ * SSRF guard as imports. Redirects are not followed: a 3xx is returned as is.
+ * Network failures throw AppError('REQUEST_FAILED').
+ */
+export async function safeRequest(
+  rawUrl: string,
+  init: { method: string; headers?: Record<string, string>; body?: string; timeoutMs?: number; maxBytes?: number; allowPrivate?: boolean },
+): Promise<SafeResponse> {
+  const url = await assertSafeOutboundUrl(rawUrl, init.allowPrivate);
+  const started = Date.now();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: init.method,
+      headers: { 'User-Agent': 'ZetaConnect/1.0', ...init.headers },
+      body: init.body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(init.timeoutMs ?? TIMEOUT_MS),
+    });
+  } catch (err) {
+    const timedOut = (err as Error).name === 'TimeoutError';
+    throw new AppError(502, 'REQUEST_FAILED', timedOut ? 'The request timed out.' : 'Could not connect to the URL.');
+  }
+  const body = await readCapped(res, init.maxBytes ?? 100_000);
+  return { status: res.status, headers: res.headers, body, durationMs: Date.now() - started };
+}
+
+async function readCapped(res: Response, maxBytes: number): Promise<string> {
+  const reader = res.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    chunks.push(value);
+    if (size >= maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      break;
+    }
+  }
+  return Buffer.concat(chunks).toString('utf8').slice(0, maxBytes);
 }
 
 /**

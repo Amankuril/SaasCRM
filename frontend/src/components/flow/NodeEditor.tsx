@@ -89,6 +89,7 @@ export function NodeEditor({
             </p>
           </>
         )}
+        {node.type === 'http_request' && <HttpForm d={d} set={set} />}
         {node.type === 'send_text' && (
           <MessageText label="Message" value={d.text} onChange={(text) => set({ text })} />
         )}
@@ -162,6 +163,77 @@ export function NodeEditor({
   );
 }
 
+function HttpForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const headers: { key: string; value: string }[] = d.headers ?? [];
+  const saves: { path: string; var: string }[] = d.saveResponse ?? [];
+  const hasBody = d.method !== 'GET' && d.method !== 'DELETE';
+  return (
+    <>
+      <div className="flex gap-2">
+        <div className="w-28 shrink-0">
+          <Select aria-label="Method" value={d.method ?? 'POST'} onChange={(e) => set({ method: e.target.value, ...(['GET', 'DELETE'].includes(e.target.value) ? { body: '' } : {}) })}>
+            {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => (
+              <option key={m}>{m}</option>
+            ))}
+          </Select>
+        </div>
+        <Input aria-label="URL" value={d.url ?? ''} onChange={(e) => set({ url: e.target.value })} placeholder="https://api.yourshop.com/orders/{{vars.order_id}}" />
+      </div>
+      <p className="text-xs text-slate-500">{'{{placeholders}}'} work in the path, query, headers and body (not the host).</p>
+
+      <div className="space-y-2">
+        <p className="font-medium text-slate-700">Headers</p>
+        {headers.map((h, i) => (
+          <div key={i} className="flex gap-1.5">
+            <Input aria-label="Header name" value={h.key} placeholder="Authorization" onChange={(e) => set({ headers: headers.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)) })} />
+            <Input aria-label="Header value" value={h.value} placeholder="Bearer …" onChange={(e) => set({ headers: headers.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} />
+            <button type="button" onClick={() => set({ headers: headers.filter((_, j) => j !== i) })} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove header">
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        ))}
+        {headers.length < 10 && (
+          <Button type="button" variant="secondary" className="py-1 text-xs" onClick={() => set({ headers: [...headers, { key: '', value: '' }] })}>
+            <Plus className="size-3.5" /> Header
+          </Button>
+        )}
+        <p className="text-xs text-slate-500">Header values are stored in the flow. Use a key that can only do what this step needs.</p>
+      </div>
+
+      {hasBody && (
+        <Field label="Body" htmlFor="http-body" hint='JSON bodies: put placeholders inside quotes, e.g. "name": "{{contact.name}}". Values are escaped for you.'>
+          <textarea id="http-body" rows={6} className={`${textarea} font-mono text-xs`} value={d.body ?? ''} onChange={(e) => set({ body: e.target.value })} />
+        </Field>
+      )}
+
+      <div className="space-y-2">
+        <p className="font-medium text-slate-700">Save from the JSON response</p>
+        {saves.map((m, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <Input aria-label="Response path" value={m.path} placeholder="data.status" onChange={(e) => set({ saveResponse: saves.map((x, j) => (j === i ? { ...x, path: e.target.value } : x)) })} />
+            <span className="text-xs text-slate-400">→</span>
+            <Input aria-label="Variable name" value={m.var} placeholder="order_status" onChange={(e) => set({ saveResponse: saves.map((x, j) => (j === i ? { ...x, var: e.target.value } : x)) })} />
+            <button type="button" onClick={() => set({ saveResponse: saves.filter((_, j) => j !== i) })} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove mapping">
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        ))}
+        {saves.length < 10 && (
+          <Button type="button" variant="secondary" className="py-1 text-xs" onClick={() => set({ saveResponse: [...saves, { path: '', var: '' }] })}>
+            <Plus className="size-3.5" /> Mapping
+          </Button>
+        )}
+        <p className="text-xs text-slate-500">
+          Saved values become {'{{vars.<name>}}'}; the status code is always in {'{{vars.http_status}}'}. 2xx follows &ldquo;Success&rdquo;, anything else or a timeout follows &ldquo;Failed&rdquo;.
+        </p>
+      </div>
+      <Field label="Timeout (seconds)" htmlFor="http-t">
+        <Input id="http-t" type="number" min={1} max={15} value={d.timeoutSeconds ?? 10} onChange={(e) => set({ timeoutSeconds: Math.max(1, Math.min(15, Number(e.target.value) || 10)) })} />
+      </Field>
+    </>
+  );
+}
+
 function MessageText({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="space-y-1.5">
@@ -190,8 +262,14 @@ function TriggerForm({ d, set, tags, forms }: { d: Data; set: (p: Data) => void;
           <option value="new_contact">A new contact messages for the first time</option>
           <option value="tag_added">A tag is added to a contact</option>
           <option value="form_submitted">A WhatsApp form is submitted</option>
+          <option value="api">Started by API / Zapier</option>
         </Select>
       </Field>
+      {d.event === 'api' && (
+        <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+          Start it from your system with <code className="font-mono">POST /api/v1/flows/&lt;flow id&gt;/runs</code> (Developers page). Values you pass in <code className="font-mono">variables</code> are available as {'{{vars.<name>}}'}. Start with a template if the customer may not have messaged in 24 hours.
+        </p>
+      )}
       {d.event === 'form_submitted' && (
         <Field label="Form" htmlFor="tr-f">
           <Select id="tr-f" value={d.formId ?? ''} onChange={(e) => set({ formId: e.target.value || null })}>

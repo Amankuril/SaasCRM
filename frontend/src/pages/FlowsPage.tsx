@@ -16,6 +16,8 @@ const TRIGGER_TEXT: Record<string, string> = {
   any_message: 'Any message',
   new_contact: 'New contact',
   tag_added: 'Tag added',
+  form_submitted: 'Form submitted',
+  api: 'Started by API',
 };
 
 export function FlowsPage() {

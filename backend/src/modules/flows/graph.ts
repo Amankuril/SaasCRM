@@ -11,6 +11,7 @@ import { z } from 'zod';
  *  - send_form: "submitted", "no_reply"
  *  - condition: "true", "false"
  *  - ai_answer: "answered", "handoff"
+ *  - http_request: "success", "failed"
  *  - handoff, exit: none (end of flow)
  */
 export const NODE_TYPES = [
@@ -25,6 +26,7 @@ export const NODE_TYPES = [
   'delay',
   'update_contact',
   'ai_answer',
+  'http_request',
   'handoff',
   'exit',
 ] as const;
@@ -58,6 +60,8 @@ export type GraphNode = z.infer<typeof graphNodeSchema>;
 
 // ---- Typed node configs (validated at publish) ----
 
+const FORBIDDEN_HEADERS = new Set(['host', 'content-length', 'connection', 'transfer-encoding', 'cookie', 'user-agent']);
+
 const variableSpec = z.object({
   source: z.enum(['static', 'field']),
   value: z.string().trim().min(1),
@@ -67,7 +71,8 @@ const variableSpec = z.object({
 export const nodeConfigSchemas = {
   trigger: z
     .object({
-      event: z.enum(['keyword', 'any_message', 'new_contact', 'tag_added', 'form_submitted']),
+      // `api`: started only through POST /api/v1/flows/:id/runs.
+      event: z.enum(['keyword', 'any_message', 'new_contact', 'tag_added', 'form_submitted', 'api']),
       keywords: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
       match: z.enum(['exact', 'contains']).default('exact'),
       tagId: z.string().nullish(),
@@ -143,6 +148,43 @@ export const nodeConfigSchemas = {
     // Send the AI's answer to the customer automatically (otherwise it's only stored in {{vars.ai_answer}}).
     sendAnswer: z.boolean().default(true),
   }),
+  http_request: z
+    .object({
+      method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']).default('POST'),
+      // {{placeholders}} are allowed in the path and query, not in the scheme or host.
+      url: z
+        .string()
+        .trim()
+        .min(1, 'Enter the URL.')
+        .max(2000)
+        .regex(/^https?:\/\/[^/{}\s?#]+([/?#][^\s]*)?$/, 'Enter a full URL (https://…). The host cannot contain {{placeholders}}.'),
+      headers: z
+        .array(
+          z.object({
+            key: z
+              .string()
+              .trim()
+              .regex(/^[A-Za-z0-9-]{1,64}$/, 'Header names use letters, digits and "-".')
+              .refine((k) => !FORBIDDEN_HEADERS.has(k.toLowerCase()), 'This header is set automatically.'),
+            value: z.string().max(2000),
+          }),
+        )
+        .max(10)
+        .default([]),
+      body: z.string().max(10_000).default(''),
+      // Copy values from a JSON response into {{vars.<var>}}, e.g. path "data.customer.id".
+      saveResponse: z
+        .array(
+          z.object({
+            path: z.string().trim().regex(/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+|\[\d+\])*$/, 'Use a path like data.items[0].name'),
+            var: z.string().regex(/^[a-z0-9_]{1,40}$/, 'Variable names use lowercase letters, numbers and underscores.'),
+          }),
+        )
+        .max(10)
+        .default([]),
+      timeoutSeconds: z.number().int().min(1).max(15).default(10),
+    })
+    .refine((c) => !(c.method === 'GET' || c.method === 'DELETE') || !c.body.trim(), { message: 'GET and DELETE requests cannot have a body.', path: ['body'] }),
   handoff: z.object({
     assigneeId: z.string().nullish(),
     message: z.string().trim().max(1024).optional(),
@@ -167,6 +209,8 @@ export function outputHandles(node: GraphNode): string[] {
       return ['true', 'false'];
     case 'ai_answer':
       return ['answered', 'handoff'];
+    case 'http_request':
+      return ['success', 'failed'];
     case 'handoff':
     case 'exit':
       return [];

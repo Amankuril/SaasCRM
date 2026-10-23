@@ -41,6 +41,13 @@ const envSchema = z.object({
   // Platform-wide key; a workspace may bring its own key instead (stored encrypted).
   ANTHROPIC_API_KEY: optionalString,
 
+  // Lets webhooks and flow HTTP steps call http:// and private/localhost addresses.
+  // Development only: in production customer URLs must be public https.
+  ALLOW_PRIVATE_OUTBOUND_URLS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // Meta (WhatsApp Cloud API) app settings. The webhook is rejected until these are set.
   META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v23.0'),
   // WhatsApp Flows JSON version used for published forms (check Meta's docs for the current one).
@@ -59,3 +66,5 @@ if (!parsed.success) {
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+
+if (isProd && env.ALLOW_PRIVATE_OUTBOUND_URLS) throw new Error('ALLOW_PRIVATE_OUTBOUND_URLS must not be enabled in production.');

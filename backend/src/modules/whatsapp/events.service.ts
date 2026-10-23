@@ -4,6 +4,8 @@ import { phoneFromWaId, recordInboundContact } from '../contacts/contact.service
 import { recordInboundOnConversation, messagePreview } from '../inbox/conversation.service.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Contact } from '../contacts/contact.model.js';
+import { apiMessage, contactPayload } from '../developer/serializers.js';
+import { emitEvent } from '../developer/webhook.service.js';
 import { onInboundMessage } from '../flows/triggers.js';
 import { handleFormReply } from '../forms/form.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
@@ -67,8 +69,9 @@ export async function processEvents(events: NormalizedEvent[]): Promise<ProcessR
 async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMessageEvent) {
   const { contact, created } = await recordInboundContact(workspaceId, phoneFromWaId(event.from), event.profileName, event.timestamp);
   let messageId: string;
+  let stored;
   try {
-    const message = await Message.create({
+    stored = await Message.create({
       workspaceId,
       contactId: contact._id,
       direction: 'inbound',
@@ -78,7 +81,7 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
       providerMessageId: event.providerMessageId,
       receivedAt: event.timestamp,
     });
-    messageId = message.id as string;
+    messageId = stored.id as string;
   } catch (err) {
     // Redelivered webhook: the message is already stored (and counted).
     if ((err as { code?: number }).code === 11000) return;
@@ -86,6 +89,9 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
   }
   await recordInboundOnConversation(workspaceId, contact._id, messagePreview(event.type, event.content), event.timestamp);
   await applyConsentKeyword(workspaceId, contact._id, event);
+
+  if (created) await emitEvent(workspaceId, 'contact.created', async () => ({ contact: await contactPayload(workspaceId, contact._id) }));
+  await emitEvent(workspaceId, 'message.received', async () => ({ message: apiMessage(stored), contact: await contactPayload(workspaceId, contact._id) }));
 
   // A reply within a week of a broadcast counts as a campaign reply.
   await CampaignRecipient.updateMany(
@@ -118,7 +124,10 @@ async function applyConsentKeyword(workspaceId: Types.ObjectId, contactId: Types
   const text = event.type === 'text' ? String(event.content.text ?? '') : event.type === 'button' ? String(event.content.text ?? '') : '';
   const status = OPT_OUT.test(text) ? 'opted_out' : OPT_IN.test(text) ? 'opted_in' : null;
   if (!status) return;
-  await Contact.updateOne({ _id: contactId, workspaceId }, { consent: { status, source: 'keyword', updatedAt: event.timestamp } });
+  const before = await Contact.findOneAndUpdate({ _id: contactId, workspaceId }, { consent: { status, source: 'keyword', updatedAt: event.timestamp } });
+  if (status === 'opted_out' && before?.consent?.status !== 'opted_out') {
+    await emitEvent(workspaceId, 'contact.opted_out', async () => ({ contact: await contactPayload(workspaceId, contactId), source: 'keyword' }));
+  }
 }
 
 // The sandbox provider emits simulated receipts straight into the same pipeline.

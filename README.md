@@ -66,7 +66,15 @@ scripts/    dev.mjs: starts both apps together
 - Submissions validated against the version that was sent, stored once per flow token, mapped onto contact fields, with a success reply
 - Flow builder: new "Send form" (submitted / no reply) and "AI answer" (answered / handoff) steps, "Form submitted" trigger, `form_*` and `ai_answer` variables
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, HTTP/API step in flows, multi-screen forms / Flow endpoints, and later phases (integrations, billing).
+**Phase 7: Integrations (REST API + webhooks)** (done)
+
+- Developers page: scoped workspace API keys (`zc_live_…`, SHA-256 hashed, shown once, optional expiry, last-used tracking, 24h-overlap rolling, revoke)
+- Public REST API at `/api/v1` (contract version `2026-10-01`): contacts (upsert by phone, tags by name, custom-field merge), messages (templates by name, status), templates, conversations, campaigns + reports, flows, forms + submissions, webhooks; cursor pagination, `Idempotency-Key` replay, per-key rate limit, `{ error: { code, message, request_id } }`
+- Outgoing webhooks: 10 event types (messages, contacts, opt-outs, assignment, resolve, forms, campaigns, flows, AI handoff), HMAC-SHA256 `Zeta-Signature` with timestamp, secret rotation with 24h dual signing, durable BullMQ retries (8 attempts over ~11h) then dead-letter, auto-disable after repeated failures, pause/resume, test pings, manual resend, 30-day delivery log with personal data masked
+- Flow builder: "Started by API" trigger (`POST /v1/flows/:id/runs` with variables) and an "HTTP request" step (placeholders, JSON-escaped bodies, response → `{{vars.*}}`, success/failed branches)
+- SSRF guard on every customer URL (https only, public IPs, no redirects, timeouts, size caps); `ALLOW_PRIVATE_OUTBOUND_URLS=true` allows localhost in development only
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 8 (billing, quotas, analytics).
 
 ## Getting started
 

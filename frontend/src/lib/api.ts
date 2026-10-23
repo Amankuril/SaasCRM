@@ -131,6 +131,7 @@ export type Permission =
   | 'flows:manage'
   | 'ai:manage'
   | 'forms:manage'
+  | 'developer:manage'
   | 'audit:read';
 
 export interface User {
@@ -347,6 +348,7 @@ export type FlowNodeType =
   | 'update_contact'
   | 'send_form'
   | 'ai_answer'
+  | 'http_request'
   | 'handoff'
   | 'exit';
 
@@ -476,4 +478,47 @@ export interface WaForm {
   hasUnpublishedChanges: boolean;
   submissions?: number;
   updatedAt: string;
+}
+
+export interface ApiKeyInfo {
+  id: string;
+  name: string;
+  hint: string;
+  scopes: string[];
+  state: 'active' | 'revoked' | 'expired';
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  rolled: boolean;
+}
+
+export interface WebhookInfo {
+  id: string;
+  url: string;
+  description: string;
+  events: string[];
+  status: 'active' | 'paused' | 'disabled';
+  disabledReason: string | null;
+  consecutiveFailures: number;
+  lastDeliveryAt: string | null;
+  lastDeliveryStatus: 'succeeded' | 'failed' | null;
+  secretRotating: boolean;
+  createdAt: string;
+}
+
+export interface WebhookDeliveryInfo {
+  id: string;
+  eventId: string;
+  eventType: string;
+  status: 'pending' | 'retrying' | 'succeeded' | 'dead';
+  attempts: { at: string; statusCode: number | null; durationMs: number; error: string | null; responseSnippet: string | null }[];
+  nextAttemptAt: string | null;
+  createdAt: string;
+  payload: unknown;
+}
+
+export interface DeveloperCatalog {
+  apiVersion: string;
+  scopes: { id: string; description: string }[];
+  events: { id: string; description: string }[];
 }

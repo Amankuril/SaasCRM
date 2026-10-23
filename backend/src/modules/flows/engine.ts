@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
+import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
+import { safeRequest } from '../../lib/safeFetch.js';
 import { logger } from '../../lib/logger.js';
 import { enqueue, type JobContext } from '../../jobs/queue.js';
 import { getAgent, runAgent } from '../ai/ai.service.js';
+import { emitEvent } from '../developer/webhook.service.js';
 import { resolveVariables, type VariableSpec } from '../campaigns/campaign.service.js';
 import { Contact, type ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
@@ -47,6 +50,8 @@ export interface TriggerInfo {
   type: string;
   messageId?: string;
   text?: string;
+  /** Initial {{vars.*}} (API runs). */
+  vars?: Record<string, string>;
 }
 
 /** Starts a contact on a published flow version, unless they're already in it. */
@@ -69,7 +74,8 @@ export async function startExecution(version: FlowVersionDoc, contactId: Types.O
     contactId,
     status: 'running',
     currentNodeId: triggerNode.id,
-    trigger,
+    trigger: { type: trigger.type, messageId: trigger.messageId, text: trigger.text },
+    vars: trigger.vars ?? {},
     lockedUntil: new Date(Date.now() + LOCK_MS),
   });
   await runLocked(exec, version, nextNodeId(graph, triggerNode.id, 'next'), depth, { nodeId: triggerNode.id, type: 'trigger', outcome: 'started', detail: trigger.type });
@@ -367,6 +373,14 @@ async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepRes
       return { kind: 'next', handle: 'answered', detail: `${decision.sources.length} source(s)` };
     }
 
+    case 'http_request': {
+      const cfg = node.data as NodeConfig<'http_request'>;
+      const result = await callHttp(cfg, ctx);
+      setVar(exec, 'http_status', String(result.status ?? 0));
+      for (const [key, value] of Object.entries(result.saved)) setVar(exec, key, value);
+      return { kind: 'next', handle: result.ok ? 'success' : 'failed', detail: result.detail };
+    }
+
     case 'handoff': {
       const cfg = node.data as NodeConfig<'handoff'>;
       if (cfg.message) await send(ctx.workspace, contact, exec, { type: 'text', text: render(cfg.message, ctx) }, node.id).catch(() => undefined);
@@ -416,8 +430,52 @@ async function send(
 type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
 
 /** {{contact.first_name}}, {{contact.custom.city}}, {{vars.x}}, {{last_reply}} */
-export function render(text: string, ctx: Pick<RunContext, 'contact' | 'exec'>): string {
-  return text.replace(/\{\{\s*([a-z0-9_.]+)\s*\}\}/gi, (_m, key: string) => lookup(key.toLowerCase(), ctx));
+export function render(text: string, ctx: Pick<RunContext, 'contact' | 'exec'>, escape: (value: string) => string = (v) => v): string {
+  return text.replace(/\{\{\s*([a-z0-9_.]+)\s*\}\}/gi, (_m, key: string) => escape(lookup(key.toLowerCase(), ctx)));
+}
+
+const jsonEscape = (v: string) => JSON.stringify(v).slice(1, -1);
+
+/** Flow "HTTP request" step: calls the customer's API with the SSRF guard; never throws. */
+async function callHttp(cfg: NodeConfig<'http_request'>, ctx: RunContext): Promise<{ ok: boolean; status: number | null; saved: Record<string, string>; detail: string }> {
+  const url = render(cfg.url, ctx, encodeURIComponent);
+  const isJson = /^\s*[[{]/.test(cfg.body);
+  const body = cfg.body.trim() ? render(cfg.body, ctx, isJson ? jsonEscape : (v) => v) : undefined;
+  const headers: Record<string, string> = { 'Zeta-Execution-Id': ctx.exec.id as string };
+  if (body) headers['Content-Type'] = isJson ? 'application/json' : 'text/plain; charset=utf-8';
+  for (const h of cfg.headers) headers[h.key] = render(h.value, ctx);
+
+  let res;
+  try {
+    res = await safeRequest(url, { method: cfg.method, headers, body, timeoutMs: cfg.timeoutSeconds * 1000, maxBytes: 100_000, allowPrivate: env.ALLOW_PRIVATE_OUTBOUND_URLS });
+  } catch (err) {
+    return { ok: false, status: null, saved: {}, detail: err instanceof AppError ? err.message : 'Request failed.' };
+  }
+  const ok = res.status >= 200 && res.status < 300;
+  const saved: Record<string, string> = {};
+  if (ok && cfg.saveResponse.length) {
+    let json: unknown;
+    try {
+      json = JSON.parse(res.body);
+    } catch {
+      json = undefined;
+    }
+    for (const m of cfg.saveResponse) {
+      const value = readPath(json, m.path);
+      if (value !== undefined && value !== null) saved[m.var] = (typeof value === 'object' ? JSON.stringify(value) : String(value)).slice(0, 1000);
+    }
+  }
+  return { ok, status: res.status, saved, detail: `HTTP ${res.status} in ${res.durationMs}ms${Object.keys(saved).length ? `, saved ${Object.keys(saved).join(', ')}` : ''}` };
+}
+
+/** "data.items[0].name" -> value, or undefined. */
+export function readPath(value: unknown, path: string): unknown {
+  let current = value;
+  for (const part of path.match(/[^.[\]]+/g) ?? []) {
+    if (current === null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
 }
 
 function lookup(key: string, { contact, exec }: Pick<RunContext, 'contact' | 'exec'>): string {
@@ -527,6 +585,16 @@ async function scheduleWake(exec: ExecutionDoc, ms: number) {
 async function end(exec: ExecutionDoc, status: 'completed' | 'exited', reason?: string, goal?: string) {
   exec.set({ status, exitReason: reason ?? null, goal: goal ?? null, waiting: null, endedAt: new Date(), lockedUntil: null });
   await exec.save();
+  if (status === 'completed') {
+    await emitEvent(exec.workspaceId as unknown as Types.ObjectId, 'flow.completed', {
+      execution_id: exec.id as string,
+      flow_id: exec.flowId.toString(),
+      contact_id: exec.contactId.toString(),
+      reason: reason ?? 'end',
+      goal: goal ?? null,
+      variables: (exec.vars ?? {}) as Record<string, string>,
+    });
+  }
 }
 
 async function fail(exec: ExecutionDoc, error: string) {

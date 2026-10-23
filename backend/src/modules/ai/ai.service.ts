@@ -1,5 +1,7 @@
 import type { Types } from 'mongoose';
 import { decryptSecret } from '../../lib/crypto.js';
+import { contactPayload } from '../developer/serializers.js';
+import { emitEvent } from '../developer/webhook.service.js';
 import { logger } from '../../lib/logger.js';
 import type { ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
@@ -152,6 +154,7 @@ export async function handOff(workspace: WorkspaceDoc, contact: ContactDoc, reas
   );
   await ConversationNote.create({ workspaceId: workspace._id, conversationId: conv!._id, contactId: contact._id, authorLabel: 'AI assistant', body: `[AI handoff] ${reason}` });
   notify(workspace._id, conv!._id, true);
+  await emitEvent(workspace._id, 'ai.handoff', async () => ({ reason, conversation_id: conv!.id as string, contact: await contactPayload(workspace._id, contact._id) }));
 }
 
 /**

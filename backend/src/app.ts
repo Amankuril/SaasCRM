@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestContext.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { publicApiRouter } from './modules/developer/publicApi.routes.js';
 import { publicInvitationRouter } from './modules/invitations/invitation.routes.js';
 import { webhookRouter } from './modules/whatsapp/webhook.routes.js';
 import { workspacesRouter } from './modules/workspaces/workspace.routes.js';
@@ -47,6 +48,8 @@ export function createApp() {
     res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'up' : 'down' });
   });
 
+  // Public REST API (workspace API keys). Server-to-server: no cookies, no CORS.
+  app.use('/api/v1', publicApiRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/invitations', publicInvitationRouter);
   app.use('/api/workspaces', requireAuth, workspacesRouter);

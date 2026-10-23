@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppError, badRequest, conflict } from '../../lib/errors.js';
+import { emitEvent } from '../developer/webhook.service.js';
 import { logger } from '../../lib/logger.js';
 import { enqueue, type JobContext } from '../../jobs/queue.js';
 import type { UserDoc } from '../auth/user.model.js';
@@ -256,7 +257,13 @@ export async function processCampaignDispatch(data: { workspaceId: string; campa
   const remaining = await CampaignRecipient.countDocuments({ workspaceId, campaignId: campaign._id, status: 'pending' });
   if (remaining > 0) return scheduleDispatch(campaign, 60_000);
 
-  await Campaign.updateOne({ _id: campaign._id, workspaceId, status: 'running' }, { status: 'completed', completedAt: new Date() });
+  const done = await Campaign.updateOne({ _id: campaign._id, workspaceId, status: 'running' }, { status: 'completed', completedAt: new Date() });
+  if (done.modifiedCount) {
+    await emitEvent(workspaceId, 'campaign.completed', async () => {
+      const stats = (await campaignStats(workspaceId, [campaign._id])).get(campaign.id as string) ?? {};
+      return { campaign: { id: campaign.id as string, name: campaign.name, completed_at: new Date().toISOString(), recipients: stats.total ?? 0, failed: stats.failed ?? 0, skipped: stats.skipped ?? 0 } };
+    });
+  }
 }
 
 async function pause(campaign: CampaignDoc, reason: string) {

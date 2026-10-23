@@ -17,6 +17,7 @@ import { ContactsPage } from './pages/ContactsPage';
 import { CampaignPage } from './pages/CampaignPage';
 import { FlowsPage } from './pages/FlowsPage';
 import { AiAgentPage } from './pages/AiAgentPage';
+import { DeveloperPage } from './pages/DeveloperPage';
 import { FormBuilderPage } from './pages/FormBuilderPage';
 import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
@@ -55,6 +56,7 @@ export function App() {
         <Route path="forms" element={<FormsPage />} />
         <Route path="forms/:formId" element={<FormBuilderPage />} />
         <Route path="ai" element={<AiAgentPage />} />
+        <Route path="developer" element={<DeveloperPage />} />
         <Route
           path="flows/:flowId"
           element={

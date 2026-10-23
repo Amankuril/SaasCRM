@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { apiConversation, contactPayload } from '../developer/serializers.js';
+import { emitEvent } from '../developer/webhook.service.js';
 import { Types } from 'mongoose';
 import { z } from 'zod';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
@@ -241,10 +243,14 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     }
     await audit(req, { workspaceId: conv.workspaceId, action: 'conversation.status_changed', targetType: 'conversation', targetId: conv.id, metadata: { from, to: input.status } });
   }
+  const resolvedNow = input.status === 'resolved' && conv.isModified('status');
   if (input.priority) conv.priority = input.priority;
   if (input.botPaused !== undefined) conv.botPaused = input.botPaused;
   await conv.save();
   notify(conv.workspaceId, conv._id);
+  if (resolvedNow) {
+    await emitEvent(conv.workspaceId, 'conversation.resolved', async () => ({ conversation: apiConversation(conv), contact: await contactPayload(conv.workspaceId, conv.contactId), resolved_by: req.user!.id as string }));
+  }
 
   const [serialized] = await serializeMany(req.workspace!._id, [conv]);
   res.json({ conversation: serialized });
@@ -274,6 +280,12 @@ async function assign(req: Req, conv: ConversationDoc, assigneeId: Types.ObjectI
     targetId: conv.id,
     metadata: { from, to: assigneeId?.toString() ?? null },
   });
+  await emitEvent(conv.workspaceId, 'conversation.assigned', async () => ({
+    conversation: apiConversation(conv),
+    contact: await contactPayload(conv.workspaceId, conv.contactId),
+    previous_assignee_id: from,
+    assigned_by: req.user!.id as string,
+  }));
 }
 
 async function serializeMany(workspaceId: Types.ObjectId, conversations: ConversationDoc[]) {

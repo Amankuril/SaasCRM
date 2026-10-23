@@ -15,6 +15,7 @@ export interface JobPayloads {
   'webhook.process': { eventId: string };
   'campaign.dispatch': { workspaceId: string; campaignId: string };
   'flow.resume': { workspaceId: string; executionId: string; token: string };
+  'integration.webhook': { workspaceId: string; deliveryId: string; token: string };
 }
 export type JobName = keyof JobPayloads;
 
@@ -30,6 +31,7 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'webhook.process': 'webhooks',
   'campaign.dispatch': 'campaigns',
   'flow.resume': 'flows',
+  'integration.webhook': 'integration-webhooks',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -37,6 +39,7 @@ const CONCURRENCY: Record<JobName, number> = {
   'webhook.process': 20,
   'campaign.dispatch': 2,
   'flow.resume': 10,
+  'integration.webhook': 20,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

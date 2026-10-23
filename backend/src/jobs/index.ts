@@ -1,3 +1,4 @@
+import { processWebhookDelivery } from '../modules/developer/webhook.service.js';
 import { processCampaignDispatch } from '../modules/campaigns/campaign.service.js';
 import { processFlowResume } from '../modules/flows/engine.js';
 import { processSendJob } from '../modules/messages/message.service.js';
@@ -9,3 +10,4 @@ registerProcessor('whatsapp.send', processSendJob);
 registerProcessor('webhook.process', processWebhookJob);
 registerProcessor('campaign.dispatch', processCampaignDispatch);
 registerProcessor('flow.resume', processFlowResume);
+registerProcessor('integration.webhook', processWebhookDelivery);

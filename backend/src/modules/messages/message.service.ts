@@ -12,6 +12,8 @@ import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } from '../inbox/conversation.service.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
+import { apiMessage } from '../developer/serializers.js';
+import { emitEvent } from '../developer/webhook.service.js';
 
 export type SendInput =
   | { to: string; type: 'text'; text: string }
@@ -271,6 +273,7 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
   if (event.status === 'read') setEarliest('deliveredAt');
 
   const current = message.status as MessageStatusValue;
+  const previousStatus = message.status;
   if (event.status === 'failed') {
     // A failure only counts if the message wasn't already delivered.
     if (RANK[current] < RANK.delivered && current !== 'failed') {
@@ -285,6 +288,7 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
     await message.save();
     await syncCampaignRecipient(message);
     await notifyMessagesChanged(workspaceId, message.contactId);
+    if (message.status !== previousStatus) await emitEvent(workspaceId, 'message.status_updated', { message: apiMessage(message), previous_status: previousStatus });
   }
   return true;
 }

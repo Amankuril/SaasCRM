@@ -3,6 +3,7 @@ import {
   Bot,
   ChevronsUpDown,
   ClipboardList,
+  Code2,
   Contact,
   FileText,
   LayoutDashboard,
@@ -68,6 +69,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Workspace',
     items: [
       { to: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+      { to: 'developer', label: 'Developers', icon: Code2, permission: 'developer:manage' },
       { to: 'team', label: 'Team', icon: Users, permission: 'members:read' },
       { to: 'settings', label: 'Settings', icon: Settings },
       { to: 'audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },

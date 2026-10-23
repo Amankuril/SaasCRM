@@ -1,4 +1,4 @@
-import { Bot, ClipboardList, Clock, Flag, GitBranch, Link2, ListChecks, MessageCircleQuestion, MessageSquareText, MousePointerClick, FileText, UserCog, Zap, type LucideIcon } from 'lucide-react';
+import { Bot, ClipboardList, Clock, Flag, GitBranch, Globe, Link2, ListChecks, MessageCircleQuestion, MessageSquareText, MousePointerClick, FileText, UserCog, Zap, type LucideIcon } from 'lucide-react';
 import type { FlowGraphNode, FlowNodeType } from '../../lib/api';
 
 export interface NodeMeta {
@@ -78,6 +78,14 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     group: 'Logic',
     defaults: () => ({ sendAnswer: true }),
   },
+  http_request: {
+    label: 'HTTP request',
+    description: 'Call your API or CRM and use the response',
+    icon: Globe,
+    accent: 'bg-lime-50 text-lime-700 ring-lime-200',
+    group: 'Actions',
+    defaults: () => ({ method: 'POST', url: 'https://', headers: [], body: '{\n  "phone": "{{contact.phone}}"\n}', saveResponse: [], timeoutSeconds: 10 }),
+  },
   condition: {
     label: 'Condition',
     description: 'Branch on contact data or replies',
@@ -149,6 +157,11 @@ export function nodeOutputs(node: Pick<FlowGraphNode, 'type' | 'data'>): { id: s
         { id: 'answered', label: 'Answered' },
         { id: 'handoff', label: 'Needs human' },
       ];
+    case 'http_request':
+      return [
+        { id: 'success', label: 'Success' },
+        { id: 'failed', label: 'Failed' },
+      ];
     case 'handoff':
     case 'exit':
       return [];
@@ -163,6 +176,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   new_contact: 'First message from a new contact',
   tag_added: 'Tag added to contact',
   form_submitted: 'Form submitted',
+  api: 'Started by API (POST /v1/flows/:id/runs)',
 };
 
 /** One-line description shown on the canvas card. */
@@ -190,6 +204,8 @@ export function nodeSummary(
       return d.formId ? names.form(d.formId) : 'Choose a form…';
     case 'ai_answer':
       return d.sendAnswer === false ? 'Store answer in {{vars.ai_answer}}' : 'Reply with the AI answer';
+    case 'http_request':
+      return d.url && d.url !== 'https://' ? `${d.method ?? 'POST'} ${d.url}` : 'Enter the URL…';
     case 'condition':
       return `${d.rules?.length ?? 0} rule(s), match ${d.match === 'any' ? 'any' : 'all'}`;
     case 'delay':

@@ -122,6 +122,13 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
     if (node.type === 'ai_answer' && !(await AiAgent.exists({ workspaceId, enabled: true }))) {
       add(node.id, 'Turn on the AI agent (AI Agent page) before using this step.');
     }
+    if (node.type === 'http_request' && typeof d.body === 'string' && /^\s*[[{]/.test(d.body)) {
+      try {
+        JSON.parse(d.body.replace(/\{\{\s*[a-z0-9_.]+\s*\}\}/gi, 'x'));
+      } catch {
+        add(node.id, 'The body is not valid JSON. Put {{placeholders}} inside quotes, e.g. "name": "{{contact.name}}".');
+      }
+    }
     if (node.type === 'handoff' && typeof d.assigneeId === 'string' && d.assigneeId) {
       const member = Types.ObjectId.isValid(d.assigneeId) ? await WorkspaceMember.findOne({ workspaceId, userId: d.assigneeId }).lean() : null;
       if (!member || member.role === 'analyst') add(node.id, 'Hand off to a teammate who can reply.');
