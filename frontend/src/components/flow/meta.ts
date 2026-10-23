@@ -1,4 +1,4 @@
-import { Clock, Flag, GitBranch, Link2, ListChecks, MessageCircleQuestion, MessageSquareText, MousePointerClick, FileText, UserCog, Zap, type LucideIcon } from 'lucide-react';
+import { Bot, ClipboardList, Clock, Flag, GitBranch, Link2, ListChecks, MessageCircleQuestion, MessageSquareText, MousePointerClick, FileText, UserCog, Zap, type LucideIcon } from 'lucide-react';
 import type { FlowGraphNode, FlowNodeType } from '../../lib/api';
 
 export interface NodeMeta {
@@ -62,6 +62,22 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     group: 'Messages',
     defaults: () => ({ question: '', saveTo: 'custom.answer', validation: 'any', retryMessage: "That doesn't look right. Please try again.", timeoutMinutes: 1440 }),
   },
+  send_form: {
+    label: 'Send form',
+    description: 'WhatsApp form; waits for the submission',
+    icon: ClipboardList,
+    accent: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
+    group: 'Messages',
+    defaults: () => ({ formId: '', text: '', timeoutMinutes: 1440 }),
+  },
+  ai_answer: {
+    label: 'AI answer',
+    description: 'Answer the last message from your knowledge base',
+    icon: Bot,
+    accent: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200',
+    group: 'Logic',
+    defaults: () => ({ sendAnswer: true }),
+  },
   condition: {
     label: 'Condition',
     description: 'Branch on contact data or replies',
@@ -123,6 +139,16 @@ export function nodeOutputs(node: Pick<FlowGraphNode, 'type' | 'data'>): { id: s
         { id: 'true', label: 'Yes' },
         { id: 'false', label: 'No' },
       ];
+    case 'send_form':
+      return [
+        { id: 'submitted', label: 'Submitted' },
+        { id: 'no_reply', label: 'No reply' },
+      ];
+    case 'ai_answer':
+      return [
+        { id: 'answered', label: 'Answered' },
+        { id: 'handoff', label: 'Needs human' },
+      ];
     case 'handoff':
     case 'exit':
       return [];
@@ -136,16 +162,21 @@ const TRIGGER_LABEL: Record<string, string> = {
   any_message: 'Any incoming message',
   new_contact: 'First message from a new contact',
   tag_added: 'Tag added to contact',
+  form_submitted: 'Form submitted',
 };
 
 /** One-line description shown on the canvas card. */
-export function nodeSummary(node: Pick<FlowGraphNode, 'type' | 'data'>, names: { tag: (id: string) => string; template: (id: string) => string }): string {
+export function nodeSummary(
+  node: Pick<FlowGraphNode, 'type' | 'data'>,
+  names: { tag: (id: string) => string; template: (id: string) => string; form: (id: string) => string },
+): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const d = node.data as Record<string, any>;
   switch (node.type) {
     case 'trigger':
       if (d.event === 'keyword') return d.keywords?.length ? `Keyword: ${d.keywords.join(', ')}` : 'Keyword: (none yet)';
       if (d.event === 'tag_added') return `Tag added: ${d.tagId ? names.tag(d.tagId) : '(choose a tag)'}`;
+      if (d.event === 'form_submitted') return `Form submitted: ${d.formId ? names.form(d.formId) : '(choose a form)'}`;
       return TRIGGER_LABEL[d.event] ?? 'Choose a trigger';
     case 'send_text':
     case 'send_buttons':
@@ -155,6 +186,10 @@ export function nodeSummary(node: Pick<FlowGraphNode, 'type' | 'data'>, names: {
       return d.templateId ? names.template(d.templateId) : 'Choose a template…';
     case 'ask':
       return d.question || 'Write a question…';
+    case 'send_form':
+      return d.formId ? names.form(d.formId) : 'Choose a form…';
+    case 'ai_answer':
+      return d.sendAnswer === false ? 'Store answer in {{vars.ai_answer}}' : 'Reply with the AI answer';
     case 'condition':
       return `${d.rules?.length ?? 0} rule(s), match ${d.match === 'any' ? 'any' : 'all'}`;
     case 'delay':

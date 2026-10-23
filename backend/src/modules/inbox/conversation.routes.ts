@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
-import { badRequest, forbidden } from '../../lib/errors.js';
+import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
+import { getAgent, runAgent } from '../ai/ai.service.js';
 import { audit } from '../audit/audit.service.js';
 import { User } from '../auth/user.model.js';
 import { Contact, toPublicContact } from '../contacts/contact.model.js';
@@ -115,7 +116,7 @@ conversationRouter.get('/:conversationId/timeline', async (req, res) => {
     Message.find({ workspaceId, contactId: conv.contactId, ...range }).sort({ createdAt: -1 }).limit(limit).lean(),
     ConversationNote.find({ workspaceId, conversationId: conv._id, ...range }).sort({ createdAt: -1 }).limit(limit).lean(),
   ]);
-  const authorIds = [...new Set([...notes.map((n) => n.authorId.toString()), ...messages.map((m) => m.sentBy?.toString()).filter(Boolean)])];
+  const authorIds = [...new Set([...notes.map((n) => n.authorId?.toString()), ...messages.map((m) => m.sentBy?.toString())].filter(Boolean))];
   const users = await User.find({ _id: { $in: authorIds } }).select('name').lean();
   const nameOf = new Map(users.map((u) => [u._id.toString(), u.name]));
 
@@ -129,14 +130,14 @@ conversationRouter.get('/:conversationId/timeline', async (req, res) => {
       content: m.content,
       status: m.status,
       error: m.error,
-      sentBy: m.sentBy ? (nameOf.get(m.sentBy.toString()) ?? null) : m.flowExecutionId ? 'Bot' : m.campaignId ? 'Broadcast' : null,
+      sentBy: m.sentBy ? (nameOf.get(m.sentBy.toString()) ?? null) : m.aiGenerated ? 'AI' : m.flowExecutionId ? 'Bot' : m.campaignId ? 'Broadcast' : null,
     })),
     ...notes.map((n) => ({
       kind: 'note' as const,
       id: n._id.toString(),
       createdAt: n.createdAt,
       body: n.body,
-      author: nameOf.get(n.authorId.toString()) ?? 'Unknown',
+      author: n.authorId ? (nameOf.get(n.authorId.toString()) ?? 'Unknown') : (n.authorLabel ?? 'System'),
     })),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -172,6 +173,19 @@ conversationRouter.post('/:conversationId/messages', requirePermission('messages
   const key = req.get('idempotency-key')?.trim() || null;
   const { message, duplicate } = await queueOutboundMessage(req.workspace!, req.user!, { ...input, to: contact.phoneE164 }, key);
   res.status(duplicate ? 200 : 202).json({ message: { id: message.id, status: message.status } });
+});
+
+/** Suggests a reply for the agent to review; nothing is sent. */
+conversationRouter.post('/:conversationId/ai-draft', requirePermission('messages:send'), async (req, res) => {
+  const conv = await visible(req);
+  if (!canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
+  const agent = await getAgent(req.workspace!._id, true);
+  if (!agent?.enabled) throw conflict('AI_DISABLED', 'Turn on the AI agent in AI settings to get reply suggestions.');
+  const last = await Message.findOne({ workspaceId: req.workspace!._id, contactId: conv.contactId, direction: 'inbound' }).sort({ createdAt: -1 }).lean();
+  const question = String((last?.content as { text?: string; title?: string } | undefined)?.text ?? (last?.content as { title?: string } | undefined)?.title ?? '');
+  if (!question) throw conflict('NOTHING_TO_ANSWER', "The customer hasn't asked anything yet.");
+  const decision = await runAgent({ workspace: req.workspace!, agent, question, contactId: conv.contactId, conversationId: conv._id, excludeMessageId: last?._id.toString(), purpose: 'draft' });
+  res.json({ draft: decision });
 });
 
 conversationRouter.post('/:conversationId/notes', requirePermission('contacts:manage'), async (req, res) => {
@@ -219,6 +233,7 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     if (input.status === 'resolved') {
       conv.resolvedAt = new Date();
       conv.botPaused = false; // automations may greet the customer again next time
+      conv.aiReplyCount = 0;
     }
     if (from === 'resolved') {
       conv.openedAt = new Date();

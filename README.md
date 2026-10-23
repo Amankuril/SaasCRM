@@ -56,7 +56,17 @@ scripts/    dev.mjs: starts both apps together
 - Publish validation: required config, reachability, one connection per output, loops without a wait, template/tag/assignee references, keyword conflicts between live flows
 - Engine: persisted executions, BullMQ wake-ups with stale-token guard (delays survive restarts), per-execution locking, loop guards, exit on reply, deactivate ends runs, STOP never triggers flows
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, HTTP/API step in flows, and later phases (AI agent, forms, integrations, billing).
+**Phase 6: WhatsApp Forms + AI Agent** (done)
+
+- AI agent per workspace: tone, language, business context, instructions, handoff/fallback messages, escalation keywords, reply cap per conversation, model choice (Claude Opus / Sonnet / Haiku 5.5, default `claude-opus-5-5`), optional own Anthropic key (encrypted)
+- Knowledge base: text, FAQ and URL sources (SSRF-guarded fetch), chunked and searched per workspace with MongoDB text search; answers cite their sources
+- Auto-reply when no flow matches; hands off to the team (bot paused + internal note) when unsure, on escalation keywords or at the reply cap; customer and knowledge text is fenced against prompt injection
+- Inbox "Suggest reply" drafts, AI-labelled bubbles, usage stats (answered / handed off / errors / tokens), test chat; `AI_PROVIDER=sandbox` for local dev without a key
+- WhatsApp Forms (Meta Flows): field builder (text, email, phone, number, long text, dropdown, choice, date, opt-in) with Meta's limits, preview, versioned publish, send from the form page or a flow
+- Submissions validated against the version that was sent, stored once per flow token, mapped onto contact fields, with a success reply
+- Flow builder: new "Send form" (submitted / no reply) and "AI answer" (answered / handoff) steps, "Form submitted" trigger, `form_*` and `ai_answer` variables
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, HTTP/API step in flows, multi-screen forms / Flow endpoints, and later phases (integrations, billing).
 
 ## Getting started
 

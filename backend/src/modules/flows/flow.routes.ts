@@ -84,13 +84,13 @@ flowRouter.post('/:flowId/publish', requirePermission('flows:manage'), async (re
 
   // Store each step's config with defaults applied, so the engine never sees half-filled data.
   graph.nodes = graph.nodes.map((node) => ({ ...node, data: nodeConfigSchemas[node.type].parse(node.data) as Record<string, unknown> }));
-  const trigger = graph.nodes.find((n) => n.type === 'trigger')!.data as { event: string; keywords?: string[]; match?: string; tagId?: string };
+  const trigger = graph.nodes.find((n) => n.type === 'trigger')!.data as { event: string; keywords?: string[]; match?: string; tagId?: string; formId?: string };
   const version = await FlowVersion.create({
     workspaceId,
     flowId: flow._id,
     version: flow.publishedVersion + 1,
     graph,
-    trigger: { event: trigger.event, keywords: trigger.keywords ?? [], match: trigger.match ?? 'exact', tagId: trigger.tagId ?? null },
+    trigger: { event: trigger.event, keywords: trigger.keywords ?? [], match: trigger.match ?? 'exact', tagId: trigger.tagId ?? null, formId: trigger.formId ?? null },
     publishedBy: req.user!._id,
   });
   flow.set({ publishedVersionId: version._id, publishedVersion: version.version, publishedAt: new Date(), status: 'active' });

@@ -1,6 +1,6 @@
 import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { FlowGraphNode, Member, MessageTemplate, Tag, VariableSpec } from '../../lib/api';
+import type { FlowGraphNode, Member, MessageTemplate, Tag, VariableSpec, WaForm } from '../../lib/api';
 import { STAGES } from '../crm';
 import { TemplatePreview } from '../TemplatePreview';
 import { Button, Field, Input, Select } from '../ui';
@@ -19,6 +19,7 @@ export interface EditorDeps {
   tags: Tag[];
   templates: MessageTemplate[];
   members: Member[] | undefined;
+  forms: WaForm[];
 }
 
 /** Right-hand panel: edits the selected step's config. */
@@ -52,7 +53,42 @@ export function NodeEditor({
       </div>
       <fieldset disabled={disabled} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
         <p className="text-xs text-slate-500">{meta.description}</p>
-        {node.type === 'trigger' && <TriggerForm d={d} set={set} tags={deps.tags} />}
+        {node.type === 'trigger' && <TriggerForm d={d} set={set} tags={deps.tags} forms={deps.forms} />}
+        {node.type === 'send_form' && (
+          <>
+            <Field label="Form" htmlFor="sf-f" hint={deps.forms.some((f) => f.status === 'published') ? undefined : 'Publish a form on the Forms page first.'}>
+              <Select id="sf-f" value={d.formId ?? ''} onChange={(e) => set({ formId: e.target.value })}>
+                <option value="">Choose a published form</option>
+                {deps.forms
+                  .filter((f) => f.status === 'published')
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+            <MessageText label="Message with the button (optional)" value={d.text ?? ''} onChange={(text) => set({ text })} />
+            <Timeout d={d} set={set} />
+            <p className="text-xs text-slate-500">
+              Answers are available as {'{{vars.form_<field key>}}'} after &ldquo;Submitted&rdquo;.
+            </p>
+          </>
+        )}
+        {node.type === 'ai_answer' && (
+          <>
+            <p className="rounded-lg bg-fuchsia-50 p-2 text-xs text-fuchsia-800">
+              Answers the customer&apos;s latest message using the AI Agent&apos;s knowledge base. If the AI isn&apos;t sure, the flow follows &ldquo;Needs human&rdquo;.
+            </p>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={d.sendAnswer !== false} onChange={(e) => set({ sendAnswer: e.target.checked })} />
+              Send the answer to the customer
+            </label>
+            <p className="text-xs text-slate-500">
+              The answer is also saved as {'{{vars.ai_answer}}'} and the reason as {'{{vars.ai_reason}}'}.
+            </p>
+          </>
+        )}
         {node.type === 'send_text' && (
           <MessageText label="Message" value={d.text} onChange={(text) => set({ text })} />
         )}
@@ -142,7 +178,7 @@ function MessageText({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-function TriggerForm({ d, set, tags }: { d: Data; set: (p: Data) => void; tags: Tag[] }) {
+function TriggerForm({ d, set, tags, forms }: { d: Data; set: (p: Data) => void; tags: Tag[]; forms: WaForm[] }) {
   const [keywordText, setKeywordText] = useState((d.keywords ?? []).join(', '));
   useEffect(() => setKeywordText((d.keywords ?? []).join(', ')), [d.keywords]);
   return (
@@ -153,8 +189,21 @@ function TriggerForm({ d, set, tags }: { d: Data; set: (p: Data) => void; tags: 
           <option value="any_message">Any customer message (fallback)</option>
           <option value="new_contact">A new contact messages for the first time</option>
           <option value="tag_added">A tag is added to a contact</option>
+          <option value="form_submitted">A WhatsApp form is submitted</option>
         </Select>
       </Field>
+      {d.event === 'form_submitted' && (
+        <Field label="Form" htmlFor="tr-f">
+          <Select id="tr-f" value={d.formId ?? ''} onChange={(e) => set({ formId: e.target.value || null })}>
+            <option value="">Choose a form</option>
+            {forms.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       {d.event === 'keyword' && (
         <>
           <Field label="Keywords" htmlFor="tr-k" hint="Separate with commas, e.g. review, feedback">

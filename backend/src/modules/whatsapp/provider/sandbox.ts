@@ -21,6 +21,39 @@ import {
 export const sandboxEvents = new EventEmitter<{ events: [NormalizedEvent[]] }>();
 
 const templatesByWaba = new Map<string, ProviderTemplate[]>();
+const flows = new Map<string, { screens: { layout: { children: Record<string, unknown>[] } }[] }>();
+
+/** Plausible answers for a sandbox form submission. */
+function sampleAnswers(flowJson: (typeof flows extends Map<string, infer V> ? V : never) | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const c of flowJson?.screens[0]?.layout.children ?? []) {
+    const name = c.name as string | undefined;
+    if (!name) continue;
+    const options = (c['data-source'] as { id: string }[] | undefined) ?? [];
+    switch (c.type) {
+      case 'TextInput':
+        out[name] = { email: 'test.customer@example.com', phone: '+919811112222', number: '2' }[c['input-type'] as string] ?? 'Test Customer';
+        break;
+      case 'TextArea':
+        out[name] = 'Sandbox submission';
+        break;
+      case 'Dropdown':
+      case 'RadioButtonsGroup':
+        out[name] = options[0]?.id ?? '';
+        break;
+      case 'CheckboxGroup':
+        out[name] = options.slice(0, 1).map((o) => o.id);
+        break;
+      case 'DatePicker':
+        out[name] = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+        break;
+      case 'OptIn':
+        out[name] = true;
+        break;
+    }
+  }
+  return out;
+}
 
 function emitLater(delayMs: number, events: NormalizedEvent[]) {
   setTimeout(() => sandboxEvents.emit('events', events), delayMs).unref();
@@ -48,6 +81,22 @@ export class SandboxProvider implements WhatsAppProvider {
     const status = (s: 'sent' | 'delivered' | 'read' | 'failed', offsetMs: number, error: { code: string; title: string; message: string } | null = null) =>
       ({ kind: 'status', phoneNumberId: creds.phoneNumberId, providerMessageId, status: s, timestamp: at(offsetMs), error }) as const;
 
+    if (message.type === 'flow') {
+      // Simulate the customer filling in the form a few seconds later.
+      const response = JSON.stringify({ ...sampleAnswers(flows.get(message.flowId)), flow_token: message.flowToken });
+      emitLater(3_000, [
+        {
+          kind: 'message',
+          phoneNumberId: creds.phoneNumberId,
+          providerMessageId: `wamid.sandbox.form.${randomBytes(8).toString('hex')}`,
+          from: message.to.replace(/^\+/, ''),
+          profileName: null,
+          timestamp: new Date(),
+          type: 'interactive',
+          content: { interactiveType: 'nfm_reply', title: 'Sent', response },
+        },
+      ]);
+    }
     if (message.to.endsWith('0000')) {
       emitLater(1_000, [status('failed', 1_000, { code: '131026', title: 'Message undeliverable', message: 'Sandbox: recipient cannot receive messages.' })]);
     } else {
@@ -72,6 +121,12 @@ export class SandboxProvider implements WhatsAppProvider {
       sandboxEvents.emit('events', [{ kind: 'template_status', wabaId: creds.wabaId, providerTemplateId, status: 'APPROVED', reason: null }]);
     }, 3_000).unref();
     return { providerTemplateId, status: 'PENDING', category: draft.category };
+  }
+
+  async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
+    const providerFlowId = `sandbox-flow-${randomBytes(4).toString('hex')}`;
+    flows.set(providerFlowId, flow.flowJson as typeof flows extends Map<string, infer V> ? V : never);
+    return { providerFlowId, validationErrors: [] };
   }
 
   private templates(wabaId: string): ProviderTemplate[] {

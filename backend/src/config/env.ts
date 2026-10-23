@@ -36,8 +36,15 @@ const envSchema = z.object({
   // `sandbox` fakes WhatsApp (any credentials, simulated delivery receipts) for local development.
   WHATSAPP_PROVIDER: z.enum(['meta', 'sandbox']).default('meta'),
 
+  // `sandbox` answers from knowledge snippets without calling a model (development/demos).
+  AI_PROVIDER: z.enum(['anthropic', 'sandbox']).default('anthropic'),
+  // Platform-wide key; a workspace may bring its own key instead (stored encrypted).
+  ANTHROPIC_API_KEY: optionalString,
+
   // Meta (WhatsApp Cloud API) app settings. The webhook is rejected until these are set.
   META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v23.0'),
+  // WhatsApp Flows JSON version used for published forms (check Meta's docs for the current one).
+  META_FLOW_JSON_VERSION: z.string().regex(/^\d+\.\d+$/).default('6.3'),
   META_APP_SECRET: optionalString,
   META_WEBHOOK_VERIFY_TOKEN: optionalString,
 });

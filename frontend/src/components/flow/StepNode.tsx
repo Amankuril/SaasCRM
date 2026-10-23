@@ -9,6 +9,7 @@ export interface BuilderContextValue {
   issues: Map<string, string[]>;
   tagName: (id: string) => string;
   templateName: (id: string) => string;
+  formName: (id: string) => string;
   /** Node ids currently holding a live execution (from the runs list). */
   activeNodes: Set<string>;
 }
@@ -17,6 +18,7 @@ export const BuilderContext = createContext<BuilderContextValue>({
   issues: new Map(),
   tagName: () => '',
   templateName: () => '',
+  formName: () => '',
   activeNodes: new Set(),
 });
 
@@ -47,7 +49,7 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
         {issues && <AlertTriangle className="ml-auto size-3.5 text-red-500" />}
       </div>
       <p className="line-clamp-3 px-3 py-2 text-xs whitespace-pre-wrap text-slate-600">
-        {nodeSummary(node, { tag: ctx.tagName, template: ctx.templateName })}
+        {nodeSummary(node, { tag: ctx.tagName, template: ctx.templateName, form: ctx.formName })}
       </p>
       {issues && <p className="px-3 pb-2 text-[11px] text-red-600">{issues[0]}</p>}
 

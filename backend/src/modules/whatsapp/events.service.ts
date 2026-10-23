@@ -5,6 +5,8 @@ import { recordInboundOnConversation, messagePreview } from '../inbox/conversati
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Contact } from '../contacts/contact.model.js';
 import { onInboundMessage } from '../flows/triggers.js';
+import { handleFormReply } from '../forms/form.service.js';
+import { Workspace } from '../workspaces/workspace.model.js';
 import { Message } from '../messages/message.model.js';
 import { applyStatusEvent } from '../messages/message.service.js';
 import { MessageTemplate } from '../templates/template.model.js';
@@ -97,7 +99,15 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
     { repliedAt: event.timestamp },
   );
 
-  await onInboundMessage(workspaceId, contact, { id: messageId, type: event.type, content: event.content }, created);
+  // WhatsApp Flow replies are form submissions: store and validate them first.
+  let form: { formId: string; valid: boolean; data: Record<string, unknown> } | undefined;
+  if (event.type === 'interactive' && event.content.interactiveType === 'nfm_reply') {
+    const workspace = await Workspace.findById(workspaceId);
+    const handled = workspace ? await handleFormReply(workspace, contact, { id: messageId, content: event.content }) : null;
+    if (handled) form = { formId: handled.form.id as string, valid: handled.submission.valid, data: (handled.submission.data ?? {}) as Record<string, unknown> };
+  }
+
+  await onInboundMessage(workspaceId, contact, { id: messageId, type: event.type, content: event.content, form }, created);
 }
 
 const OPT_OUT = /^\s*(stop|unsubscribe|opt[\s-]?out|stop all)\s*[.!]?\s*$/i;

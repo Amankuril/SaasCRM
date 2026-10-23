@@ -25,7 +25,8 @@ const flowSchema = new Schema(
     },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
-  { timestamps: true },
+  // minimize: false keeps empty step configs (`data: {}`) instead of dropping them.
+  { timestamps: true, minimize: false },
 );
 
 flowSchema.plugin(tenantScoped);
@@ -46,10 +47,11 @@ const flowVersionSchema = new Schema(
       keywords: { type: [String], default: [] },
       match: { type: String, default: 'exact' },
       tagId: { type: Schema.Types.ObjectId, default: null },
+      formId: { type: Schema.Types.ObjectId, default: null },
     },
     publishedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
-  { timestamps: { createdAt: 'publishedAt', updatedAt: false } },
+  { timestamps: { createdAt: 'publishedAt', updatedAt: false }, minimize: false },
 );
 
 flowVersionSchema.plugin(tenantScoped);

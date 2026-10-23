@@ -8,7 +8,9 @@ import { z } from 'zod';
  *  - trigger, send_text, send_template, send_cta, update_contact, delay: "next"
  *  - send_buttons: "btn:<buttonId>" per button, plus "no_reply" (timeout)
  *  - ask: "answered", "no_reply"
+ *  - send_form: "submitted", "no_reply"
  *  - condition: "true", "false"
+ *  - ai_answer: "answered", "handoff"
  *  - handoff, exit: none (end of flow)
  */
 export const NODE_TYPES = [
@@ -18,16 +20,18 @@ export const NODE_TYPES = [
   'send_buttons',
   'send_cta',
   'ask',
+  'send_form',
   'condition',
   'delay',
   'update_contact',
+  'ai_answer',
   'handoff',
   'exit',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
 /** Nodes that pause the execution: a cycle must pass through one of them. */
-export const WAITING_NODES = new Set<NodeType>(['delay', 'ask', 'send_buttons']);
+export const WAITING_NODES = new Set<NodeType>(['delay', 'ask', 'send_buttons', 'send_form']);
 
 export const graphNodeSchema = z.object({
   id: z.string().min(1).max(64),
@@ -63,13 +67,15 @@ const variableSpec = z.object({
 export const nodeConfigSchemas = {
   trigger: z
     .object({
-      event: z.enum(['keyword', 'any_message', 'new_contact', 'tag_added']),
+      event: z.enum(['keyword', 'any_message', 'new_contact', 'tag_added', 'form_submitted']),
       keywords: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
       match: z.enum(['exact', 'contains']).default('exact'),
       tagId: z.string().nullish(),
+      formId: z.string().nullish(),
     })
     .refine((t) => t.event !== 'keyword' || t.keywords.length > 0, { message: 'Add at least one keyword.', path: ['keywords'] })
-    .refine((t) => t.event !== 'tag_added' || !!t.tagId, { message: 'Choose a tag.', path: ['tagId'] }),
+    .refine((t) => t.event !== 'tag_added' || !!t.tagId, { message: 'Choose a tag.', path: ['tagId'] })
+    .refine((t) => t.event !== 'form_submitted' || !!t.formId, { message: 'Choose a form.', path: ['formId'] }),
   send_text: z.object({ text: z.string().trim().min(1, 'Write a message.').max(4096) }),
   send_template: z.object({
     templateId: z.string().min(1, 'Choose a template.'),
@@ -101,6 +107,11 @@ export const nodeConfigSchemas = {
     retryMessage: z.string().trim().max(500).default("That doesn't look right. Please try again."),
     timeoutMinutes: z.number().int().min(1).max(7 * 24 * 60).default(24 * 60),
   }),
+  send_form: z.object({
+    formId: z.string().min(1, 'Choose a form.'),
+    text: z.string().trim().max(1024).default(''),
+    timeoutMinutes: z.number().int().min(1).max(7 * 24 * 60).default(24 * 60),
+  }),
   condition: z.object({
     match: z.enum(['all', 'any']).default('all'),
     rules: z
@@ -128,6 +139,10 @@ export const nodeConfigSchemas = {
       .min(1, 'Add at least one change.')
       .max(10),
   }),
+  ai_answer: z.object({
+    // Send the AI's answer to the customer automatically (otherwise it's only stored in {{vars.ai_answer}}).
+    sendAnswer: z.boolean().default(true),
+  }),
   handoff: z.object({
     assigneeId: z.string().nullish(),
     message: z.string().trim().max(1024).optional(),
@@ -146,8 +161,12 @@ export function outputHandles(node: GraphNode): string[] {
     }
     case 'ask':
       return ['answered', 'no_reply'];
+    case 'send_form':
+      return ['submitted', 'no_reply'];
     case 'condition':
       return ['true', 'false'];
+    case 'ai_answer':
+      return ['answered', 'handoff'];
     case 'handoff':
     case 'exit':
       return [];

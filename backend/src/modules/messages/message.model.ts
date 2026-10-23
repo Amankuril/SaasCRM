@@ -29,6 +29,7 @@ const messageSchema = new Schema(
     campaignId: { type: Schema.Types.ObjectId, ref: 'Campaign', default: null },
     // Set when an automation flow sent it.
     flowExecutionId: { type: Schema.Types.ObjectId, ref: 'FlowExecution', default: null },
+    aiGenerated: { type: Boolean, default: false },
     submittedAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },

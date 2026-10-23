@@ -17,10 +17,12 @@ export type SendInput =
   | { to: string; type: 'text'; text: string }
   | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[] }
   | { to: string; type: 'buttons'; text: string; header?: string; footer?: string; buttons: { id: string; title: string }[] }
-  | { to: string; type: 'cta_url'; text: string; header?: string; footer?: string; buttonText: string; url: string };
+  | { to: string; type: 'cta_url'; text: string; header?: string; footer?: string; buttonText: string; url: string }
+  | { to: string; type: 'flow'; text: string; flowId: string; flowToken: string; ctaText: string; screen: string; formId: string; formName: string };
 
 export interface SendOptions {
   flowExecutionId?: Types.ObjectId;
+  aiGenerated?: boolean;
 }
 
 /**
@@ -63,7 +65,8 @@ export async function queueOutboundMessage(
     }
     if (input.type === 'text') content = { text: input.text };
     else if (input.type === 'buttons') content = { text: input.text, header: input.header, footer: input.footer, buttons: input.buttons };
-    else content = { text: input.text, header: input.header, footer: input.footer, buttonText: input.buttonText, url: input.url };
+    else if (input.type === 'cta_url') content = { text: input.text, header: input.header, footer: input.footer, buttonText: input.buttonText, url: input.url };
+    else content = { text: input.text, flowId: input.flowId, flowToken: input.flowToken, ctaText: input.ctaText, screen: input.screen, formId: input.formId, formName: input.formName };
   } else {
     const template = Types.ObjectId.isValid(input.templateId)
       ? await MessageTemplate.findOne({ _id: input.templateId, workspaceId: workspace._id })
@@ -83,6 +86,7 @@ export async function queueOutboundMessage(
       idempotencyKey,
       sentBy: user?._id ?? null,
       flowExecutionId: options.flowExecutionId ?? null,
+      aiGenerated: options.aiGenerated ?? false,
     });
     await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
     await enqueue('whatsapp.send', { workspaceId: workspace.id as string, messageId: message.id as string }, { jobId: `send-${message.id}` });
@@ -197,6 +201,16 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
         ? { type: 'buttons', to: contact.phoneE164, ...interactive, buttons: content.buttons as { id: string; title: string }[] }
         : message.type === 'cta_url'
           ? { type: 'cta_url', to: contact.phoneE164, ...interactive, buttonText: String(content.buttonText), url: String(content.url) }
+          : message.type === 'flow'
+            ? {
+                type: 'flow',
+                to: contact.phoneE164,
+                ...interactive,
+                flowId: String(content.flowId),
+                flowToken: String(content.flowToken),
+                ctaText: String(content.ctaText),
+                screen: String(content.screen),
+              }
           : {
           type: 'template',
           to: contact.phoneE164,

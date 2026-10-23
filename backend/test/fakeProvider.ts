@@ -44,6 +44,14 @@ export class FakeProvider implements WhatsAppProvider {
     return this.templates;
   }
 
+  published: { name: string; flowJson: unknown }[] = [];
+  flowValidationErrors: string[] = [];
+
+  async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
+    this.published.push(flow);
+    return { providerFlowId: `flow-${this.published.length}`, validationErrors: this.flowValidationErrors };
+  }
+
   async createTemplate(_creds: ProviderCredentials, draft: TemplateDraft) {
     this.created.push(draft);
     return { providerTemplateId: `tpl-${this.created.length}`, status: 'PENDING', category: draft.category };
@@ -134,6 +142,35 @@ export function inboundButtonPayload(phoneNumberId: string, opts: { id: string; 
                   timestamp: String(Math.floor(Date.now() / 1000)),
                   type: 'interactive',
                   interactive: { type: 'button_reply', button_reply: { id: opts.buttonId, title: opts.title } },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function inboundFormReplyPayload(phoneNumberId: string, opts: { id: string; from: string; response: Record<string, unknown> }) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA',
+        changes: [
+          {
+            field: 'messages',
+            value: {
+              metadata: { phone_number_id: phoneNumberId },
+              contacts: [{ wa_id: opts.from, profile: { name: 'Customer' } }],
+              messages: [
+                {
+                  from: opts.from,
+                  id: opts.id,
+                  timestamp: String(Math.floor(Date.now() / 1000)),
+                  type: 'interactive',
+                  interactive: { type: 'nfm_reply', nfm_reply: { name: 'flow', body: 'Sent', response_json: JSON.stringify(opts.response) } },
                 },
               ],
             },

@@ -9,6 +9,8 @@ import { Conversation, type ConversationDoc } from './conversation.model.js';
 export function messagePreview(type: string, content: Record<string, unknown>): string {
   const c = content as { text?: string; preview?: string; caption?: string; title?: string; template?: { name?: string } };
   if (type === 'template') return c.preview || `Template: ${c.template?.name ?? ''}`;
+  if (type === 'interactive' && content.interactiveType === 'nfm_reply') return '📝 Form submitted';
+  if (type === 'flow') return `📝 Form: ${String(content.formName ?? '')}`;
   const text = c.text ?? c.caption ?? c.title;
   return (text ? String(text) : `[${type}]`).slice(0, 160);
 }

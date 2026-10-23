@@ -129,6 +129,8 @@ export type Permission =
   | 'tags:manage'
   | 'campaigns:manage'
   | 'flows:manage'
+  | 'ai:manage'
+  | 'forms:manage'
   | 'audit:read';
 
 export interface User {
@@ -343,6 +345,8 @@ export type FlowNodeType =
   | 'condition'
   | 'delay'
   | 'update_contact'
+  | 'send_form'
+  | 'ai_answer'
   | 'handoff'
   | 'exit';
 
@@ -404,4 +408,72 @@ export interface FlowExecution {
   createdAt: string;
   endedAt: string | null;
   contact?: { name: string; phone: string } | null;
+}
+
+export type AiModel = 'claude-opus-5-5' | 'claude-sonnet-5-5' | 'claude-haiku-5-5';
+
+export interface AiSettings {
+  enabled: boolean;
+  autoReply: boolean;
+  name: string;
+  tone: 'friendly' | 'professional' | 'concise';
+  language: string;
+  businessContext: string;
+  instructions: string;
+  fallbackMessage: string;
+  handoffMessage: string;
+  escalationKeywords: string[];
+  maxRepliesPerConversation: number;
+  model: AiModel;
+  apiKey: { source: 'workspace' | 'platform'; last4: string | null } | null;
+}
+
+export interface KnowledgeSource {
+  id: string;
+  type: 'text' | 'faq' | 'url';
+  title: string;
+  url: string | null;
+  status: 'ready' | 'failed';
+  error: string | null;
+  chunkCount: number;
+  preview: string;
+  lastIngestedAt: string | null;
+  createdAt: string;
+}
+
+export interface AgentDecision {
+  outcome: 'answered' | 'handoff';
+  answer: string;
+  reason: string;
+  sources: { id: string; title: string }[];
+  error: string | null;
+}
+
+export type FormFieldType = 'short_text' | 'long_text' | 'email' | 'phone' | 'number' | 'dropdown' | 'radio' | 'checkbox' | 'date' | 'opt_in';
+
+export interface FormField {
+  key: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  options: { id: string; title: string }[];
+  saveTo: string | null;
+}
+
+export interface WaForm {
+  id: string;
+  name: string;
+  status: 'draft' | 'published' | 'failed';
+  intro: string;
+  ctaText: string;
+  screenTitle: string;
+  submitLabel: string;
+  successMessage: string;
+  fields: FormField[];
+  version: number;
+  publishError: string | null;
+  publishedAt: string | null;
+  hasUnpublishedChanges: boolean;
+  submissions?: number;
+  updatedAt: string;
 }

@@ -61,6 +61,26 @@ export class MetaCloudProvider implements WhatsAppProvider {
                 action: { buttons: message.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
               },
             }
+          : message.type === 'flow'
+            ? {
+                ...base,
+                type: 'interactive',
+                interactive: {
+                  type: 'flow',
+                  ...interactiveParts(message),
+                  action: {
+                    name: 'flow',
+                    parameters: {
+                      flow_message_version: '3',
+                      flow_token: message.flowToken,
+                      flow_id: message.flowId,
+                      flow_cta: message.ctaText,
+                      flow_action: 'navigate',
+                      flow_action_payload: { screen: message.screen },
+                    },
+                  },
+                },
+              }
           : message.type === 'cta_url'
             ? {
                 ...base,
@@ -121,6 +141,19 @@ export class MetaCloudProvider implements WhatsAppProvider {
   async createTemplate(creds: ProviderCredentials, draft: TemplateDraft) {
     const data = await this.graph<{ id: string; status: string; category: string }>(creds, 'POST', `/${creds.wabaId}/message_templates`, draft);
     return { providerTemplateId: data.id, status: data.status, category: data.category };
+  }
+
+  async publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
+    const data = await this.graph<{ id: string; validation_errors?: { error?: string; message?: string }[] }>(creds, 'POST', `/${creds.wabaId}/flows`, {
+      name: flow.name,
+      categories: ['OTHER'],
+      flow_json: JSON.stringify(flow.flowJson),
+      publish: true,
+    });
+    return {
+      providerFlowId: data.id,
+      validationErrors: (data.validation_errors ?? []).map((e) => e.message ?? e.error ?? 'Invalid flow'),
+    };
   }
 
   private async graph<T = unknown>(creds: ProviderCredentials, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {

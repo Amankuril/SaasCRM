@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Bot,
   ChevronsUpDown,
+  ClipboardList,
   Contact,
   FileText,
   LayoutDashboard,
@@ -59,7 +60,8 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Automation',
     items: [
       { to: 'flows', label: 'Flow Builder', icon: Workflow },
-      { label: 'AI Agent', icon: Bot, soon: true },
+      { to: 'forms', label: 'Forms', icon: ClipboardList },
+      { to: 'ai', label: 'AI Agent', icon: Bot },
     ],
   },
   {

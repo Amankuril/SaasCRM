@@ -23,6 +23,8 @@ const PERMISSIONS = {
   'tags:manage': ['owner', 'admin', 'manager'],
   'campaigns:manage': ['owner', 'admin', 'manager'],
   'flows:manage': ['owner', 'admin'],
+  'ai:manage': ['owner', 'admin'],
+  'forms:manage': ['owner', 'admin'],
   'audit:read': ['owner', 'admin'],
 } as const satisfies Record<string, readonly Role[]>;
 

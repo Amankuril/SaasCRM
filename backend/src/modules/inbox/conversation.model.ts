@@ -19,6 +19,8 @@ const conversationSchema = new Schema(
     priority: { type: String, enum: ['normal', 'high'], default: 'normal' },
     // Set when a flow hands the chat to a human: automations stay quiet until it's resolved or resumed.
     botPaused: { type: Boolean, default: false },
+    // Automatic AI replies since the conversation was last opened (capped per agent settings).
+    aiReplyCount: { type: Number, default: 0 },
     unreadCount: { type: Number, default: 0 },
     lastMessageAt: { type: Date, default: null },
     lastMessagePreview: { type: String, default: null },

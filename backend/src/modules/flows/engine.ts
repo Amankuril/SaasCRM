@@ -3,11 +3,15 @@ import { Types } from 'mongoose';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { enqueue, type JobContext } from '../../jobs/queue.js';
+import { getAgent, runAgent } from '../ai/ai.service.js';
 import { resolveVariables, type VariableSpec } from '../campaigns/campaign.service.js';
 import { Contact, type ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
 import { notify } from '../inbox/conversation.service.js';
 import { ConversationNote } from '../inbox/note.model.js';
+import { Message } from '../messages/message.model.js';
+import { Form } from '../forms/form.model.js';
+import { sendForm } from '../forms/form.service.js';
 import { queueOutboundMessage, type SendInput } from '../messages/message.service.js';
 import { Workspace, type WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
@@ -104,7 +108,10 @@ export async function processFlowResume(data: { workspaceId: string; executionId
  * Feeds a customer reply to the execution waiting on it. Returns true when an
  * execution consumed the message (so no other flow should start from it).
  */
-export async function deliverReply(exec: ExecutionDoc, message: { type: string; content: Record<string, unknown> }): Promise<boolean> {
+export async function deliverReply(
+  exec: ExecutionDoc,
+  message: { type: string; content: Record<string, unknown>; form?: { formId: string; valid: boolean; data: Record<string, unknown> } },
+): Promise<boolean> {
   const workspaceId = exec.workspaceId as unknown as Types.ObjectId;
   const locked = await claim(workspaceId, exec.id as string, { status: 'waiting', 'waiting.kind': 'reply' });
   if (!locked) return true;
@@ -120,6 +127,17 @@ export async function deliverReply(exec: ExecutionDoc, message: { type: string; 
     return true;
   }
   const text = replyText(message);
+
+  if (node.type === 'send_form') {
+    const cfg = node.data as NodeConfig<'send_form'>;
+    if (!message.form || message.form.formId !== cfg.formId || !message.form.valid) {
+      // Chat text or another form: keep waiting for this form.
+      await release(locked);
+      return !message.form;
+    }
+    for (const [key, value] of Object.entries(message.form.data)) setVar(locked, `form_${key}`, Array.isArray(value) ? value.join(', ') : String(value ?? ''));
+    return continueAfterReply(locked, version, node.id, 'submitted', 'form submitted');
+  }
 
   if (node.type === 'send_buttons') {
     const cfg = node.data as NodeConfig<'send_buttons'>;
@@ -240,8 +258,10 @@ async function runLocked(
   }
 }
 
-async function executeNode(node: GraphNode, ctx: RunContext): Promise<StepResult> {
+async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepResult> {
   const { contact, exec } = ctx;
+  // Older saves may have dropped empty configs; treat a missing config as {}.
+  const node = { ...rawNode, data: rawNode.data ?? {} };
   switch (node.type) {
     case 'trigger':
       return { kind: 'next', handle: 'next' };
@@ -291,6 +311,14 @@ async function executeNode(node: GraphNode, ctx: RunContext): Promise<StepResult
       return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: 'waiting for an answer' };
     }
 
+    case 'send_form': {
+      const cfg = node.data as NodeConfig<'send_form'>;
+      const form = await Form.findOne({ _id: cfg.formId, workspaceId: ctx.workspace._id });
+      if (!form) throw new AppError(404, 'FORM_MISSING', 'The form in this step no longer exists.');
+      await sendForm(ctx.workspace, contact, form, { text: cfg.text ? render(cfg.text, ctx) : undefined, idempotencyKey: `flow:${exec.id}:${node.id}:${exec.stepCount}`, flowExecutionId: exec._id });
+      return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: `waiting for "${form.name}"` };
+    }
+
     case 'condition': {
       const cfg = node.data as NodeConfig<'condition'>;
       const results = cfg.rules.map((r) => evaluateRule(r, ctx));
@@ -324,6 +352,21 @@ async function executeNode(node: GraphNode, ctx: RunContext): Promise<StepResult
       return { kind: 'next', handle: 'next', detail: `${cfg.actions.length} change(s)` };
     }
 
+    case 'ai_answer': {
+      const cfg = node.data as NodeConfig<'ai_answer'>;
+      const agent = await getAgent(ctx.workspace._id, true);
+      if (!agent?.enabled) throw new AppError(409, 'AI_DISABLED', 'The AI agent is turned off in AI settings.');
+      const last = await Message.findOne({ workspaceId: ctx.workspace._id, contactId: contact._id, direction: 'inbound' }).sort({ createdAt: -1 }).lean();
+      const question = String((last?.content as { text?: string; title?: string } | undefined)?.text ?? (last?.content as { title?: string } | undefined)?.title ?? '');
+      if (!question) return { kind: 'next', handle: 'handoff', detail: 'no customer question to answer' };
+      const decision = await runAgent({ workspace: ctx.workspace, agent, question, contactId: contact._id, excludeMessageId: last?._id.toString(), purpose: 'flow' });
+      setVar(exec, 'ai_reason', decision.reason);
+      if (decision.outcome !== 'answered') return { kind: 'next', handle: 'handoff', detail: decision.reason };
+      setVar(exec, 'ai_answer', decision.answer);
+      if (cfg.sendAnswer) await send(ctx.workspace, contact, exec, { type: 'text', text: decision.answer }, node.id, { aiGenerated: true });
+      return { kind: 'next', handle: 'answered', detail: `${decision.sources.length} source(s)` };
+    }
+
     case 'handoff': {
       const cfg = node.data as NodeConfig<'handoff'>;
       if (cfg.message) await send(ctx.workspace, contact, exec, { type: 'text', text: render(cfg.message, ctx) }, node.id).catch(() => undefined);
@@ -340,7 +383,7 @@ async function executeNode(node: GraphNode, ctx: RunContext): Promise<StepResult
         { upsert: true, new: true },
       );
       if (cfg.note) {
-        await ConversationNote.create({ workspaceId: ctx.workspace._id, conversationId: conv!._id, contactId: contact._id, authorId: ctx.version.publishedBy, body: `[Bot handoff] ${render(cfg.note, ctx)}` });
+        await ConversationNote.create({ workspaceId: ctx.workspace._id, conversationId: conv!._id, contactId: contact._id, authorLabel: 'Flow bot', body: `[Bot handoff] ${render(cfg.note, ctx)}` });
       }
       notify(ctx.workspace._id, conv!._id, true);
       return { kind: 'end', status: 'completed', reason: 'handoff', detail: assignee ? 'assigned to a teammate' : 'sent to the team queue' };
@@ -357,10 +400,17 @@ async function executeNode(node: GraphNode, ctx: RunContext): Promise<StepResult
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function send(workspace: WorkspaceDoc, contact: ContactDoc, exec: ExecutionDoc, input: DistributiveOmit<SendInput, 'to'>, stepKey: string) {
+async function send(
+  workspace: WorkspaceDoc,
+  contact: ContactDoc,
+  exec: ExecutionDoc,
+  input: DistributiveOmit<SendInput, 'to'>,
+  stepKey: string,
+  options: { aiGenerated?: boolean } = {},
+) {
   // The key ties a send to this exact step of this run, so a retried step never double-sends.
   const key = `flow:${exec.id}:${stepKey}:${exec.stepCount}`;
-  await queueOutboundMessage(workspace, null, { ...input, to: contact.phoneE164 } as SendInput, key, { flowExecutionId: exec._id });
+  await queueOutboundMessage(workspace, null, { ...input, to: contact.phoneE164 } as SendInput, key, { flowExecutionId: exec._id, ...options });
 }
 
 type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;

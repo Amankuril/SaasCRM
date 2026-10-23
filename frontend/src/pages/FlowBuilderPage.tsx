@@ -22,7 +22,7 @@ import { NODE_META, PALETTE_GROUPS } from '../components/flow/meta';
 import { NodeEditor } from '../components/flow/NodeEditor';
 import { BuilderContext, StepNode } from '../components/flow/StepNode';
 import { Alert, Badge, Button, EmptyState, Field, Input, Spinner, cn, errorMessage } from '../components/ui';
-import { ApiError, api, type FlowDetail, type FlowExecution, type FlowGraph, type FlowIssue, type FlowNodeType, type MessageTemplate } from '../lib/api';
+import { ApiError, api, type FlowDetail, type FlowExecution, type FlowGraph, type FlowIssue, type FlowNodeType, type MessageTemplate, type WaForm } from '../lib/api';
 import { useMembers, useTags } from '../lib/hooks';
 import { useWorkspace } from '../layouts/workspaceContext';
 import { FLOW_STATUS } from './FlowsPage';
@@ -87,6 +87,11 @@ function Builder({ flow }: { flow: FlowDetail }) {
     queryKey: ['templates', workspace.id, 'APPROVED'],
     queryFn: () => api.get<{ templates: MessageTemplate[] }>(`/workspaces/${workspace.id}/templates?status=APPROVED`),
     select: (d) => d.templates,
+  });
+  const forms = useQuery({
+    queryKey: ['forms', workspace.id],
+    queryFn: () => api.get<{ forms: WaForm[] }>(`/workspaces/${workspace.id}/forms`),
+    select: (d) => d.forms,
   });
   const runs = useQuery({
     queryKey: ['flow-runs', workspace.id, flow.id],
@@ -165,9 +170,10 @@ function Builder({ flow }: { flow: FlowDetail }) {
       issues: issueMap,
       tagName: (id: string) => tags.data?.find((t) => t.id === id)?.name ?? 'Unknown tag',
       templateName: (id: string) => templates.data?.find((t) => t.id === id)?.name ?? 'Template',
+      formName: (id: string) => forms.data?.find((f) => f.id === id)?.name ?? 'Form',
       activeNodes,
     }),
-    [issueMap, tags.data, templates.data, activeNodes],
+    [issueMap, tags.data, templates.data, forms.data, activeNodes],
   );
 
   const onConnect = useCallback(
@@ -362,7 +368,7 @@ function Builder({ flow }: { flow: FlowDetail }) {
                 <NodeEditor
                   key={selectedNode.id}
                   node={{ id: selectedNode.id, type: selectedNode.type as FlowNodeType, position: selectedNode.position, data: selectedNode.data as Record<string, unknown> }}
-                  deps={{ tags: tags.data ?? [], templates: templates.data ?? [], members: members.data }}
+                  deps={{ tags: tags.data ?? [], templates: templates.data ?? [], members: members.data, forms: forms.data ?? [] }}
                   disabled={!editable}
                   onChange={(data) => {
                     setNodes((ns) => ns.map((n) => (n.id === selectedNode.id ? { ...n, data } : n)));

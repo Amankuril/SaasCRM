@@ -6,7 +6,7 @@ import { ContactDetails } from '../components/ContactDetails';
 import { TemplatePreview } from '../components/TemplatePreview';
 import { initials, relativeTime, TagChip } from '../components/crm';
 import { Alert, Badge, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../components/ui';
-import { api, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TimelineItem } from '../lib/api';
+import { api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TimelineItem } from '../lib/api';
 import { useMembers, useTags } from '../lib/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -382,7 +382,8 @@ function Timeline({ id }: { id: string }) {
 function MessageBubble({ item }: { item: Extract<TimelineItem, { kind: 'message' }> }) {
   const out = item.direction === 'outbound';
   const c = item.content as { text?: string; preview?: string; caption?: string; title?: string; template?: { name: string } };
-  const body = item.type === 'template' ? c.preview : (c.text ?? c.caption ?? c.title ?? `[${item.type} message]`);
+  const isFormReply = item.type === 'interactive' && item.content.interactiveType === 'nfm_reply';
+  const body = item.type === 'template' ? c.preview : isFormReply ? '📝 Form submitted' : (c.text ?? c.caption ?? c.title ?? `[${item.type} message]`);
   const time = new Date(item.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -398,6 +399,11 @@ function MessageBubble({ item }: { item: Extract<TimelineItem, { kind: 'message'
               </span>
             ))}
           </div>
+        )}
+        {item.type === 'flow' && (
+          <span className="mt-1.5 inline-block rounded-md border border-emerald-300 bg-white/70 px-2 py-0.5 text-xs text-sky-700">
+            📝 {String(item.content.formName ?? 'Form')} · {String(item.content.ctaText ?? 'Open form')}
+          </span>
         )}
         {item.type === 'cta_url' && (
           <a href={String(item.content.url)} target="_blank" rel="noreferrer" className="mt-1.5 inline-block rounded-md border border-emerald-300 bg-white/70 px-2 py-0.5 text-xs text-sky-700">
@@ -447,6 +453,14 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
   const [headerParams, setHeaderParams] = useState<string[]>([]);
   const [bodyParams, setBodyParams] = useState<string[]>([]);
   const useTemplate = mode === 'reply' && !windowOpen;
+  const [suggestion, setSuggestion] = useState<AgentDecision | null>(null);
+  const suggest = useMutation({
+    mutationFn: () => api.post<{ draft: AgentDecision }>(`/workspaces/${workspace.id}/conversations/${id}/ai-draft`),
+    onSuccess: ({ draft }) => {
+      setSuggestion(draft);
+      if (draft.outcome === 'answered') setText(draft.answer);
+    },
+  });
 
   const templates = useQuery({
     queryKey: ['templates', workspace.id, 'APPROVED'],
@@ -463,6 +477,7 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
     },
     onSuccess: () => {
       setText('');
+      setSuggestion(null);
       setTemplateId('');
       void queryClient.invalidateQueries({ queryKey: ['timeline', workspace.id, id] });
       void queryClient.invalidateQueries({ queryKey: ['conversation', workspace.id, id] });
@@ -496,7 +511,24 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
           </button>
         ))}
         {mode === 'reply' && !windowOpen && <span className="ml-auto text-xs text-amber-700">24-hour window closed: send an approved template</span>}
+        {mode === 'reply' && windowOpen && (
+          <button onClick={() => suggest.mutate()} disabled={suggest.isPending} className="ml-auto rounded-md px-2.5 py-1 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50 disabled:opacity-60">
+            {suggest.isPending ? 'Thinking…' : '✨ Suggest reply'}
+          </button>
+        )}
       </div>
+      {suggest.error != null && (
+        <div className="mb-2">
+          <Alert>{errorMessage(suggest.error)}</Alert>
+        </div>
+      )}
+      {suggestion && (
+        <p className={cn('mb-2 rounded-md px-2.5 py-1.5 text-xs', suggestion.outcome === 'answered' ? 'bg-fuchsia-50 text-fuchsia-800' : 'bg-amber-50 text-amber-800')}>
+          {suggestion.outcome === 'answered'
+            ? `AI draft added below. Review before sending.${suggestion.sources.length ? ` Sources: ${suggestion.sources.map((s) => s.title).join(', ')}` : ''}`
+            : `The AI suggests a human answer this: ${suggestion.reason}`}
+        </p>
+      )}
       {send.error != null && (
         <div className="mb-2">
           <Alert>{errorMessage(send.error)}</Alert>

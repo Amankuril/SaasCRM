@@ -16,6 +16,9 @@ import { TeamPage } from './pages/TeamPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { CampaignPage } from './pages/CampaignPage';
 import { FlowsPage } from './pages/FlowsPage';
+import { AiAgentPage } from './pages/AiAgentPage';
+import { FormBuilderPage } from './pages/FormBuilderPage';
+import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
 import { TemplatesPage } from './pages/TemplatesPage';
@@ -49,6 +52,9 @@ export function App() {
         <Route path="campaigns" element={<CampaignsPage />} />
         <Route path="campaigns/:campaignId" element={<CampaignPage />} />
         <Route path="flows" element={<FlowsPage />} />
+        <Route path="forms" element={<FormsPage />} />
+        <Route path="forms/:formId" element={<FormBuilderPage />} />
+        <Route path="ai" element={<AiAgentPage />} />
         <Route
           path="flows/:flowId"
           element={

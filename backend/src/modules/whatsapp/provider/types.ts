@@ -36,7 +36,15 @@ export type OutboundMessage =
   // Reply buttons (max 3); taps come back as inbound "interactive" messages with the button id.
   | ({ type: 'buttons'; to: string; buttons: { id: string; title: string }[] } & InteractiveParts)
   // A single call-to-action button that opens a URL.
-  | ({ type: 'cta_url'; to: string; buttonText: string; url: string } & InteractiveParts);
+  | ({ type: 'cta_url'; to: string; buttonText: string; url: string } & InteractiveParts)
+  // Opens a published WhatsApp Flow (our forms). The token comes back with the submission.
+  | ({ type: 'flow'; to: string; flowId: string; flowToken: string; ctaText: string; screen: string } & InteractiveParts);
+
+export interface PublishedFlow {
+  providerFlowId: string;
+  /** Problems Meta reported; empty when the flow is live. */
+  validationErrors: string[];
+}
 
 export interface ProviderTemplate {
   providerTemplateId: string;
@@ -72,6 +80,8 @@ export interface WhatsAppProvider {
   sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }>;
   listTemplates(creds: ProviderCredentials): Promise<ProviderTemplate[]>;
   createTemplate(creds: ProviderCredentials, draft: TemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
+  /** Creates and publishes a WhatsApp Flow (forms). */
+  publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }): Promise<PublishedFlow>;
 }
 
 /**

@@ -1,4 +1,6 @@
 import { Types } from 'mongoose';
+import { AiAgent } from '../ai/ai.model.js';
+import { Form } from '../forms/form.model.js';
 import { Tag } from '../contacts/tag.model.js';
 import { MessageTemplate, templateVariables } from '../templates/template.model.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
@@ -108,6 +110,18 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
     for (const tagId of tagIds) {
       if (!Types.ObjectId.isValid(tagId) || !(await Tag.exists({ _id: tagId, workspaceId }))) add(node.id, 'A selected tag no longer exists.');
     }
+    const formId =
+      (node.type === 'send_form' && typeof d.formId === 'string' && d.formId) ||
+      (node.type === 'trigger' && d.event === 'form_submitted' && typeof d.formId === 'string' && d.formId) ||
+      null;
+    if (formId) {
+      const form = Types.ObjectId.isValid(formId) ? await Form.findOne({ _id: formId, workspaceId }).lean() : null;
+      if (!form) add(node.id, 'The selected form no longer exists.');
+      else if (form.status !== 'published') add(node.id, `Publish the form "${form.name}" first.`);
+    }
+    if (node.type === 'ai_answer' && !(await AiAgent.exists({ workspaceId, enabled: true }))) {
+      add(node.id, 'Turn on the AI agent (AI Agent page) before using this step.');
+    }
     if (node.type === 'handoff' && typeof d.assigneeId === 'string' && d.assigneeId) {
       const member = Types.ObjectId.isValid(d.assigneeId) ? await WorkspaceMember.findOne({ workspaceId, userId: d.assigneeId }).lean() : null;
       if (!member || member.role === 'analyst') add(node.id, 'Hand off to a teammate who can reply.');
@@ -117,8 +131,8 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
 
 /** Two live flows must not compete for the same message. */
 async function checkTriggerConflicts(workspaceId: Types.ObjectId, flowId: Types.ObjectId, trigger: GraphNode, add: (nodeId: string | null, message: string) => void) {
-  const d = trigger.data as { event?: string; keywords?: string[] };
-  if (d.event !== 'keyword' && d.event !== 'any_message' && d.event !== 'new_contact') return;
+  const d = trigger.data as { event?: string; keywords?: string[]; formId?: string };
+  if (!['keyword', 'any_message', 'new_contact', 'form_submitted'].includes(d.event ?? '')) return;
   const others = await Flow.find({ workspaceId, status: 'active', _id: { $ne: flowId }, publishedVersionId: { $ne: null } }).select('name publishedVersionId').lean();
   const versions = await FlowVersion.find({ workspaceId, _id: { $in: others.map((o) => o.publishedVersionId) } }).lean();
   const nameOf = new Map(others.map((o) => [String(o.publishedVersionId), o.name]));
@@ -129,6 +143,8 @@ async function checkTriggerConflicts(workspaceId: Types.ObjectId, flowId: Types.
       const mine = new Set((d.keywords ?? []).map((k) => k.toLowerCase()));
       const clash = v.trigger?.event === 'keyword' ? v.trigger.keywords.find((k) => mine.has(k.toLowerCase())) : undefined;
       if (clash) add(trigger.id, `Keyword "${clash}" is already used by the live flow "${other}".`);
+    } else if (d.event === 'form_submitted') {
+      if (v.trigger?.event === 'form_submitted' && String(v.trigger.formId) === d.formId) add(trigger.id, `The live flow "${other}" already runs when this form is submitted.`);
     } else if (v.trigger?.event === d.event) {
       add(trigger.id, `The live flow "${other}" already uses this trigger. Deactivate it first.`);
     }

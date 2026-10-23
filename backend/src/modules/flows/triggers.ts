@@ -1,5 +1,7 @@
 import type { Types } from 'mongoose';
 import { logger } from '../../lib/logger.js';
+import { autoReply } from '../ai/ai.service.js';
+import { Workspace } from '../workspaces/workspace.model.js';
 import type { ContactDoc } from '../contacts/contact.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
 import { deliverReply, exitExecutions, startExecution } from './engine.js';
@@ -28,7 +30,7 @@ function messageText(message: { type: string; content: Record<string, unknown> }
 export async function onInboundMessage(
   workspaceId: Types.ObjectId,
   contact: ContactDoc,
-  message: { id: string; type: string; content: Record<string, unknown> },
+  message: { id: string; type: string; content: Record<string, unknown>; form?: { formId: string; valid: boolean; data: Record<string, unknown> } },
   createdContact: boolean,
 ): Promise<void> {
   try {
@@ -39,6 +41,15 @@ export async function onInboundMessage(
     if (sleeping.length) {
       const exitFlows = await Flow.find({ workspaceId, _id: { $in: sleeping.map((s) => s.flowId) }, 'settings.exitOnReply': true }).select('_id').lean();
       if (exitFlows.length) await exitExecutions({ workspaceId, contactId: contact._id, flowId: { $in: exitFlows.map((f) => f._id) } }, 'contact_replied');
+    }
+
+    // A form submission only starts "form submitted" flows (never keywords or the AI).
+    if (message.form) {
+      if (!message.form.valid || contact.consent?.status === 'opted_out') return;
+      const versions = await activeVersions(workspaceId);
+      const match = versions.find((v) => v.trigger?.event === 'form_submitted' && String(v.trigger.formId) === message.form!.formId);
+      if (match) await startExecution(match, contact._id, { type: 'form_submitted', messageId: message.id, text: message.form.formId });
+      return;
     }
 
     const text = messageText(message);
@@ -57,7 +68,14 @@ export async function onInboundMessage(
       keyword ??
       (createdContact ? versions.find((v) => v.trigger?.event === 'new_contact') : undefined) ??
       versions.find((v) => v.trigger?.event === 'any_message');
-    if (chosen) await startExecution(chosen, contact._id, { type: chosen.trigger!.event, messageId: message.id, text: text.slice(0, 200) });
+    if (chosen) {
+      await startExecution(chosen, contact._id, { type: chosen.trigger!.event, messageId: message.id, text: text.slice(0, 200) });
+      return;
+    }
+
+    // No flow wants this message: let the AI agent answer it (if enabled).
+    const workspace = await Workspace.findById(workspaceId);
+    if (workspace && workspace.status !== 'suspended') await autoReply(workspace, contact, { id: message.id, text });
   } catch (err) {
     logger.error({ err, contactId: contact.id }, 'Flow trigger handling failed');
   }
