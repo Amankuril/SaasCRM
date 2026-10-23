@@ -58,7 +58,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Automation',
     items: [
-      { label: 'Flow Builder', icon: Workflow, soon: true },
+      { to: 'flows', label: 'Flow Builder', icon: Workflow },
       { label: 'AI Agent', icon: Bot, soon: true },
     ],
   },
@@ -77,7 +77,9 @@ export function WorkspaceLayout() {
   const { workspaceId } = useParams();
   const [mobileOpen, setMobileOpen] = useState(false);
   // The inbox uses the full height/width instead of the padded page container.
-  const fullBleed = useMatch('/w/:workspaceId/inbox');
+  const inboxRoute = useMatch('/w/:workspaceId/inbox');
+  const builderRoute = useMatch('/w/:workspaceId/flows/:flowId');
+  const fullBleed = inboxRoute || builderRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({

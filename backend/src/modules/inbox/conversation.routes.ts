@@ -39,6 +39,7 @@ const updateSchema = z
     status: z.enum(CONVERSATION_STATUSES),
     assigneeId: z.string().nullable(),
     priority: z.enum(['normal', 'high']),
+    botPaused: z.boolean(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
@@ -128,7 +129,7 @@ conversationRouter.get('/:conversationId/timeline', async (req, res) => {
       content: m.content,
       status: m.status,
       error: m.error,
-      sentBy: m.sentBy ? (nameOf.get(m.sentBy.toString()) ?? null) : null,
+      sentBy: m.sentBy ? (nameOf.get(m.sentBy.toString()) ?? null) : m.flowExecutionId ? 'Bot' : m.campaignId ? 'Broadcast' : null,
     })),
     ...notes.map((n) => ({
       kind: 'note' as const,
@@ -211,11 +212,14 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     if (!unchanged) await assign(req, conv, target);
   }
 
-  if ((input.status || input.priority) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
+  if ((input.status || input.priority || input.botPaused !== undefined) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
   if (input.status && input.status !== conv.status) {
     const from = conv.status;
     conv.status = input.status;
-    if (input.status === 'resolved') conv.resolvedAt = new Date();
+    if (input.status === 'resolved') {
+      conv.resolvedAt = new Date();
+      conv.botPaused = false; // automations may greet the customer again next time
+    }
     if (from === 'resolved') {
       conv.openedAt = new Date();
       conv.resolvedAt = null;
@@ -223,6 +227,7 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     await audit(req, { workspaceId: conv.workspaceId, action: 'conversation.status_changed', targetType: 'conversation', targetId: conv.id, metadata: { from, to: input.status } });
   }
   if (input.priority) conv.priority = input.priority;
+  if (input.botPaused !== undefined) conv.botPaused = input.botPaused;
   await conv.save();
   notify(conv.workspaceId, conv._id);
 
@@ -270,6 +275,7 @@ async function serializeMany(workspaceId: Types.ObjectId, conversations: Convers
       id: c.id as string,
       status: c.status,
       priority: c.priority,
+      botPaused: c.botPaused,
       unreadCount: c.unreadCount,
       lastMessageAt: c.lastMessageAt,
       lastMessagePreview: c.lastMessagePreview,

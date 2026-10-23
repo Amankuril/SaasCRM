@@ -4,6 +4,7 @@ import { phoneFromWaId, recordInboundContact } from '../contacts/contact.service
 import { recordInboundOnConversation, messagePreview } from '../inbox/conversation.service.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Contact } from '../contacts/contact.model.js';
+import { onInboundMessage } from '../flows/triggers.js';
 import { Message } from '../messages/message.model.js';
 import { applyStatusEvent } from '../messages/message.service.js';
 import { MessageTemplate } from '../templates/template.model.js';
@@ -62,9 +63,10 @@ export async function processEvents(events: NormalizedEvent[]): Promise<ProcessR
 }
 
 async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMessageEvent) {
-  const contact = await recordInboundContact(workspaceId, phoneFromWaId(event.from), event.profileName, event.timestamp);
+  const { contact, created } = await recordInboundContact(workspaceId, phoneFromWaId(event.from), event.profileName, event.timestamp);
+  let messageId: string;
   try {
-    await Message.create({
+    const message = await Message.create({
       workspaceId,
       contactId: contact._id,
       direction: 'inbound',
@@ -74,6 +76,7 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
       providerMessageId: event.providerMessageId,
       receivedAt: event.timestamp,
     });
+    messageId = message.id as string;
   } catch (err) {
     // Redelivered webhook: the message is already stored (and counted).
     if ((err as { code?: number }).code === 11000) return;
@@ -93,6 +96,8 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
     },
     { repliedAt: event.timestamp },
   );
+
+  await onInboundMessage(workspaceId, contact, { id: messageId, type: event.type, content: event.content }, created);
 }
 
 const OPT_OUT = /^\s*(stop|unsubscribe|opt[\s-]?out|stop all)\s*[.!]?\s*$/i;

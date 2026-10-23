@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { useAuth } from './auth/AuthContext';
 import { Spinner } from './components/ui';
@@ -15,10 +15,14 @@ import { SignupPage } from './pages/SignupPage';
 import { TeamPage } from './pages/TeamPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { CampaignPage } from './pages/CampaignPage';
+import { FlowsPage } from './pages/FlowsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { WhatsAppPage } from './pages/WhatsAppPage';
+
+// The flow builder pulls in React Flow; load it only when opened.
+const FlowBuilderPage = lazy(() => import('./pages/FlowBuilderPage').then((m) => ({ default: m.FlowBuilderPage })));
 
 export function App() {
   const { status } = useAuth();
@@ -44,6 +48,15 @@ export function App() {
         <Route path="contacts" element={<ContactsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
         <Route path="campaigns/:campaignId" element={<CampaignPage />} />
+        <Route path="flows" element={<FlowsPage />} />
+        <Route
+          path="flows/:flowId"
+          element={
+            <Suspense fallback={<Spinner label="Loading builder…" />}>
+              <FlowBuilderPage />
+            </Suspense>
+          }
+        />
         <Route path="templates" element={<TemplatesPage />} />
       </Route>
 

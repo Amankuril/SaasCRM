@@ -24,9 +24,19 @@ export interface TemplateSendParams {
   bodyParams: string[];
 }
 
+export interface InteractiveParts {
+  body: string;
+  header?: string;
+  footer?: string;
+}
+
 export type OutboundMessage =
   | { type: 'text'; to: string; text: string }
-  | { type: 'template'; to: string; template: TemplateSendParams };
+  | { type: 'template'; to: string; template: TemplateSendParams }
+  // Reply buttons (max 3); taps come back as inbound "interactive" messages with the button id.
+  | ({ type: 'buttons'; to: string; buttons: { id: string; title: string }[] } & InteractiveParts)
+  // A single call-to-action button that opens a URL.
+  | ({ type: 'cta_url'; to: string; buttonText: string; url: string } & InteractiveParts);
 
 export interface ProviderTemplate {
   providerTemplateId: string;

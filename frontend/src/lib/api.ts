@@ -128,6 +128,7 @@ export type Permission =
   | 'contacts:export'
   | 'tags:manage'
   | 'campaigns:manage'
+  | 'flows:manage'
   | 'audit:read';
 
 export interface User {
@@ -252,6 +253,7 @@ export interface ConversationSummary {
   id: string;
   status: ConversationStatus;
   priority: 'normal' | 'high';
+  botPaused: boolean;
   unreadCount: number;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
@@ -329,4 +331,77 @@ export interface CampaignPreview {
   eligible: number;
   skipped: Record<string, number>;
   samples: { contact: string; phone: string; preview: string }[];
+}
+
+export type FlowNodeType =
+  | 'trigger'
+  | 'send_text'
+  | 'send_template'
+  | 'send_buttons'
+  | 'send_cta'
+  | 'ask'
+  | 'condition'
+  | 'delay'
+  | 'update_contact'
+  | 'handoff'
+  | 'exit';
+
+export interface FlowGraphNode {
+  id: string;
+  type: FlowNodeType;
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+}
+
+export interface FlowGraphEdge {
+  id: string;
+  source: string;
+  sourceHandle: string;
+  target: string;
+}
+
+export interface FlowGraph {
+  nodes: FlowGraphNode[];
+  edges: FlowGraphEdge[];
+}
+
+export type FlowStatus = 'draft' | 'active' | 'inactive';
+
+export interface FlowSummary {
+  id: string;
+  name: string;
+  description: string;
+  status: FlowStatus;
+  publishedVersion: number;
+  trigger: { event: string | null; keywords: string[] } | null;
+  hasUnpublishedChanges: boolean;
+  draftUpdatedAt: string;
+  updatedAt: string;
+  stats30d?: Partial<Record<'running' | 'waiting' | 'completed' | 'exited' | 'failed', number>>;
+}
+
+export interface FlowDetail extends FlowSummary {
+  draftGraph: FlowGraph;
+  settings: { allowReentry: boolean; exitOnReply: boolean };
+}
+
+export interface FlowIssue {
+  nodeId: string | null;
+  message: string;
+}
+
+export interface FlowExecution {
+  id: string;
+  status: 'running' | 'waiting' | 'completed' | 'exited' | 'failed';
+  currentNodeId: string | null;
+  waiting: { kind: 'delay' | 'reply'; nodeId: string; until: string } | null;
+  trigger: { type?: string; text?: string };
+  stepCount: number;
+  error: string | null;
+  exitReason: string | null;
+  goal: string | null;
+  log: { nodeId: string; type: string; outcome: string; detail?: string; at: string }[];
+  createdAt: string;
+  endedAt: string | null;
+  contact?: { name: string; phone: string } | null;
 }

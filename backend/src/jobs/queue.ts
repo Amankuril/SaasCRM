@@ -14,6 +14,7 @@ export interface JobPayloads {
   'whatsapp.send': { workspaceId: string; messageId: string };
   'webhook.process': { eventId: string };
   'campaign.dispatch': { workspaceId: string; campaignId: string };
+  'flow.resume': { workspaceId: string; executionId: string; token: string };
 }
 export type JobName = keyof JobPayloads;
 
@@ -28,12 +29,14 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'whatsapp.send': 'whatsapp-send',
   'webhook.process': 'webhooks',
   'campaign.dispatch': 'campaigns',
+  'flow.resume': 'flows',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
   'whatsapp.send': 10,
   'webhook.process': 20,
   'campaign.dispatch': 2,
+  'flow.resume': 10,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

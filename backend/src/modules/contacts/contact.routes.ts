@@ -6,6 +6,7 @@ import { emailSchema, objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { publish } from '../../realtime/bus.js';
 import { audit } from '../audit/audit.service.js';
+import { onTagsAdded } from '../flows/triggers.js';
 import { Conversation } from '../inbox/conversation.model.js';
 import { ConversationNote } from '../inbox/note.model.js';
 import { Message } from '../messages/message.model.js';
@@ -127,6 +128,7 @@ contactRouter.post('/', requirePermission('contacts:manage'), async (req, res) =
     ...(input.consentStatus ? { consent: { status: input.consentStatus, source: 'manual', updatedAt: new Date() } } : {}),
     source: 'manual',
   });
+  await onTagsAdded(workspaceId, contact._id, contact.tags);
   publish(req.workspace!.id as string, { type: 'contacts.changed' });
   res.status(201).json({ contact: toPublicContact(contact) });
 });
@@ -148,13 +150,19 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
   if (input.name !== undefined) contact.name = input.name || null;
   if (input.email !== undefined) contact.email = input.email;
   if (input.lifecycleStage) contact.lifecycleStage = input.lifecycleStage;
-  if (input.tags) contact.tags = await validTags(workspaceId, input.tags);
+  let addedTags: Types.ObjectId[] = [];
+  if (input.tags) {
+    const next = await validTags(workspaceId, input.tags);
+    addedTags = next.filter((t) => !contact.tags.some((c) => c.equals(t)));
+    contact.tags = next;
+  }
   if (input.ownerId !== undefined) contact.ownerId = await validOwner(workspaceId, input.ownerId);
   if (input.customFields) contact.customFields = input.customFields;
   if (input.consentStatus && input.consentStatus !== contact.consent?.status) {
     contact.consent = { status: input.consentStatus, source: 'manual', updatedAt: new Date() };
   }
   await contact.save();
+  await onTagsAdded(workspaceId, contact._id, addedTags);
   publish(req.workspace!.id as string, { type: 'contacts.changed' });
   res.json({ contact: toPublicContact(contact) });
 });

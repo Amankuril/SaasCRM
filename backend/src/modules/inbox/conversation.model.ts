@@ -17,6 +17,8 @@ const conversationSchema = new Schema(
     assignedAt: { type: Date, default: null },
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     priority: { type: String, enum: ['normal', 'high'], default: 'normal' },
+    // Set when a flow hands the chat to a human: automations stay quiet until it's resolved or resumed.
+    botPaused: { type: Boolean, default: false },
     unreadCount: { type: Number, default: 0 },
     lastMessageAt: { type: Date, default: null },
     lastMessagePreview: { type: String, default: null },

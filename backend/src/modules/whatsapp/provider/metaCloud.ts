@@ -43,10 +43,35 @@ export class MetaCloudProvider implements WhatsAppProvider {
 
   async sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }> {
     const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: message.to.replace(/^\+/, '') };
+    const interactiveParts = (m: { body: string; header?: string; footer?: string }) => ({
+      ...(m.header ? { header: { type: 'text', text: m.header } } : {}),
+      body: { text: m.body },
+      ...(m.footer ? { footer: { text: m.footer } } : {}),
+    });
     const body =
       message.type === 'text'
         ? { ...base, type: 'text', text: { body: message.text, preview_url: false } }
-        : {
+        : message.type === 'buttons'
+          ? {
+              ...base,
+              type: 'interactive',
+              interactive: {
+                type: 'button',
+                ...interactiveParts(message),
+                action: { buttons: message.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
+              },
+            }
+          : message.type === 'cta_url'
+            ? {
+                ...base,
+                type: 'interactive',
+                interactive: {
+                  type: 'cta_url',
+                  ...interactiveParts(message),
+                  action: { name: 'cta_url', parameters: { display_text: message.buttonText, url: message.url } },
+                },
+              }
+            : {
             ...base,
             type: 'template',
             template: {

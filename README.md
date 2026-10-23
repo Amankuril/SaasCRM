@@ -44,7 +44,16 @@ frontend/   React 19 + Vite + Tailwind 4 dashboard
 - Pause / resume / cancel; recipient-level report (sent, delivered, read, replied, failed, skipped) that always reconciles
 - Customers can text STOP / START to opt out or back in
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, and later phases (flows, AI, billing).
+**Phase 5: Flow builder + automation engine** (done)
+
+- Visual builder (React Flow): drag/click steps, connect labelled outputs, settings panel per step, live "contacts are here" markers, runs tab with step-by-step logs, test runs
+- Triggers: keyword (exact/contains), any message (fallback), new contact, tag added
+- Steps: send text, template (variable mapping), reply buttons (branch per button + no-reply timeout), CTA URL button, question (validated, saved to contact/custom field/flow variable), condition, wait/delay, update contact (tags, stage, fields), human handoff (pauses the bot until resolved), end/goal
+- Draft vs immutable published versions; runs stay on the version they started with
+- Publish validation: required config, reachability, one connection per output, loops without a wait, template/tag/assignee references, keyword conflicts between live flows
+- Engine: persisted executions, BullMQ wake-ups with stale-token guard (delays survive restarts), per-execution locking, loop guards, exit on reply, deactivate ends runs, STOP never triggers flows
+
+Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA metrics, plan quotas on sends, HTTP/API step in flows, and later phases (AI agent, forms, integrations, billing).
 
 ## Getting started
 

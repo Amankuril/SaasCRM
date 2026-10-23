@@ -15,7 +15,13 @@ import { Message, type MessageDoc, type MessageStatusValue } from './message.mod
 
 export type SendInput =
   | { to: string; type: 'text'; text: string }
-  | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[] };
+  | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[] }
+  | { to: string; type: 'buttons'; text: string; header?: string; footer?: string; buttons: { id: string; title: string }[] }
+  | { to: string; type: 'cta_url'; text: string; header?: string; footer?: string; buttonText: string; url: string };
+
+export interface SendOptions {
+  flowExecutionId?: Types.ObjectId;
+}
 
 /**
  * Validates a send request, stores it as `queued` and hands it to the send worker.
@@ -26,6 +32,7 @@ export async function queueOutboundMessage(
   user: UserDoc | null,
   input: SendInput,
   idempotencyKey: string | null,
+  options: SendOptions = {},
 ): Promise<{ message: MessageDoc; duplicate: boolean }> {
   if (idempotencyKey) {
     const existing = await Message.findOne({ workspaceId: workspace._id, idempotencyKey });
@@ -46,7 +53,7 @@ export async function queueOutboundMessage(
   }
 
   let content: Record<string, unknown>;
-  if (input.type === 'text') {
+  if (input.type !== 'template') {
     if (!isInServiceWindow(contact)) {
       throw new AppError(
         422,
@@ -54,7 +61,9 @@ export async function queueOutboundMessage(
         "This customer hasn't messaged you in the last 24 hours. WhatsApp only allows approved templates outside that window.",
       );
     }
-    content = { text: input.text };
+    if (input.type === 'text') content = { text: input.text };
+    else if (input.type === 'buttons') content = { text: input.text, header: input.header, footer: input.footer, buttons: input.buttons };
+    else content = { text: input.text, header: input.header, footer: input.footer, buttonText: input.buttonText, url: input.url };
   } else {
     const template = Types.ObjectId.isValid(input.templateId)
       ? await MessageTemplate.findOne({ _id: input.templateId, workspaceId: workspace._id })
@@ -73,6 +82,7 @@ export async function queueOutboundMessage(
       status: 'queued',
       idempotencyKey,
       sentBy: user?._id ?? null,
+      flowExecutionId: options.flowExecutionId ?? null,
     });
     await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
     await enqueue('whatsapp.send', { workspaceId: workspace.id as string, messageId: message.id as string }, { jobId: `send-${message.id}` });
@@ -179,10 +189,15 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
   if (!contact) return fail('CONTACT_MISSING', 'Contact missing', 'The recipient contact no longer exists.');
 
   const content = message.content as Record<string, unknown>;
+  const interactive = { body: String(content.text), header: (content.header as string) || undefined, footer: (content.footer as string) || undefined };
   const outbound: OutboundMessage =
     message.type === 'text'
       ? { type: 'text', to: contact.phoneE164, text: String(content.text) }
-      : {
+      : message.type === 'buttons'
+        ? { type: 'buttons', to: contact.phoneE164, ...interactive, buttons: content.buttons as { id: string; title: string }[] }
+        : message.type === 'cta_url'
+          ? { type: 'cta_url', to: contact.phoneE164, ...interactive, buttonText: String(content.buttonText), url: String(content.url) }
+          : {
           type: 'template',
           to: contact.phoneE164,
           template: {

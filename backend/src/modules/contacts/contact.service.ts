@@ -16,21 +16,23 @@ export function phoneFromWaId(waId: string): string {
   return `+${waId.replace(/\D/g, '')}`;
 }
 
+/** Upserts the sender. `created` tells "new contact" triggers that this is a first message. */
 export async function recordInboundContact(
   workspaceId: Types.ObjectId,
   phoneE164: string,
   profileName: string | null,
   at: Date,
-): Promise<ContactDoc> {
-  return Contact.findOneAndUpdate(
+): Promise<{ contact: ContactDoc; created: boolean }> {
+  const res = await Contact.findOneAndUpdate(
     { workspaceId, phoneE164 },
     {
       $setOnInsert: { workspaceId, phoneE164, source: 'whatsapp_inbound' },
       ...(profileName ? { $set: { profileName } } : {}),
       $max: { lastInboundAt: at },
     },
-    { upsert: true, new: true },
-  ) as Promise<ContactDoc>;
+    { upsert: true, new: true, includeResultMetadata: true },
+  );
+  return { contact: res.value as ContactDoc, created: !res.lastErrorObject?.updatedExisting };
 }
 
 export async function findOrCreateContact(workspaceId: Types.ObjectId, phoneE164: string, source: string): Promise<ContactDoc> {

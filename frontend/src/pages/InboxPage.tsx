@@ -238,6 +238,16 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
           </div>
 
+          {conv.botPaused && (
+            <span className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" title="A flow handed this chat to the team; automations are paused">
+              Bot paused
+              {writable && (
+                <button className="underline" onClick={() => update.mutate({ botPaused: false })}>
+                  Resume
+                </button>
+              )}
+            </span>
+          )}
           {canAssignOthers && members.data ? (
             <div className="w-40">
               <Select aria-label="Assignee" value={conv.assignee?.id ?? ''} disabled={!writable || update.isPending} onChange={(e) => update.mutate({ assigneeId: e.target.value || null })}>
@@ -380,6 +390,20 @@ function MessageBubble({ item }: { item: Extract<TimelineItem, { kind: 'message'
       <div className={cn('max-w-[75%] rounded-xl px-3 py-2 text-sm shadow-sm', out ? 'rounded-tr-sm bg-emerald-100 text-slate-900' : 'rounded-tl-sm bg-white text-slate-800')}>
         {item.type === 'template' && <p className="mb-0.5 text-[11px] font-medium text-emerald-800">Template · {c.template?.name}</p>}
         <p className="whitespace-pre-wrap break-words">{body}</p>
+        {item.type === 'buttons' && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {((item.content.buttons as { id: string; title: string }[]) ?? []).map((b) => (
+              <span key={b.id} className="rounded-md border border-emerald-300 bg-white/70 px-2 py-0.5 text-xs text-sky-700">
+                {b.title}
+              </span>
+            ))}
+          </div>
+        )}
+        {item.type === 'cta_url' && (
+          <a href={String(item.content.url)} target="_blank" rel="noreferrer" className="mt-1.5 inline-block rounded-md border border-emerald-300 bg-white/70 px-2 py-0.5 text-xs text-sky-700">
+            {String(item.content.buttonText)} ↗
+          </a>
+        )}
         <p className="mt-1 flex items-center justify-end gap-1 text-[11px] text-slate-500">
           {out && item.sentBy && <span>{item.sentBy} ·</span>}
           {time}

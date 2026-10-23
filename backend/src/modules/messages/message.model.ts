@@ -27,6 +27,8 @@ const messageSchema = new Schema(
     sentBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     // Set for broadcast sends so delivery receipts can update the campaign report.
     campaignId: { type: Schema.Types.ObjectId, ref: 'Campaign', default: null },
+    // Set when an automation flow sent it.
+    flowExecutionId: { type: Schema.Types.ObjectId, ref: 'FlowExecution', default: null },
     submittedAt: { type: Date, default: null },
     sentAt: { type: Date, default: null },
     deliveredAt: { type: Date, default: null },

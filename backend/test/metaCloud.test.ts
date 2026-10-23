@@ -41,6 +41,26 @@ describe('MetaCloudProvider', () => {
     });
   });
 
+  it('sends reply buttons and CTA URL buttons as interactive messages', async () => {
+    const fetch = mockFetch(200, { messages: [{ id: 'wamid.X' }] });
+    const provider = new MetaCloudProvider();
+    await provider.sendMessage(creds, { type: 'buttons', to: '+911', body: 'Visited?', footer: 'Clinic', buttons: [{ id: 'yes', title: 'Yes' }] });
+    await provider.sendMessage(creds, { type: 'cta_url', to: '+911', body: 'Review us', header: 'Thanks!', buttonText: 'Open', url: 'https://g.page/x' });
+    const bodies = fetch.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
+    expect(bodies[0].interactive).toEqual({
+      type: 'button',
+      body: { text: 'Visited?' },
+      footer: { text: 'Clinic' },
+      action: { buttons: [{ type: 'reply', reply: { id: 'yes', title: 'Yes' } }] },
+    });
+    expect(bodies[1].interactive).toEqual({
+      type: 'cta_url',
+      header: { type: 'text', text: 'Thanks!' },
+      body: { text: 'Review us' },
+      action: { name: 'cta_url', parameters: { display_text: 'Open', url: 'https://g.page/x' } },
+    });
+  });
+
   it.each([
     [401, 190, 'auth'],
     [400, 131056, 'rate_limit'],

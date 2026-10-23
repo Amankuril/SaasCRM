@@ -114,3 +114,32 @@ export function templateStatusPayload(wabaId: string, templateId: string, event:
     entry: [{ id: wabaId, changes: [{ field: 'message_template_status_update', value: { event, message_template_id: templateId, reason: 'NONE' } }] }],
   };
 }
+
+export function inboundButtonPayload(phoneNumberId: string, opts: { id: string; from: string; buttonId: string; title: string }) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'WABA',
+        changes: [
+          {
+            field: 'messages',
+            value: {
+              metadata: { phone_number_id: phoneNumberId },
+              contacts: [{ wa_id: opts.from, profile: { name: 'Customer' } }],
+              messages: [
+                {
+                  from: opts.from,
+                  id: opts.id,
+                  timestamp: String(Math.floor(Date.now() / 1000)),
+                  type: 'interactive',
+                  interactive: { type: 'button_reply', button_reply: { id: opts.buttonId, title: opts.title } },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
