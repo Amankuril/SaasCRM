@@ -54,11 +54,6 @@ export function DashboardPage() {
           <ul className="divide-y divide-slate-100">
             <Step done title="Create your workspace" description="Business details, timezone and currency." />
             <Step
-              title="Invite your team"
-              description="Add receptionists, agents and managers with the right roles."
-              action={can('members:manage') ? link('team', 'Invite') : undefined}
-            />
-            <Step
               done={!!connection}
               title="Connect your WhatsApp Business number"
               description={

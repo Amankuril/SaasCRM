@@ -13,7 +13,6 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SignupPage } from './pages/SignupPage';
-import { TeamPage } from './pages/TeamPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { CampaignPage } from './pages/CampaignPage';
 import { FlowsPage } from './pages/FlowsPage';
@@ -48,7 +47,6 @@ export function App() {
 
       <Route path="/w/:workspaceId" element={<RequireAuth><WorkspaceLayout /></RequireAuth>}>
         <Route index element={<DashboardPage />} />
-        <Route path="team" element={<TeamPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="audit" element={<AuditLogPage />} />
         <Route path="whatsapp" element={<WhatsAppPage />} />
