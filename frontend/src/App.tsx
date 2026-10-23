@@ -13,6 +13,8 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SignupPage } from './pages/SignupPage';
 import { TeamPage } from './pages/TeamPage';
+import { TemplatesPage } from './pages/TemplatesPage';
+import { WhatsAppPage } from './pages/WhatsAppPage';
 
 export function App() {
   const { status } = useAuth();
@@ -33,6 +35,8 @@ export function App() {
         <Route path="team" element={<TeamPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="audit" element={<AuditLogPage />} />
+        <Route path="whatsapp" element={<WhatsAppPage />} />
+        <Route path="templates" element={<TemplatesPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

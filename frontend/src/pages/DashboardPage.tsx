@@ -1,8 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Clock, MessageCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Badge, Card, PageHeader } from '../components/ui';
+import { api, type ConnectionPayload } from '../lib/api';
 import { useWorkspace } from '../layouts/workspaceContext';
 
 const STATUS_BADGE = {
@@ -15,6 +17,16 @@ export function DashboardPage() {
   const { user } = useAuth();
   const { workspace, can } = useWorkspace();
   const base = `/w/${workspace.id}`;
+  const whatsapp = useQuery({
+    queryKey: ['whatsapp', workspace.id],
+    queryFn: () => api.get<ConnectionPayload>(`/workspaces/${workspace.id}/whatsapp/connection`),
+  });
+  const connection = whatsapp.data?.connection;
+  const link = (to: string, label: string) => (
+    <Link to={`${base}/${to}`} className="text-sm font-medium text-brand-700 hover:underline">
+      {label}
+    </Link>
+  );
 
   return (
     <>
@@ -35,15 +47,25 @@ export function DashboardPage() {
             <Step
               title="Invite your team"
               description="Add receptionists, agents and managers with the right roles."
-              action={can('members:manage') ? <Link to={`${base}/team`} className="text-sm font-medium text-brand-700 hover:underline">Invite</Link> : undefined}
+              action={can('members:manage') ? link('team', 'Invite') : undefined}
             />
             <Step
-              pending
+              done={!!connection}
               title="Connect your WhatsApp Business number"
-              description="Uses Meta's official Embedded Signup. Available once Zeta Connect's Meta Tech Provider approval is complete."
+              description={
+                connection
+                  ? `Connected: ${connection.displayPhoneNumber ?? connection.phoneNumberId}${connection.status === 'error' ? ' (needs attention)' : ''}`
+                  : 'Link the number your customers already message.'
+              }
+              action={!connection && can('provider:manage') ? link('whatsapp', 'Connect') : undefined}
+            />
+            <Step
+              title="Sync or create message templates"
+              description="Templates are needed for reminders, broadcasts and messages outside the 24-hour window."
+              action={connection && can('templates:manage') ? link('templates', 'Open templates') : undefined}
             />
             <Step pending title="Import your contacts" description="Upload a CSV of customers with tags and consent." />
-            <Step pending title="Send your first broadcast or build a flow" description="Approved templates, campaigns and automations." />
+            <Step pending title="Send your first broadcast or build a flow" description="Campaigns and automations arrive in the next phases." />
           </ul>
         </Card>
 
@@ -53,7 +75,7 @@ export function DashboardPage() {
           </div>
           <h2 className="text-sm font-semibold text-ink">Messaging stats</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Conversations, delivery rates and campaign results will appear here once your WhatsApp number is connected.
+            Conversations, delivery rates and campaign results will appear here with the inbox and campaigns (next phases).
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
             {['Contacts', 'Open chats', 'Messages sent', 'Delivery rate'].map((label) => (

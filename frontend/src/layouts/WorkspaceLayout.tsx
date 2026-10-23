@@ -8,6 +8,7 @@ import {
   LogOut,
   Megaphone,
   Menu,
+  MessageCircle,
   MessageSquare,
   Plus,
   ScrollText,
@@ -49,7 +50,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Marketing',
     items: [
       { label: 'Broadcasts', icon: Megaphone, soon: true },
-      { label: 'Templates', icon: FileText, soon: true },
+      { to: 'templates', label: 'Templates', icon: FileText },
     ],
   },
   {
@@ -62,6 +63,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Workspace',
     items: [
+      { to: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
       { to: 'team', label: 'Team', icon: Users, permission: 'members:read' },
       { to: 'settings', label: 'Settings', icon: Settings },
       { to: 'audit', label: 'Audit log', icon: ScrollText, permission: 'audit:read' },

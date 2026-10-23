@@ -12,6 +12,8 @@ const PERMISSIONS = {
   'members:manage': ['owner', 'admin'],
   'billing:manage': ['owner'],
   'provider:manage': ['owner'],
+  'templates:manage': ['owner', 'admin'],
+  'messages:send': ['owner', 'admin', 'manager', 'agent'],
   'audit:read': ['owner', 'admin'],
 } as const satisfies Record<string, readonly Role[]>;
 

@@ -12,7 +12,9 @@ import { requestId } from './middleware/requestContext.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { publicInvitationRouter } from './modules/invitations/invitation.routes.js';
+import { webhookRouter } from './modules/whatsapp/webhook.routes.js';
 import { workspacesRouter } from './modules/workspaces/workspace.routes.js';
+import './jobs/index.js';
 
 export function createApp() {
   const app = express();
@@ -21,9 +23,22 @@ export function createApp() {
   app.disable('x-powered-by');
 
   app.use(requestId);
-  app.use(pinoHttp({ logger, genReqId: (req) => (req as express.Request).id, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId: (req) => (req as express.Request).id,
+      autoLogging: { ignore: (req) => req.url === '/api/health' },
+      // Keep request logs short and free of headers/cookies.
+      serializers: {
+        req: (req: { id: string; method: string; url: string }) => ({ id: req.id, method: req.method, url: req.url }),
+        res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+      },
+    }),
+  );
   app.use(helmet());
   app.use(cors({ origin: env.APP_URL, credentials: true }));
+  // Before express.json(): webhook signatures are checked against the raw body.
+  app.use('/api/webhooks', webhookRouter);
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 

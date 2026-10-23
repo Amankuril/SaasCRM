@@ -14,6 +14,11 @@ export default defineConfig({
       JWT_ACCESS_SECRET: 'test-secret-that-is-definitely-long-enough-123',
       BCRYPT_ROUNDS: '4',
       APP_URL: 'http://localhost:5173',
+      ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
+      QUEUE_DRIVER: 'inline',
+      RUN_WORKERS: 'false',
+      META_APP_SECRET: 'test-app-secret',
+      META_WEBHOOK_VERIFY_TOKEN: 'test-verify-token',
     },
   },
 });

@@ -47,7 +47,7 @@ export function refreshAccessToken(): Promise<string | null> {
   return refreshing;
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
   const headers: Record<string, string> = {};
@@ -80,6 +80,7 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
+  put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   delete: <T = void>(path: string) => request<T>('DELETE', path),
 };
@@ -96,6 +97,8 @@ export type Permission =
   | 'members:manage'
   | 'billing:manage'
   | 'provider:manage'
+  | 'templates:manage'
+  | 'messages:send'
   | 'audit:read';
 
 export interface User {
@@ -128,4 +131,60 @@ export interface WorkspaceSummary extends Workspace {
 export interface WorkspaceContextPayload {
   workspace: Workspace;
   membership: { id: string; role: Role; permissions: Permission[] };
+}
+
+export interface WhatsAppConnection {
+  id: string;
+  provider: string;
+  wabaId: string;
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  verifiedName: string | null;
+  qualityRating: string | null;
+  messagingLimitTier: string | null;
+  status: 'connected' | 'error';
+  lastError: string | null;
+  lastSyncAt: string | null;
+  lastWebhookAt: string | null;
+  createdAt: string;
+}
+
+export interface ConnectionPayload {
+  connection: WhatsAppConnection | null;
+  webhook: { callbackUrl: string; configured: boolean };
+  sandbox: boolean;
+}
+
+export interface TemplateComponent {
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  format?: string;
+  text?: string;
+  buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+}
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  rejectedReason: string | null;
+  components: TemplateComponent[];
+  variables: { header: number; body: number };
+  syncedAt: string | null;
+  updatedAt: string;
+}
+
+export type MessageStatus = 'queued' | 'submitted' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';
+
+export interface ChatMessage {
+  id: string;
+  contactId: string;
+  contact: { phone: string; name: string | null } | null;
+  direction: 'inbound' | 'outbound';
+  type: string;
+  content: Record<string, unknown>;
+  status: MessageStatus;
+  error: { code: string; title: string; message: string } | null;
+  createdAt: string;
 }
