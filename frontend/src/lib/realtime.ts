@@ -23,8 +23,33 @@ export function useRealtime(workspaceId: string) {
       auth: (cb) => cb({ token: getAccessToken() }),
     });
 
-    const join = () => socket.emit('workspace:join', workspaceId);
+    // Signals sent while we were disconnected are lost: refetch everything once on
+    // reconnect, and poll while the socket is down so the inbox never goes stale.
+    const refreshAll = () => {
+      for (const key of ['conversations', 'conversation-counts', 'conversation', 'timeline', 'messages', 'contacts']) {
+        void queryClient.invalidateQueries({ queryKey: [key, workspaceId] });
+      }
+    };
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let wasConnected = false;
+    const stopPolling = () => {
+      if (poll) clearInterval(poll);
+      poll = null;
+    };
+    const startPolling = () => {
+      poll ??= setInterval(refreshAll, 15_000);
+    };
+    // Until the first connect succeeds, keep the inbox fresh by polling.
+    const firstConnectTimer = setTimeout(() => !socket.connected && startPolling(), 5_000);
+
+    const join = () => {
+      socket.emit('workspace:join', workspaceId);
+      stopPolling();
+      if (wasConnected) refreshAll();
+      wasConnected = true;
+    };
     socket.on('connect', join);
+    socket.on('disconnect', startPolling);
     socket.on('connect_error', (err) => {
       if (err.message === 'unauthorized') {
         void refreshAccessToken().then((token) => token && socket.connect());
@@ -48,6 +73,8 @@ export function useRealtime(workspaceId: string) {
     });
 
     return () => {
+      clearTimeout(firstConnectTimer);
+      stopPolling();
       socket.disconnect();
     };
   }, [workspaceId, queryClient]);

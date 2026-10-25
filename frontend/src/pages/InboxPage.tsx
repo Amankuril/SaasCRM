@@ -1,12 +1,12 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Inbox, Lock, MessageSquare, RotateCcw, Search, StickyNote } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Inbox, Lock, MessageSquare, Plus, RotateCcw, Search, StickyNote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ContactDetails } from '../components/ContactDetails';
 import { TemplatePreview } from '../components/TemplatePreview';
-import { initials, relativeTime, TagChip } from '../components/crm';
-import { Alert, Badge, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../components/ui';
-import { api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TimelineItem } from '../lib/api';
+import { initials, Modal, relativeTime, TagChip } from '../components/crm';
+import { Alert, Badge, Button, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
+import { ApiError, api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TimelineItem } from '../lib/api';
 import { useMembers, useTags } from '../lib/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -62,7 +62,7 @@ function ConversationList({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
-  const { workspace } = useWorkspace();
+  const { workspace, can } = useWorkspace();
   const counts = useQuery({
     queryKey: ['conversation-counts', workspace.id],
     queryFn: () => api.get<Record<View, number>>(`/workspaces/${workspace.id}/conversations/counts`),
@@ -80,9 +80,20 @@ function ConversationList({
   });
   const conversations = list.data?.pages.flatMap((p) => p.conversations) ?? [];
 
+  const canStart = can('contacts:manage') && can('messages:send') && workspace.status !== 'suspended';
+  const [starting, setStarting] = useState(false);
+
   return (
     <>
       <div className="space-y-3 border-b border-slate-200 p-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-base font-semibold text-ink">Chats</h1>
+          {canStart && (
+            <button onClick={() => setStarting(true)} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900" aria-label="New chat" title="New chat">
+              <Plus className="size-5" />
+            </button>
+          )}
+        </div>
         <div className="flex rounded-lg bg-slate-100 p-0.5 text-sm">
           {(['all', 'mine', 'unassigned'] as View[]).map((v) => (
             <button
@@ -164,6 +175,15 @@ function ConversationList({
           </div>
         )}
       </div>
+      {starting && (
+        <NewChatModal
+          onClose={() => setStarting(false)}
+          onStarted={(id) => {
+            setStarting(false);
+            onSelect(id);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -172,6 +192,52 @@ interface ConversationDetail {
   conversation: ConversationSummary;
   contact: Contact | null;
   canReply: boolean;
+}
+
+/** "+" in the chat list: open a chat with any number (creates the contact if new). */
+function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: (conversationId: string) => void }) {
+  const { workspace } = useWorkspace();
+  const queryClient = useQueryClient();
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const start = useMutation({
+    mutationFn: () => api.post<{ conversation: ConversationSummary }>(`/workspaces/${workspace.id}/conversations`, { phone, name: name.trim() || undefined }),
+    onSuccess: ({ conversation }) => {
+      void queryClient.invalidateQueries({ queryKey: ['conversations', workspace.id] });
+      void queryClient.invalidateQueries({ queryKey: ['conversation-counts', workspace.id] });
+      void queryClient.invalidateQueries({ queryKey: ['contacts', workspace.id] });
+      onStarted(conversation.id);
+    },
+  });
+  const err = start.error;
+  return (
+    <Modal title="New chat" onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start.mutate();
+        }}
+      >
+        {err != null && !(err instanceof ApiError && err.code === 'VALIDATION_ERROR') && <Alert>{errorMessage(err)}</Alert>}
+        <Field label="WhatsApp number" htmlFor="nc-phone" error={fieldError(err, 'phone')} hint={`With country code, e.g. +91 98765 43210. Numbers without one are read as ${workspace.country}.`}>
+          <Input id="nc-phone" type="tel" autoFocus value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
+        </Field>
+        <Field label="Name (optional)" htmlFor="nc-name" error={fieldError(err, 'name')}>
+          <Input id="nc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Customer name" />
+        </Field>
+        <p className="text-xs text-slate-500">If this customer hasn&apos;t messaged you in the last 24 hours, WhatsApp only allows an approved template as the first message.</p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={start.isPending} disabled={phone.trim().length < 5}>
+            Start chat
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {

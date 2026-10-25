@@ -48,6 +48,13 @@ export function WhatsAppPage() {
         </div>
 
         <div className="space-y-6 lg:col-span-2">
+          {connection && !sandbox && !connection.lastWebhookAt && (
+            <Alert tone="info">
+              <strong>No messages received from Meta yet.</strong> Sending works, but customer replies and delivery ticks only arrive once Meta can reach this server:
+              your tunnel (e.g. ngrok) must be running, and the callback URL and verify token below must be saved in the Meta app (WhatsApp → Configuration) with the
+              <code className="mx-1">messages</code> field subscribed.
+            </Alert>
+          )}
           {can('provider:manage') && <WebhookCard webhook={webhook} />}
           {connection && sandbox && can('provider:manage') && writable && <SimulateInboundCard />}
         </div>

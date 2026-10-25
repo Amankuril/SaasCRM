@@ -40,6 +40,28 @@ async function team() {
 const list = async (user: TestUser, base: string, query = '') => (await api().get(`${base}${query}`).set(auth(user)).expect(200)).body.conversations;
 
 describe('team inbox', () => {
+  it('"+" starts a chat with a new number, reusing the contact and conversation if they exist', async () => {
+    const { owner, agent1, base, ws } = await team();
+    const started = await api().post(base).set(auth(owner)).send({ phone: '98111 33344', name: 'Walk-in Riya' }).expect(201);
+    expect(started.body).toMatchObject({ created: true, createdContact: true });
+    expect(started.body.conversation).toMatchObject({ status: 'open', serviceWindowOpen: false, lastMessagePreview: 'New chat', contact: { phone: '+919811133344', name: 'Walk-in Riya' } });
+    expect((await list(owner, base))[0].id).toBe(started.body.conversation.id);
+
+    // Same number again: same chat, no duplicate contact.
+    const again = await api().post(base).set(auth(owner)).send({ phone: '+919811133344' }).expect(200);
+    expect(again.body).toMatchObject({ created: false, createdContact: false, conversation: { id: started.body.conversation.id } });
+    expect((await api().get(`/api/workspaces/${ws.id}/contacts`).set(auth(owner))).body.total).toBe(1);
+
+    // No 24h window yet: free text is refused, a template is required.
+    const text = await api().post(`${base}/${started.body.conversation.id}/messages`).set(auth(owner)).send({ type: 'text', text: 'Hello!' }).expect(422);
+    expect(text.body.error.code).toBe('OUTSIDE_SERVICE_WINDOW');
+
+    // An agent's new chat is assigned to them so it appears in their list.
+    const mine = await api().post(base).set(auth(agent1)).send({ phone: '+919811155566' }).expect(201);
+    expect(mine.body.conversation.assignee).toMatchObject({ id: agent1.id });
+    await api().post(base).set(auth(owner)).send({ phone: '12' }).expect(400);
+  });
+
   it('a customer message creates an open, unread conversation; replies clear unread', async () => {
     const { owner, base } = await team();
     await inbound('919811112222', 'Hi, need an appointment');

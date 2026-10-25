@@ -7,11 +7,13 @@ import { z } from 'zod';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
+import { publish } from '../../realtime/bus.js';
 import { getAgent, runAgent } from '../ai/ai.service.js';
 import { audit } from '../audit/audit.service.js';
+import { assertWithinLimit } from '../billing/billing.service.js';
 import { User } from '../auth/user.model.js';
 import { Contact, toPublicContact } from '../contacts/contact.model.js';
-import { isInServiceWindow } from '../contacts/contact.service.js';
+import { isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
 import { Message } from '../messages/message.model.js';
 import { queueOutboundMessage } from '../messages/message.service.js';
 import { can, type Role } from '../roles.js';
@@ -87,6 +89,62 @@ conversationRouter.get('/', async (req, res) => {
     conversations: await serializeMany(workspaceId, page),
     nextBefore: conversations.length > limit ? page.at(-1)!.lastMessageAt?.toISOString() ?? null : null,
   });
+});
+
+const startSchema = z.object({
+  phone: z.string().trim().min(5, 'Enter a phone number.').max(30),
+  name: z.string().trim().max(200).optional(),
+});
+
+/**
+ * "+" in the inbox: opens a chat with a phone number, creating the contact if
+ * needed. Outside the 24h window the first message must be a template.
+ */
+conversationRouter.post('/', requirePermission('contacts:manage'), requirePermission('messages:send'), async (req, res) => {
+  const input = parse(startSchema, req.body);
+  const workspaceId = req.workspace!._id;
+  const phoneE164 = normalizePhone(input.phone, req.workspace!.country);
+  if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { phone: ['Enter a valid phone number with country code.'] });
+
+  let contact = await Contact.findOne({ workspaceId, phoneE164 });
+  const createdContact = !contact;
+  if (!contact) {
+    await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }));
+    contact = await Contact.create({ workspaceId, phoneE164, name: input.name || null, source: 'manual' });
+  } else if (input.name && !contact.name) {
+    contact.name = input.name;
+    await contact.save();
+  }
+
+  // Agents who can't see every chat get it assigned, so it shows up for them.
+  const assignee = canViewAll(req.membership!) ? null : req.user!._id;
+  const now = new Date();
+  const conv = await Conversation.findOneAndUpdate(
+    { workspaceId, contactId: contact._id },
+    {
+      $setOnInsert: {
+        workspaceId,
+        contactId: contact._id,
+        status: 'open',
+        openedAt: now,
+        // Sorts the new chat to the top until the first message.
+        lastMessageAt: now,
+        lastMessagePreview: 'New chat',
+        ...(assignee ? { assigneeId: assignee, assignedAt: now, assignedBy: req.user!._id } : {}),
+      },
+    },
+    { upsert: true, new: true, includeResultMetadata: true },
+  );
+  const doc = conv.value!;
+  const created = !conv.lastErrorObject?.updatedExisting;
+  if (createdContact) {
+    await emitEvent(workspaceId, 'contact.created', async () => ({ contact: await contactPayload(workspaceId, contact._id) }));
+    publish(req.workspace!.id as string, { type: 'contacts.changed' });
+  }
+  if (created) notify(workspaceId, doc._id);
+
+  const [serialized] = await serializeMany(workspaceId, [doc]);
+  res.status(created ? 201 : 200).json({ conversation: serialized, created, createdContact });
 });
 
 /** Open-conversation counts for the inbox sidebar. */
