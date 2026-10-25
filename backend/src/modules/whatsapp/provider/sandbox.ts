@@ -129,6 +129,12 @@ export class SandboxProvider implements WhatsAppProvider {
     return { providerFlowId, validationErrors: [] };
   }
 
+  async exchangeSignupCode(code: string): Promise<string> {
+    return `sandbox-token-${code}-${randomBytes(8).toString('hex')}`;
+  }
+
+  async registerPhone(): Promise<void> {}
+
   private templates(wabaId: string): ProviderTemplate[] {
     let list = templatesByWaba.get(wabaId);
     if (!list) {

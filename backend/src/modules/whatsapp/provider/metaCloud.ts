@@ -156,6 +156,27 @@ export class MetaCloudProvider implements WhatsAppProvider {
     };
   }
 
+  async exchangeSignupCode(code: string): Promise<string> {
+    if (!env.META_APP_ID || !env.META_APP_SECRET) throw new ProviderError('META_APP_ID and META_APP_SECRET must be set for Embedded Signup.', 'permanent');
+    const params = new URLSearchParams({ client_id: env.META_APP_ID, client_secret: env.META_APP_SECRET, code });
+    let res: Response;
+    try {
+      res = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/oauth/access_token?${params}`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    } catch (err) {
+      throw new ProviderError(`Could not reach Meta: ${(err as Error).message}`, 'transient');
+    }
+    const data = (await res.json().catch(() => ({}))) as { access_token?: string } & GraphError;
+    if (!res.ok || !data.access_token) {
+      // Usually an expired (30s) or already-used code.
+      throw new ProviderError(data.error?.message ?? `Meta rejected the signup code (HTTP ${res.status}).`, 'auth', data.error?.code != null ? String(data.error.code) : null, res.status);
+    }
+    return data.access_token;
+  }
+
+  async registerPhone(creds: ProviderCredentials, pin: string): Promise<void> {
+    await this.graph(creds, 'POST', `/${creds.phoneNumberId}/register`, { messaging_product: 'whatsapp', pin });
+  }
+
   private async graph<T = unknown>(creds: ProviderCredentials, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
     let res: Response;
     try {

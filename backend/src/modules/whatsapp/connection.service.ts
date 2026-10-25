@@ -11,6 +11,7 @@ export interface ConnectInput {
   wabaId: string;
   phoneNumberId: string;
   accessToken: string;
+  connectedVia?: 'embedded_signup' | 'manual';
 }
 
 export async function getConnection(workspaceId: Types.ObjectId, withToken = false): Promise<ConnectionDoc | null> {
@@ -55,6 +56,7 @@ export async function connectWhatsApp(workspace: WorkspaceDoc, user: UserDoc, in
         lastError: null,
         lastSyncAt: new Date(),
         connectedBy: user._id,
+        connectedVia: input.connectedVia ?? 'manual',
       },
     },
     { upsert: true, new: true },
@@ -65,6 +67,21 @@ export async function connectWhatsApp(workspace: WorkspaceDoc, user: UserDoc, in
     await workspace.save();
   }
   return conn!;
+}
+
+/**
+ * Registers the number for Cloud API messaging (needed once for numbers added through
+ * Embedded Signup, within 14 days). The PIN becomes the number's two-step verification code.
+ */
+export async function registerNumber(conn: ConnectionDoc, pin: string): Promise<ConnectionDoc> {
+  try {
+    await whatsappProvider().registerPhone(credentialsOf(conn), pin);
+  } catch (err) {
+    throw providerToAppError(err, 'Could not register the number');
+  }
+  conn.set({ registeredAt: new Date(), lastError: null });
+  await conn.save();
+  return conn;
 }
 
 /** Re-reads number health (quality rating, messaging tier) and confirms the token still works. */

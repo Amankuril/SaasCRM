@@ -74,6 +74,11 @@ scripts/    dev.mjs: starts both apps together
 - Flow builder: "Started by API" trigger (`POST /v1/flows/:id/runs` with variables) and an "HTTP request" step (placeholders, JSON-escaped bodies, response → `{{vars.*}}`, success/failed branches)
 - SSRF guard on every customer URL (https only, public IPs, no redirects, timeouts, size caps); `ALLOW_PRIVATE_OUTBOUND_URLS=true` allows localhost in development only
 
+**WhatsApp onboarding**
+
+- Businesses connect with **"Connect WhatsApp with Facebook"** (Meta Embedded Signup: the server exchanges the 30-second code for the business token, subscribes our app to their WABA and registers the number with a two-step PIN) or **manually** with WABA ID + phone number ID + permanent token
+- Embedded Signup needs `META_APP_ID` + `META_ES_CONFIG_ID` (Facebook Login for Business configuration); it works for your own Meta business in development mode and for other businesses after Tech Provider approval
+
 **Phase 8: Billing, quotas & analytics** (done)
 
 - Plan catalog (Free trial, Starter, Growth, Pro; prices in paise, editable by platform admins) with limits (contacts, seats, messages and AI replies per billing period, live flows, forms, API rate) and feature flags
@@ -85,7 +90,7 @@ scripts/    dev.mjs: starts both apps together
 - Analytics page (7/30/90 days, workspace timezone): sends, delivery/read/failure rates, daily chart, inbox first-response and resolution times, agent workload, broadcasts, flow runs with drop-off steps, AI resolution rate
 - Super Admin: plan editor, per-tenant plan/status overrides (audited), MRR estimate, operations view (queues, failures, backlogs, trials ending, overdue payments)
 
-Not yet: Meta Embedded Signup (needs Tech Provider approval), email verification, password reset, a real email provider, media messages, routing rules/SLA alerts, GST tax invoices (PDF), multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 9 (catalog, payments, OTP, Click-to-WhatsApp ads, Instagram).
+Not yet: email verification, password reset, a real email provider, media messages, routing rules/SLA alerts, GST tax invoices (PDF), multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 9 (catalog, payments, OTP, Click-to-WhatsApp ads, Instagram).
 
 ## Getting started
 

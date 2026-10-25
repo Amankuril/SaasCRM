@@ -82,6 +82,10 @@ export interface WhatsAppProvider {
   createTemplate(creds: ProviderCredentials, draft: TemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
   /** Creates and publishes a WhatsApp Flow (forms). */
   publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }): Promise<PublishedFlow>;
+  /** Embedded Signup: swaps the short-lived (30s) code for the business's access token. */
+  exchangeSignupCode(code: string): Promise<string>;
+  /** Registers the number for Cloud API messaging and sets its two-step verification PIN. */
+  registerPhone(creds: ProviderCredentials, pin: string): Promise<void>;
 }
 
 /**

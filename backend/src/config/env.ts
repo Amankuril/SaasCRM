@@ -59,6 +59,10 @@ const envSchema = z.object({
   // WhatsApp Flows JSON version used for published forms (check Meta's docs for the current one).
   META_FLOW_JSON_VERSION: z.string().regex(/^\d+\.\d+$/).default('6.3'),
   META_APP_SECRET: optionalString,
+  // Embedded Signup ("Connect WhatsApp with Facebook"): Meta App ID + the Facebook Login
+  // for Business configuration id. Without both, businesses connect manually.
+  META_APP_ID: optionalString,
+  META_ES_CONFIG_ID: optionalString,
   META_WEBHOOK_VERIFY_TOKEN: optionalString,
 });
 

@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { env, isProd } from '../../config/env.js';
@@ -7,7 +8,8 @@ import { requirePermission } from '../../middleware/workspace.js';
 import { audit } from '../audit/audit.service.js';
 import { normalizePhone } from '../contacts/contact.service.js';
 import { ProviderConnection, toPublicConnection } from './connection.model.js';
-import { connectWhatsApp, getConnection, refreshConnection } from './connection.service.js';
+import { connectWhatsApp, getConnection, providerToAppError, refreshConnection, registerNumber } from './connection.service.js';
+import { whatsappProvider } from './provider/index.js';
 import { processEvents } from './events.service.js';
 
 const connectSchema = z.object({
@@ -15,6 +17,16 @@ const connectSchema = z.object({
   phoneNumberId: z.string().trim().regex(/^\d{5,30}$/, 'Enter the numeric Phone number ID.'),
   accessToken: z.string().trim().min(20, 'Paste the full access token.').max(1000),
 });
+
+const embeddedSignupSchema = z.object({
+  code: z.string().trim().min(10).max(2000),
+  wabaId: z.string().trim().regex(/^\d{5,30}$/),
+  phoneNumberId: z.string().trim().regex(/^\d{5,30}$/),
+  // Optional: the number's existing two-step PIN. Otherwise we set a new one.
+  pin: z.string().trim().regex(/^\d{6}$/, 'The PIN is 6 digits.').optional(),
+});
+
+const registerSchema = z.object({ pin: z.string().trim().regex(/^\d{6}$/, 'The PIN is 6 digits.') });
 
 const simulateSchema = z.object({
   from: z.string().trim().min(5),
@@ -35,7 +47,56 @@ connectionRouter.get('/connection', requirePermission('workspace:read'), async (
       configured: Boolean(env.META_APP_SECRET && env.META_WEBHOOK_VERIFY_TOKEN),
     },
     sandbox: env.WHATSAPP_PROVIDER === 'sandbox',
+    // "Connect WhatsApp with Facebook" needs the Meta App ID + Embedded Signup configuration id.
+    embeddedSignup:
+      env.WHATSAPP_PROVIDER === 'meta' && env.META_APP_ID && env.META_ES_CONFIG_ID
+        ? { enabled: true, appId: env.META_APP_ID, configId: env.META_ES_CONFIG_ID, graphVersion: env.META_GRAPH_VERSION }
+        : { enabled: false },
   });
+});
+
+/**
+ * Embedded Signup finished in the browser: exchange the code (valid ~30s) for the
+ * business's token, verify + subscribe like a manual connect, then register the number.
+ */
+connectionRouter.post('/connection/embedded-signup', requirePermission('provider:manage'), async (req, res) => {
+  const input = parse(embeddedSignupSchema, req.body);
+  let accessToken: string;
+  try {
+    accessToken = await whatsappProvider().exchangeSignupCode(input.code);
+  } catch (err) {
+    throw providerToAppError(err, 'Facebook sign-in expired or was already used. Click "Connect WhatsApp with Facebook" again');
+  }
+  const conn = await connectWhatsApp(req.workspace!, req.user!, { wabaId: input.wabaId, phoneNumberId: input.phoneNumberId, accessToken, connectedVia: 'embedded_signup' });
+
+  // Register for Cloud API. A number that already has two-step verification needs its existing PIN.
+  let warning: string | null = null;
+  const pin = input.pin ?? String(randomInt(0, 1_000_000)).padStart(6, '0');
+  try {
+    await registerNumber((await getConnection(req.workspace!._id, true))!, pin);
+  } catch (err) {
+    warning = `${(err as Error).message}. If this number already has a two-step verification PIN, enter it below and click "Register number".`;
+  }
+
+  await audit(req, {
+    workspaceId: req.workspace!._id,
+    action: 'whatsapp.connected',
+    targetType: 'connection',
+    targetId: conn.id,
+    metadata: { via: 'embedded_signup', phoneNumberId: conn.phoneNumberId, displayPhoneNumber: conn.displayPhoneNumber, registered: !warning },
+  });
+  const fresh = (await getConnection(req.workspace!._id))!;
+  // A PIN we generated is shown once so the business can keep it (Meta asks for it to move the number later).
+  res.json({ connection: toPublicConnection(fresh), warning, pin: !warning && !input.pin ? pin : null });
+});
+
+connectionRouter.post('/connection/register', requirePermission('provider:manage'), async (req, res) => {
+  const { pin } = parse(registerSchema, req.body);
+  const conn = await getConnection(req.workspace!._id, true);
+  if (!conn) throw notFound('No WhatsApp number is connected.');
+  const updated = await registerNumber(conn, pin);
+  await audit(req, { workspaceId: req.workspace!._id, action: 'whatsapp.number_registered', targetType: 'connection', targetId: conn.id });
+  res.json({ connection: toPublicConnection(updated) });
 });
 
 connectionRouter.put('/connection', requirePermission('provider:manage'), async (req, res) => {

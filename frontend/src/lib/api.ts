@@ -196,6 +196,8 @@ export interface WhatsAppConnection {
   lastError: string | null;
   lastSyncAt: string | null;
   lastWebhookAt: string | null;
+  connectedVia: 'embedded_signup' | 'manual';
+  registered: boolean;
   createdAt: string;
 }
 
@@ -203,6 +205,7 @@ export interface ConnectionPayload {
   connection: WhatsAppConnection | null;
   webhook: { callbackUrl: string; configured: boolean };
   sandbox: boolean;
+  embeddedSignup: { enabled: true; appId: string; configId: string; graphVersion: string } | { enabled: false };
 }
 
 export interface TemplateComponent {

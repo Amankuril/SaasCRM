@@ -20,6 +20,10 @@ const connectionSchema = new Schema(
     lastError: { type: String, default: null },
     lastSyncAt: { type: Date, default: null },
     lastWebhookAt: { type: Date, default: null },
+    // How the business connected: Embedded Signup ("Connect with Facebook") or pasted credentials.
+    connectedVia: { type: String, enum: ['embedded_signup', 'manual'], default: 'manual' },
+    // Set once we've registered the number for Cloud API (two-step PIN set by us or the business).
+    registeredAt: { type: Date, default: null },
     connectedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },
@@ -45,6 +49,8 @@ export function toPublicConnection(c: ConnectionDoc) {
     lastError: c.lastError,
     lastSyncAt: c.lastSyncAt,
     lastWebhookAt: c.lastWebhookAt,
+    connectedVia: c.connectedVia,
+    registered: c.registeredAt != null,
     createdAt: c.createdAt,
   };
 }

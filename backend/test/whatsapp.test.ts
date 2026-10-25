@@ -93,6 +93,62 @@ describe('WhatsApp connection', () => {
   });
 });
 
+describe('Embedded Signup', () => {
+  const finish = (owner: TestUser, wsId: string, body: object) => api().post(`/api/workspaces/${wsId}/whatsapp/connection/embedded-signup`).set(auth(owner)).send(body);
+
+  it('exchanges the code, connects, subscribes and registers the number with a new PIN', async () => {
+    const owner = await signup();
+    const ws = await createWorkspace(owner);
+    const res = await finish(owner, ws.id, { code: 'signup-code-123', wabaId: WABA_ID, phoneNumberId: PHONE_ID }).expect(200);
+
+    expect(fake.exchanged).toEqual(['signup-code-123']);
+    expect(res.body.connection).toMatchObject({ status: 'connected', connectedVia: 'embedded_signup', registered: true, phoneNumberId: PHONE_ID });
+    expect(res.body.warning).toBeNull();
+    expect(res.body.pin).toMatch(/^\d{6}$/);
+    expect(fake.registered).toEqual([{ phoneNumberId: PHONE_ID, pin: res.body.pin }]);
+    // The business token from the exchange is what gets stored (encrypted).
+    const conn = await ProviderConnection.findOne({ workspaceId: ws.id }).select('+accessTokenEncrypted');
+    expect(decryptSecret(conn!.accessTokenEncrypted)).toBe('EAAG-business-token-for-signup-code-123-0123456789');
+    expect(JSON.stringify(res.body)).not.toContain('EAAG-business-token');
+  });
+
+  it('keeps the connection but warns when registration needs the existing PIN, then registers with it', async () => {
+    const owner = await signup();
+    const ws = await createWorkspace(owner);
+    fake.registerError = new ProviderError('Two-step verification PIN mismatch', 'permanent', '133005');
+    const res = await finish(owner, ws.id, { code: 'signup-code-456', wabaId: WABA_ID, phoneNumberId: PHONE_ID }).expect(200);
+    expect(res.body.connection).toMatchObject({ status: 'connected', registered: false });
+    expect(res.body.warning).toContain('PIN');
+    expect(res.body.pin).toBeNull();
+
+    fake.registerError = null;
+    const reg = await api().post(`/api/workspaces/${ws.id}/whatsapp/connection/register`).set(auth(owner)).send({ pin: '246810' }).expect(200);
+    expect(reg.body.connection.registered).toBe(true);
+    expect(fake.registered.at(-1)).toEqual({ phoneNumberId: PHONE_ID, pin: '246810' });
+    await api().post(`/api/workspaces/${ws.id}/whatsapp/connection/register`).set(auth(owner)).send({ pin: '12' }).expect(400);
+  });
+
+  it('an expired code saves nothing; only owners can connect', async () => {
+    const owner = await signup();
+    const ws = await createWorkspace(owner);
+    const expired = await finish(owner, ws.id, { code: 'expired-code-000', wabaId: WABA_ID, phoneNumberId: PHONE_ID }).expect(400);
+    expect(expired.body.error.message).toContain('again');
+    expect(await ProviderConnection.countDocuments({ workspaceId: ws.id })).toBe(0);
+
+    const admin = await signup();
+    await addMember(owner, ws.id, admin, 'admin');
+    await finish(admin, ws.id, { code: 'signup-code-789', wabaId: WABA_ID, phoneNumberId: PHONE_ID }).expect(403);
+  });
+
+  it('the connection page says whether Facebook signup is available', async () => {
+    const owner = await signup();
+    const ws = await createWorkspace(owner);
+    const res = await api().get(`/api/workspaces/${ws.id}/whatsapp/connection`).set(auth(owner)).expect(200);
+    // Tests run without META_APP_ID / META_ES_CONFIG_ID.
+    expect(res.body.embeddedSignup).toEqual({ enabled: false });
+  });
+});
+
 describe('webhook receiver', () => {
   it('answers the verification handshake only with the right token', async () => {
     const ok = await api().get('/api/webhooks/whatsapp').query({ 'hub.mode': 'subscribe', 'hub.verify_token': 'test-verify-token', 'hub.challenge': '12345' });

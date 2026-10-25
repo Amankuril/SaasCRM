@@ -52,6 +52,21 @@ export class FakeProvider implements WhatsAppProvider {
     return { providerFlowId: `flow-${this.published.length}`, validationErrors: this.flowValidationErrors };
   }
 
+  exchanged: string[] = [];
+  registered: { phoneNumberId: string; pin: string }[] = [];
+  registerError: ProviderError | null = null;
+
+  async exchangeSignupCode(code: string) {
+    if (code.startsWith('expired')) throw new ProviderError('This authorization code has expired.', 'auth', '100');
+    this.exchanged.push(code);
+    return `EAAG-business-token-for-${code}-0123456789`;
+  }
+
+  async registerPhone(creds: ProviderCredentials, pin: string) {
+    if (this.registerError) throw this.registerError;
+    this.registered.push({ phoneNumberId: creds.phoneNumberId, pin });
+  }
+
   async createTemplate(_creds: ProviderCredentials, draft: TemplateDraft) {
     this.created.push(draft);
     return { providerTemplateId: `tpl-${this.created.length}`, status: 'PENDING', category: draft.category };
