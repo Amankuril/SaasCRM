@@ -736,3 +736,53 @@ export interface Analytics {
   }[];
   ai: { total: number; answered: number; handedOff: number; errors: number; resolvedRate: number | null; avgLatencyMs: number | null; inputTokens: number; outputTokens: number };
 }
+
+// ---- Auto replies (keyword triggers) ----
+
+export type AutoReplyMatch = 'equals' | 'contains' | 'event';
+export type AutoReplyEvent = 'first_message' | 'any_message';
+export type MessageSource = 'ad' | 'broadcast' | 'direct';
+export type AutoReplyActionType =
+  | 'text'
+  | 'file'
+  | 'quick_reply'
+  | 'cta_url'
+  | 'form'
+  | 'chatbot'
+  | 'ai_chatbot'
+  | 'location'
+  | 'address'
+  | 'template'
+  | 'unsubscribe';
+
+export interface AutoReplyAction {
+  type: AutoReplyActionType;
+  config: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- shape depends on type
+}
+
+export interface AutoReply {
+  id: string;
+  name: string;
+  active: boolean;
+  match: AutoReplyMatch;
+  keywords: string[];
+  event: AutoReplyEvent | null;
+  sources: MessageSource[];
+  cooldownMinutes: number;
+  action: AutoReplyAction;
+  firedCount: number;
+  lastFiredAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TryResult {
+  outcome: 'auto_reply' | 'flow' | 'ai' | 'none';
+  matchedBy?: string | null;
+  matchedKeyword?: string | null;
+  autoReply: AutoReply | null;
+  flow: { id: string; name: string } | null;
+  notes: string[];
+}

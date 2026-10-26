@@ -11,6 +11,8 @@ export function messagePreview(type: string, content: Record<string, unknown>): 
   if (type === 'template') return c.preview || `Template: ${c.template?.name ?? ''}`;
   if (type === 'interactive' && content.interactiveType === 'nfm_reply') return '📝 Form submitted';
   if (type === 'flow') return `📝 Form: ${String(content.formName ?? '')}`;
+  if (type === 'media' && !c.caption) return `📎 ${String(content.mediaType ?? 'file')}`;
+  if (type === 'address_request') return `🏠 ${String(c.text ?? 'Address request')}`.slice(0, 160);
   const text = c.text ?? c.caption ?? c.title;
   return (text ? String(text) : `[${type}]`).slice(0, 160);
 }

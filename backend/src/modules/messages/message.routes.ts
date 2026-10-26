@@ -11,8 +11,8 @@ import { credentialsOf, getConnection, providerToAppError } from '../whatsapp/co
 import { whatsappProvider } from '../whatsapp/provider/index.js';
 import { assertConnected } from '../templates/template.service.js';
 
-// What WhatsApp accepts for template headers and carousel cards.
-const MEDIA_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'];
+// What WhatsApp accepts for template headers, carousel cards and file replies.
+const MEDIA_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf', 'audio/mpeg', 'audio/ogg', 'audio/aac', 'audio/mp4', 'audio/amr'];
 
 const sendSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), to: z.string().trim().min(5).max(30), text: z.string().trim().min(1).max(4096) }),
@@ -68,7 +68,7 @@ messageRouter.post('/', requirePermission('messages:send'), async (req, res) => 
 messageRouter.post('/media', requirePermission('messages:send'), express.raw({ type: MEDIA_TYPES, limit: '16mb' }), async (req, res) => {
   const mimeType = String(req.headers['content-type'] ?? '').split(';')[0]!;
   if (!MEDIA_TYPES.includes(mimeType) || !Buffer.isBuffer(req.body) || !req.body.length) {
-    throw badRequest('INVALID_MEDIA', 'Upload a JPG or PNG image, an MP4 video or a PDF document.');
+    throw badRequest('INVALID_MEDIA', 'Upload a JPG or PNG image, an MP4 video, a PDF document or an MP3/OGG/AAC audio file.');
   }
   const fileName = String(req.headers['x-file-name'] ?? 'file').replace(/[^\w.-]/g, '_').slice(0, 100) || 'file';
   const conn = await getConnection(req.workspace!._id, true);

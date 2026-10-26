@@ -1,6 +1,7 @@
 import type { Types } from 'mongoose';
 import { logger } from '../../lib/logger.js';
 import { autoReply } from '../ai/ai.service.js';
+import { findEventAutoReply, findKeywordAutoReply, fireAutoReply, messageSource } from '../autoreplies/autoReply.service.js';
 import { hasAccess } from '../billing/billing.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
 import type { ContactDoc } from '../contacts/contact.model.js';
@@ -11,9 +12,23 @@ import { Flow, FlowExecution, FlowVersion, type FlowVersionDoc } from './flow.mo
 /** Consent keywords are handled by the opt-out logic and never start flows. */
 const CONSENT_WORDS = /^\s*(stop|unsubscribe|opt[\s-]?out|stop all|start|subscribe|opt[\s-]?in)\s*[.!]?\s*$/i;
 
-async function activeVersions(workspaceId: Types.ObjectId): Promise<FlowVersionDoc[]> {
+export async function activeVersions(workspaceId: Types.ObjectId): Promise<FlowVersionDoc[]> {
   const flows = await Flow.find({ workspaceId, status: 'active', publishedVersionId: { $ne: null } }).select('publishedVersionId').lean();
   return FlowVersion.find({ workspaceId, _id: { $in: flows.map((f) => f.publishedVersionId) } }).sort({ publishedAt: 1 });
+}
+
+export function keywordFlow(versions: FlowVersionDoc[], text: string): FlowVersionDoc | undefined {
+  const lower = text.toLowerCase();
+  if (!lower) return undefined;
+  return versions.find((v) => {
+    const t = v.trigger;
+    if (t?.event !== 'keyword') return false;
+    return t.keywords.some((k) => (t.match === 'contains' ? lower.includes(k.toLowerCase()) : lower === k.toLowerCase()));
+  });
+}
+
+export function eventFlow(versions: FlowVersionDoc[], createdContact: boolean): FlowVersionDoc | undefined {
+  return (createdContact ? versions.find((v) => v.trigger?.event === 'new_contact') : undefined) ?? versions.find((v) => v.trigger?.event === 'any_message');
 }
 
 function messageText(message: { type: string; content: Record<string, unknown> }): string {
@@ -25,7 +40,8 @@ function messageText(message: { type: string; content: Record<string, unknown> }
  * Routes one inbound customer message through automations:
  *  1. a run waiting for this contact's reply gets it;
  *  2. runs sleeping in a delay exit if their flow says "exit on reply";
- *  3. otherwise the first matching active flow starts (keyword > new contact > any message).
+ *  3. otherwise the first match answers: keyword auto reply > keyword flow >
+ *     event auto reply (first message > any message) > event flow > AI agent.
  * Never throws: automation problems must not break message ingestion.
  */
 export async function onInboundMessage(
@@ -60,25 +76,34 @@ export async function onInboundMessage(
     const conv = await Conversation.findOne({ workspaceId, contactId: contact._id }).select('botPaused').lean();
     if (conv?.botPaused) return; // a human has taken over
 
+    const found = await Workspace.findById(workspaceId);
+    // Suspended workspaces keep their flows running, but auto replies and the AI stay quiet.
+    const workspace = found && found.status !== 'suspended' ? found : null;
+    const inbound = { id: message.id, text };
+
+    // Keyword auto replies first, then flow keywords, then event auto replies, then flow events.
+    const source = await messageSource(workspaceId, contact._id, message.content);
+    const keywordReply = workspace ? await findKeywordAutoReply(workspaceId, text, source) : null;
+    if (workspace && keywordReply && (await fireAutoReply(workspace, contact, keywordReply.rule, inbound))) return;
+
     const versions = await activeVersions(workspaceId);
-    const lower = text.toLowerCase();
-    const keyword = versions.find((v) => {
-      const t = v.trigger;
-      if (t?.event !== 'keyword' || !lower) return false;
-      return t.keywords.some((k) => (t.match === 'contains' ? lower.includes(k.toLowerCase()) : lower === k.toLowerCase()));
-    });
-    const chosen =
-      keyword ??
-      (createdContact ? versions.find((v) => v.trigger?.event === 'new_contact') : undefined) ??
-      versions.find((v) => v.trigger?.event === 'any_message');
+    const keyword = keywordFlow(versions, text);
+    if (keyword) {
+      await startExecution(keyword, contact._id, { type: 'keyword', messageId: message.id, text: text.slice(0, 200) });
+      return;
+    }
+
+    const eventReply = workspace ? await findEventAutoReply(workspaceId, createdContact, source) : null;
+    if (workspace && eventReply && (await fireAutoReply(workspace, contact, eventReply, inbound))) return;
+
+    const chosen = eventFlow(versions, createdContact);
     if (chosen) {
       await startExecution(chosen, contact._id, { type: chosen.trigger!.event, messageId: message.id, text: text.slice(0, 200) });
       return;
     }
 
-    // No flow wants this message: let the AI agent answer it (if enabled).
-    const workspace = await Workspace.findById(workspaceId);
-    if (workspace && workspace.status !== 'suspended') await autoReply(workspace, contact, { id: message.id, text });
+    // No automation wants this message: let the AI agent answer it (if enabled).
+    if (workspace) await autoReply(workspace, contact, inbound);
   } catch (err) {
     logger.error({ err, contactId: contact.id }, 'Flow trigger handling failed');
   }

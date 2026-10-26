@@ -24,6 +24,8 @@ import { FormBuilderPage } from './pages/FormBuilderPage';
 import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
+import { AutoRepliesPage } from './pages/autoreplies/AutoRepliesPage';
+import { AutoReplyEditorPage } from './pages/autoreplies/AutoReplyEditorPage';
 import { AllTemplatesPage } from './pages/templates/AllTemplatesPage';
 import { CommunityLibraryPage } from './pages/templates/CommunityLibraryPage';
 import { CreateTemplatePage } from './pages/templates/CreateTemplatePage';
@@ -58,6 +60,9 @@ export function App() {
         <Route path="contacts" element={<ContactsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
         <Route path="campaigns/:campaignId" element={<CampaignPage />} />
+        <Route path="auto-replies" element={<AutoRepliesPage />} />
+        <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
+        <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
         <Route path="flows" element={<FlowsPage />} />
         <Route path="forms" element={<FormsPage />} />
         <Route path="forms/:formId" element={<FormBuilderPage />} />

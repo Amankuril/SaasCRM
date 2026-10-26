@@ -51,10 +51,10 @@ export function ButtonValueInputs({
   );
 }
 
-const MEDIA_ACCEPT = { IMAGE: 'image/jpeg,image/png', VIDEO: 'video/mp4', DOCUMENT: 'application/pdf' } as const;
+const MEDIA_ACCEPT = { IMAGE: 'image/jpeg,image/png', VIDEO: 'video/mp4', DOCUMENT: 'application/pdf', AUDIO: 'audio/mpeg,audio/ogg,audio/aac,audio/mp4,audio/amr' } as const;
 
 /** Header/card media: upload a file to WhatsApp, or give a public https link. */
-function MediaInput({
+export function MediaInput({
   id,
   label,
   format,

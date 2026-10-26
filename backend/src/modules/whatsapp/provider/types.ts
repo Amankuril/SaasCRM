@@ -74,7 +74,12 @@ export type OutboundMessage =
   // A single call-to-action button that opens a URL.
   | ({ type: 'cta_url'; to: string; buttonText: string; url: string } & InteractiveParts)
   // Opens a published WhatsApp Flow (our forms). The token comes back with the submission.
-  | ({ type: 'flow'; to: string; flowId: string; flowToken: string; ctaText: string; screen: string } & InteractiveParts);
+  | ({ type: 'flow'; to: string; flowId: string; flowToken: string; ctaText: string; screen: string } & InteractiveParts)
+  // An image, video, document or audio file (by WhatsApp media id or public link).
+  | { type: 'media'; to: string; mediaType: 'image' | 'video' | 'document' | 'audio'; link?: string; id?: string; caption?: string; filename?: string }
+  | ({ type: 'location'; to: string } & TemplateLocationParam)
+  // Asks the customer to fill in a delivery address form (India / Singapore numbers).
+  | { type: 'address_request'; to: string; body: string; country: 'IN' | 'SG' };
 
 export interface PublishedFlow {
   providerFlowId: string;

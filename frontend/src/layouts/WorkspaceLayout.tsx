@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Workflow,
   X,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -67,6 +68,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Automation',
     items: [
+      { to: 'auto-replies', label: 'Keyword Trigger', icon: Zap },
       { to: 'flows', label: 'Flow Builder', icon: Workflow },
       { to: 'forms', label: 'Forms', icon: ClipboardList },
       { to: 'ai', label: 'AI Agent', icon: Bot },

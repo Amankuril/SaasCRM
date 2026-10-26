@@ -88,6 +88,24 @@ export class MetaCloudProvider implements WhatsAppProvider {
                   },
                 },
               }
+          : message.type === 'media'
+            ? {
+                ...base,
+                type: message.mediaType,
+                [message.mediaType]: {
+                  ...(message.id ? { id: message.id } : { link: message.link }),
+                  ...(message.caption && message.mediaType !== 'audio' ? { caption: message.caption } : {}),
+                  ...(message.filename && message.mediaType === 'document' ? { filename: message.filename } : {}),
+                },
+              }
+          : message.type === 'location'
+            ? { ...base, type: 'location', location: { latitude: message.latitude, longitude: message.longitude, name: message.name, address: message.address } }
+          : message.type === 'address_request'
+            ? {
+                ...base,
+                type: 'interactive',
+                interactive: { type: 'address_message', body: { text: message.body }, action: { name: 'address_message', parameters: { country: message.country } } },
+              }
           : message.type === 'cta_url'
             ? {
                 ...base,

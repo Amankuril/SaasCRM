@@ -25,7 +25,10 @@ export type SendInput =
   | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[]; buttonParams?: string[]; extras?: TemplateExtras }
   | { to: string; type: 'buttons'; text: string; header?: string; footer?: string; buttons: { id: string; title: string }[] }
   | { to: string; type: 'cta_url'; text: string; header?: string; footer?: string; buttonText: string; url: string }
-  | { to: string; type: 'flow'; text: string; flowId: string; flowToken: string; ctaText: string; screen: string; formId: string; formName: string };
+  | { to: string; type: 'flow'; text: string; flowId: string; flowToken: string; ctaText: string; screen: string; formId: string; formName: string }
+  | { to: string; type: 'media'; mediaType: 'image' | 'video' | 'document' | 'audio'; link?: string; id?: string; caption?: string; filename?: string }
+  | { to: string; type: 'location'; latitude: number; longitude: number; name?: string; address?: string }
+  | { to: string; type: 'address_request'; text: string; country: 'IN' | 'SG' };
 
 export interface SendOptions {
   flowExecutionId?: Types.ObjectId;
@@ -73,7 +76,15 @@ export async function queueOutboundMessage(
     if (input.type === 'text') content = { text: input.text };
     else if (input.type === 'buttons') content = { text: input.text, header: input.header, footer: input.footer, buttons: input.buttons };
     else if (input.type === 'cta_url') content = { text: input.text, header: input.header, footer: input.footer, buttonText: input.buttonText, url: input.url };
-    else content = { text: input.text, flowId: input.flowId, flowToken: input.flowToken, ctaText: input.ctaText, screen: input.screen, formId: input.formId, formName: input.formName };
+    else if (input.type === 'flow') {
+      content = { text: input.text, flowId: input.flowId, flowToken: input.flowToken, ctaText: input.ctaText, screen: input.screen, formId: input.formId, formName: input.formName };
+    } else if (input.type === 'media') {
+      const { to: _to, type: _type, ...media } = input;
+      content = { ...media, ...(input.caption ? { text: input.caption } : {}) };
+    } else if (input.type === 'location') {
+      const { to: _to, type: _type, ...location } = input;
+      content = { ...location, text: `📍 ${input.name || 'Location'}` };
+    } else content = { text: input.text, country: input.country };
   } else {
     const template = Types.ObjectId.isValid(input.templateId)
       ? await MessageTemplate.findOne({ _id: input.templateId, workspaceId: workspace._id })
@@ -226,6 +237,26 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
         ? { type: 'buttons', to: contact.phoneE164, ...interactive, buttons: content.buttons as { id: string; title: string }[] }
         : message.type === 'cta_url'
           ? { type: 'cta_url', to: contact.phoneE164, ...interactive, buttonText: String(content.buttonText), url: String(content.url) }
+          : message.type === 'media'
+            ? {
+                type: 'media',
+                to: contact.phoneE164,
+                mediaType: content.mediaType as 'image' | 'video' | 'document' | 'audio',
+                ...(content.id ? { id: String(content.id) } : { link: String(content.link) }),
+                ...(content.caption ? { caption: String(content.caption) } : {}),
+                ...(content.filename ? { filename: String(content.filename) } : {}),
+              }
+          : message.type === 'location'
+            ? {
+                type: 'location',
+                to: contact.phoneE164,
+                latitude: Number(content.latitude),
+                longitude: Number(content.longitude),
+                ...(content.name ? { name: String(content.name) } : {}),
+                ...(content.address ? { address: String(content.address) } : {}),
+              }
+          : message.type === 'address_request'
+            ? { type: 'address_request', to: contact.phoneE164, body: String(content.text), country: content.country === 'SG' ? 'SG' : 'IN' }
           : message.type === 'flow'
             ? {
                 type: 'flow',
