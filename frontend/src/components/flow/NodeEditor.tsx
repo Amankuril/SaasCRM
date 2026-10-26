@@ -1,8 +1,9 @@
 import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { FlowGraphNode, Member, MessageTemplate, Tag, VariableSpec, WaForm } from '../../lib/api';
+import type { FlowGraphNode, Member, MessageTemplate, Tag, TemplateExtras, VariableSpec, WaForm } from '../../lib/api';
 import { STAGES } from '../crm';
 import { TemplatePreview } from '../TemplatePreview';
+import { TemplateExtrasFields, emptyExtras, extrasPreview } from '../TemplateSendFields';
 import { Button, Field, Input, Select } from '../ui';
 import { VariableRow } from '../VariableRow';
 import { NODE_META } from './meta';
@@ -333,7 +334,13 @@ function TemplateForm({ d, set, templates }: { d: Data; set: (p: Data) => void; 
           value={d.templateId ?? ''}
           onChange={(e) => {
             const t = templates.find((x) => x.id === e.target.value);
-            set({ templateId: e.target.value, headerVariables: fit([], t?.variables.header ?? 0), bodyVariables: fit([], t?.variables.body ?? 0) });
+            set({
+              templateId: e.target.value,
+              headerVariables: fit([], t?.variables.header ?? 0),
+              bodyVariables: fit([], t?.variables.body ?? 0),
+              buttonVariables: Array.from({ length: t?.requirements.buttons.length ?? 0 }, () => ({ source: 'static', value: '', fallback: '' })),
+              templateExtras: emptyExtras(t?.requirements),
+            });
           }}
         >
           <option value="">{templates.length ? 'Choose a template' : 'No approved templates'}</option>
@@ -352,7 +359,19 @@ function TemplateForm({ d, set, templates }: { d: Data; set: (p: Data) => void; 
           {(d.bodyVariables ?? []).map((v: VariableSpec, i: number) => (
             <VariableRow key={`b${i}`} label={`Body {{${i + 1}}}`} spec={v} disabled={false} onChange={(spec) => set({ bodyVariables: d.bodyVariables.map((x: VariableSpec, j: number) => (j === i ? spec : x)) })} />
           ))}
-          <TemplatePreview components={template.components} />
+          {template.requirements.buttons.map((b, i) => (
+            <VariableRow
+              key={`btn${i}`}
+              label={b.type === 'COPY_CODE' ? 'Offer code' : `“${b.text}” link`}
+              spec={d.buttonVariables?.[i] ?? { source: 'static', value: '', fallback: '' }}
+              disabled={false}
+              onChange={(spec) =>
+                set({ buttonVariables: template.requirements.buttons.map((_, j) => (j === i ? spec : (d.buttonVariables?.[j] ?? { source: 'static', value: '', fallback: '' }))) })
+              }
+            />
+          ))}
+          <TemplateExtrasFields requirements={template.requirements} value={(d.templateExtras ?? {}) as TemplateExtras} onChange={(templateExtras) => set({ templateExtras })} shared />
+          <TemplatePreview components={template.components} {...extrasPreview((d.templateExtras ?? {}) as TemplateExtras)} />
         </>
       )}
     </>

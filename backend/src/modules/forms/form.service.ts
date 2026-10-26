@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { Types } from 'mongoose';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
@@ -9,16 +8,9 @@ import { queueOutboundMessage } from '../messages/message.service.js';
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { FORM_SCREEN_ID, validateSubmission, type FormField } from './flowJson.js';
 import { Form, FormSubmission, type FormDoc, type SubmissionDoc } from './form.model.js';
+import { newFlowToken, parseFlowToken } from './flowToken.js';
 
-/** zf_<formId>_<version>_<random>: identifies the form and makes each send's token unique. */
-export function newFlowToken(form: FormDoc): string {
-  return `zf_${form.id}_${form.version}_${randomBytes(9).toString('base64url')}`;
-}
-
-export function parseFlowToken(token: string): { formId: string; version: number } | null {
-  const m = /^zf_([a-f0-9]{24})_(\d+)_[\w-]+$/.exec(token);
-  return m ? { formId: m[1]!, version: Number(m[2]) } : null;
-}
+export { newFlowToken, parseFlowToken };
 
 /** Sends the "open form" message. Needs the 24-hour window (it's an interactive message). */
 export async function sendForm(
@@ -36,7 +28,7 @@ export async function sendForm(
       to: contact.phoneE164,
       text: opts.text || form.intro || form.name,
       flowId: form.providerFlowId,
-      flowToken: newFlowToken(form),
+      flowToken: newFlowToken({ id: form.id as string, version: form.version }),
       ctaText: form.ctaText,
       screen: FORM_SCREEN_ID,
       formId: form.id as string,

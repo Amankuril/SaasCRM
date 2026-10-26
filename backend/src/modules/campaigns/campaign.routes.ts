@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import { templateExtrasSchema } from '../templates/templateSend.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
@@ -35,6 +36,8 @@ const campaignInput = z.object({
   templateId: z.string().nullable(),
   headerVariables: z.array(variableSchema).max(1),
   bodyVariables: z.array(variableSchema).max(50),
+  buttonVariables: z.array(variableSchema).max(10).default([]),
+  templateExtras: templateExtrasSchema.nullable().default(null),
   audience: z.object({
     type: z.enum(['all', 'segment', 'filter']),
     segmentId: z.string().nullable().default(null),
@@ -206,6 +209,8 @@ function serialize(c: CampaignDoc, stats?: Record<string, number>) {
     templateName: (c.templateSnapshot as { name?: string } | null)?.name ?? null,
     headerVariables: c.headerVariables,
     bodyVariables: c.bodyVariables,
+    buttonVariables: c.buttonVariables,
+    templateExtras: c.templateExtras ?? null,
     audience: {
       type: c.audience?.type ?? 'all',
       segmentId: c.audience?.segmentId?.toString() ?? null,

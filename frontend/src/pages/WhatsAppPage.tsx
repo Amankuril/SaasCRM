@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownLeft, ArrowUpRight, CheckCheck, FlaskConical, MessageCircle, RefreshCw, Send, Unplug } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { TemplatePreview } from '../components/TemplatePreview';
+import { ButtonValueInputs, TemplateExtrasFields, emptyExtras, extrasPreview, needsExtras } from '../components/TemplateSendFields';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError } from '../components/ui';
-import { ApiError, api, type ChatMessage, type ConnectionPayload, type MessageTemplate, type WhatsAppConnection } from '../lib/api';
+import { ApiError, api, type ChatMessage, type ConnectionPayload, type MessageTemplate, type TemplateExtras, type WhatsAppConnection } from '../lib/api';
 import { SignupCancelled, launchEmbeddedSignup } from '../lib/facebook';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -357,6 +358,8 @@ function SendTestCard() {
   const [templateId, setTemplateId] = useState('');
   const [headerParams, setHeaderParams] = useState<string[]>([]);
   const [bodyParams, setBodyParams] = useState<string[]>([]);
+  const [buttonParams, setButtonParams] = useState<string[]>([]);
+  const [extras, setExtras] = useState<TemplateExtras>({});
   const [sent, setSent] = useState(false);
 
   const templates = useQuery({
@@ -369,7 +372,7 @@ function SendTestCard() {
     mutationFn: () =>
       api.post(
         `/workspaces/${workspace.id}/messages`,
-        mode === 'text' ? { type: 'text', to, text } : { type: 'template', to, templateId, headerParams, bodyParams },
+        mode === 'text' ? { type: 'text', to, text } : { type: 'template', to, templateId, headerParams, bodyParams, buttonParams, extras },
       ),
     onSuccess: () => {
       setSent(true);
@@ -384,6 +387,8 @@ function SendTestCard() {
     const t = templates.data?.templates.find((x) => x.id === id);
     setHeaderParams(Array(t?.variables.header ?? 0).fill(''));
     setBodyParams(Array(t?.variables.body ?? 0).fill(''));
+    setButtonParams(Array(t?.requirements.buttons.length ?? 0).fill(''));
+    setExtras(emptyExtras(t?.requirements));
   }
 
   return (
@@ -451,9 +456,13 @@ function SendTestCard() {
                       <Input id={`b${i}`} value={v} onChange={(e) => setBodyParams(bodyParams.map((x, j) => (j === i ? e.target.value : x)))} />
                     </Field>
                   ))}
-                  {headerParams.length + bodyParams.length === 0 && <p className="text-sm text-slate-500">This template has no variables.</p>}
+                  <ButtonValueInputs requirements={template.requirements} values={buttonParams} onChange={setButtonParams} error={err} />
+                  <TemplateExtrasFields requirements={template.requirements} value={extras} onChange={setExtras} error={err} />
+                  {headerParams.length + bodyParams.length + buttonParams.length === 0 && !needsExtras(template.requirements) && (
+                    <p className="text-sm text-slate-500">This template has no variables.</p>
+                  )}
                 </div>
-                <TemplatePreview components={template.components} headerParams={headerParams} bodyParams={bodyParams} />
+                <TemplatePreview components={template.components} headerParams={headerParams} bodyParams={bodyParams} {...extrasPreview(extras)} />
               </div>
             )}
           </>

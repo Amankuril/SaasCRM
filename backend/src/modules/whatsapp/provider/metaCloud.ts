@@ -9,8 +9,11 @@ import {
   type LibraryTemplate,
   type LibraryTemplateDraft,
   type ProviderTemplate,
+  type TemplateButtonParam,
   type TemplateComponent,
   type TemplateDraft,
+  type TemplateMediaParam,
+  type TemplateSendParams,
   type WhatsAppProvider,
 } from './types.js';
 
@@ -101,14 +104,7 @@ export class MetaCloudProvider implements WhatsAppProvider {
             template: {
               name: message.template.name,
               language: { code: message.template.language },
-              components: [
-                ...(message.template.headerParams.length
-                  ? [{ type: 'header', parameters: message.template.headerParams.map((text) => ({ type: 'text', text })) }]
-                  : []),
-                ...(message.template.bodyParams.length
-                  ? [{ type: 'body', parameters: message.template.bodyParams.map((text) => ({ type: 'text', text })) }]
-                  : []),
-              ],
+              components: templateComponents(message.template),
             },
           };
 
@@ -180,6 +176,30 @@ export class MetaCloudProvider implements WhatsAppProvider {
       throw new ProviderError(data.error?.message ?? `Media upload failed (HTTP ${res.status}).`, classify(res.status, code), code, res.status);
     }
     return data.h;
+  }
+
+  async uploadMedia(creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }) {
+    const form = new FormData();
+    form.set('messaging_product', 'whatsapp');
+    form.set('type', file.mimeType);
+    form.set('file', new Blob([new Uint8Array(file.data)], { type: file.mimeType }), file.fileName);
+    let res: Response;
+    try {
+      res = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${creds.phoneNumberId}/media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${creds.accessToken}` },
+        body: form,
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (err) {
+      throw new ProviderError(`Could not reach WhatsApp: ${(err as Error).message}`, 'transient');
+    }
+    const data = (await res.json().catch(() => ({}))) as { id?: string } & GraphError;
+    if (!res.ok || !data.id) {
+      const code = data.error?.code != null ? String(data.error.code) : null;
+      throw new ProviderError(data.error?.message ?? `Media upload failed (HTTP ${res.status}).`, classify(res.status, code), code, res.status);
+    }
+    return data.id;
   }
 
   async listLibraryTemplates(creds: ProviderCredentials, filters: LibraryFilters): Promise<LibraryTemplate[]> {
@@ -283,6 +303,66 @@ export class MetaCloudProvider implements WhatsAppProvider {
     }
     return data;
   }
+}
+
+const mediaObject = (m: TemplateMediaParam) => ({ type: m.type, [m.type]: { ...(m.id ? { id: m.id } : { link: m.link }), ...(m.filename ? { filename: m.filename } : {}) } });
+const textParams = (values: string[]) => values.map((text) => ({ type: 'text', text }));
+
+function buttonComponent(b: TemplateButtonParam) {
+  const base = { type: 'button', index: String(b.index) };
+  switch (b.subType) {
+    case 'url':
+      return { ...base, sub_type: 'url', parameters: [{ type: 'text', text: b.text }] };
+    case 'copy_code':
+      return { ...base, sub_type: 'copy_code', parameters: [{ type: 'coupon_code', coupon_code: b.couponCode }] };
+    case 'quick_reply':
+      return { ...base, sub_type: 'quick_reply', parameters: [{ type: 'payload', payload: b.payload }] };
+    case 'flow':
+      return { ...base, sub_type: 'flow', parameters: [{ type: 'action', action: { flow_token: b.flowToken } }] };
+    case 'catalog':
+      return { ...base, sub_type: 'CATALOG', parameters: [{ type: 'action', action: { thumbnail_product_retailer_id: b.thumbnail } }] };
+    case 'mpm':
+      return {
+        ...base,
+        sub_type: 'mpm',
+        parameters: [
+          {
+            type: 'action',
+            action: {
+              thumbnail_product_retailer_id: b.thumbnail,
+              sections: b.sections.map((s) => ({ title: s.title, product_items: s.items.map((id) => ({ product_retailer_id: id })) })),
+            },
+          },
+        ],
+      };
+  }
+}
+
+/** Cloud API `template.components` for a send: header, offer, body, buttons and carousel cards. */
+export function templateComponents(t: TemplateSendParams): Record<string, unknown>[] {
+  const components: Record<string, unknown>[] = [];
+  if (t.headerMedia) components.push({ type: 'header', parameters: [mediaObject(t.headerMedia)] });
+  else if (t.headerLocation) components.push({ type: 'header', parameters: [{ type: 'location', location: t.headerLocation }] });
+  else if (t.headerParams.length) components.push({ type: 'header', parameters: textParams(t.headerParams) });
+  if (t.offerExpiresAt) {
+    components.push({ type: 'limited_time_offer', parameters: [{ type: 'limited_time_offer', limited_time_offer: { expiration_time_ms: t.offerExpiresAt } }] });
+  }
+  if (t.bodyParams.length) components.push({ type: 'body', parameters: textParams(t.bodyParams) });
+  for (const b of t.buttons ?? []) components.push(buttonComponent(b));
+  if (t.cards?.length) {
+    components.push({
+      type: 'carousel',
+      cards: t.cards.map((card, i) => ({
+        card_index: i,
+        components: [
+          { type: 'header', parameters: [mediaObject(card.media)] },
+          ...(card.bodyParams.length ? [{ type: 'body', parameters: textParams(card.bodyParams) }] : []),
+          ...card.buttons.map(buttonComponent),
+        ],
+      })),
+    });
+  }
+  return components;
 }
 
 function classify(httpStatus: number, code: string | null): ProviderErrorKind {

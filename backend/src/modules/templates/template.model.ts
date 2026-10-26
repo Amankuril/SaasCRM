@@ -1,6 +1,7 @@
 import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
 import type { TemplateComponent } from '../whatsapp/provider/types.js';
+import { sendRequirements } from './templateSend.js';
 
 /** Local mirror of a provider message template (synced; never "approved" locally). */
 const templateSchema = new Schema(
@@ -83,6 +84,7 @@ export function toPublicTemplate(t: TemplateDoc, usage?: { campaigns: number; fl
     rejectedReason: t.rejectedReason,
     components,
     variables: templateVariables(components),
+    requirements: sendRequirements(components),
     type: (t.templateType as TemplateType | null) ?? inferTemplateType(t.category, components),
     draft: t.draft ?? null,
     isFavorite: t.isFavorite,

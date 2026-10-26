@@ -4,6 +4,7 @@ import { apiConversation, contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import { buttonParamsSchema, templateExtrasSchema } from '../templates/templateSend.js';
 import { badRequest, conflict, forbidden } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
@@ -37,6 +38,8 @@ const replySchema = z.discriminatedUnion('type', [
     templateId: z.string().min(1),
     headerParams: z.array(z.string().max(1024)).max(1).default([]),
     bodyParams: z.array(z.string().max(1024)).max(50).default([]),
+    buttonParams: buttonParamsSchema,
+    extras: templateExtrasSchema.default({}),
   }),
 ]);
 

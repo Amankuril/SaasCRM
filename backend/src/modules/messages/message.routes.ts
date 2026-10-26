@@ -1,11 +1,18 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
+import { buttonParamsSchema, templateExtrasSchema } from '../templates/templateSend.js';
 import { badRequest } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { Contact } from '../contacts/contact.model.js';
 import { Message, type MessageDoc } from './message.model.js';
 import { queueOutboundMessage } from './message.service.js';
+import { credentialsOf, getConnection, providerToAppError } from '../whatsapp/connection.service.js';
+import { whatsappProvider } from '../whatsapp/provider/index.js';
+import { assertConnected } from '../templates/template.service.js';
+
+// What WhatsApp accepts for template headers and carousel cards.
+const MEDIA_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'];
 
 const sendSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), to: z.string().trim().min(5).max(30), text: z.string().trim().min(1).max(4096) }),
@@ -15,6 +22,8 @@ const sendSchema = z.discriminatedUnion('type', [
     templateId: z.string().min(1),
     headerParams: z.array(z.string().max(1024)).max(1).default([]),
     bodyParams: z.array(z.string().max(1024)).max(50).default([]),
+    buttonParams: buttonParamsSchema,
+    extras: templateExtrasSchema.default({}),
   }),
 ]);
 
@@ -53,6 +62,23 @@ messageRouter.post('/', requirePermission('messages:send'), async (req, res) => 
 
   const { message, duplicate } = await queueOutboundMessage(req.workspace!, req.user!, input, key);
   res.status(duplicate ? 200 : 202).json({ message: serialize(message) });
+});
+
+/** Uploads a file to WhatsApp for sending (template header/card media); returns its media id. */
+messageRouter.post('/media', requirePermission('messages:send'), express.raw({ type: MEDIA_TYPES, limit: '16mb' }), async (req, res) => {
+  const mimeType = String(req.headers['content-type'] ?? '').split(';')[0]!;
+  if (!MEDIA_TYPES.includes(mimeType) || !Buffer.isBuffer(req.body) || !req.body.length) {
+    throw badRequest('INVALID_MEDIA', 'Upload a JPG or PNG image, an MP4 video or a PDF document.');
+  }
+  const fileName = String(req.headers['x-file-name'] ?? 'file').replace(/[^\w.-]/g, '_').slice(0, 100) || 'file';
+  const conn = await getConnection(req.workspace!._id, true);
+  assertConnected(conn);
+  try {
+    const mediaId = await whatsappProvider().uploadMedia(credentialsOf(conn), { data: req.body, mimeType, fileName });
+    res.status(201).json({ mediaId, fileName });
+  } catch (err) {
+    throw providerToAppError(err, 'Could not upload this file to WhatsApp');
+  }
 });
 
 messageRouter.get('/', requirePermission('workspace:read'), async (req, res) => {

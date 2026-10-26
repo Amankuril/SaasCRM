@@ -30,6 +30,10 @@ const campaignSchema = new Schema(
     templateSnapshot: { type: Schema.Types.Mixed, default: null },
     headerVariables: { type: [variableSchema], default: [] },
     bodyVariables: { type: [variableSchema], default: [] },
+    // URL suffixes / coupon codes, in the order of the template's buttons that take one.
+    buttonVariables: { type: [variableSchema], default: [] },
+    // Same-for-everyone send values: header media/location, offer expiry, products, carousel cards.
+    templateExtras: { type: Schema.Types.Mixed, default: null },
     audience: {
       type: { type: String, enum: ['all', 'segment', 'filter'], default: 'all' },
       segmentId: { type: Schema.Types.ObjectId, ref: 'Segment', default: null },
@@ -74,6 +78,7 @@ const recipientSchema = new Schema(
     skipReason: { type: String, default: null },
     headerParams: { type: [String], default: [] },
     bodyParams: { type: [String], default: [] },
+    buttonParams: { type: [String], default: [] },
     messageId: { type: Schema.Types.ObjectId, ref: 'Message', default: null },
     error: { type: new Schema({ code: String, title: String, message: String }, { _id: false }), default: null },
     queuedAt: { type: Date, default: null },

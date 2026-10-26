@@ -284,8 +284,15 @@ async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepRes
       const cfg = node.data as NodeConfig<'send_template'>;
       const header = resolveVariables(contact, cfg.headerVariables as VariableSpec[]);
       const body = resolveVariables(contact, cfg.bodyVariables as VariableSpec[]);
-      if (!header || !body) throw new AppError(422, 'MISSING_VARIABLE', 'A template variable has no value for this contact.');
-      await send(ctx.workspace, contact, exec, { type: 'template', templateId: cfg.templateId, headerParams: header, bodyParams: body }, node.id);
+      const buttons = resolveVariables(contact, (cfg.buttonVariables ?? []) as VariableSpec[]);
+      if (!header || !body || !buttons) throw new AppError(422, 'MISSING_VARIABLE', 'A template variable has no value for this contact.');
+      await send(
+        ctx.workspace,
+        contact,
+        exec,
+        { type: 'template', templateId: cfg.templateId, headerParams: header, bodyParams: body, buttonParams: buttons, extras: cfg.templateExtras ?? {} },
+        node.id,
+      );
       return { kind: 'next', handle: 'next' };
     }
 

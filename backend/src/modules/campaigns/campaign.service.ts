@@ -7,7 +7,8 @@ import { enqueue, type JobContext } from '../../jobs/queue.js';
 import type { UserDoc } from '../auth/user.model.js';
 import { Contact, type ContactDoc } from '../contacts/contact.model.js';
 import { buildTemplateContent, queueCampaignMessage } from '../messages/message.service.js';
-import { MessageTemplate, templateVariables, type TemplateDoc } from '../templates/template.model.js';
+import { MessageTemplate, type TemplateDoc } from '../templates/template.model.js';
+import { checkSendValues, sendRequirements, type TemplateExtras } from '../templates/templateSend.js';
 import { getConnection } from '../whatsapp/connection.service.js';
 import { Workspace, type WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { Campaign, CampaignRecipient, type CampaignDoc } from './campaign.model.js';
@@ -88,12 +89,24 @@ async function loadTemplate(workspaceId: Types.ObjectId, campaign: CampaignDoc):
 }
 
 function assertVariableCounts(template: TemplateDoc, campaign: CampaignDoc) {
-  const expected = templateVariables(template.components as never);
+  const req = sendRequirements(template.components as never);
   const details: Record<string, string[]> = {};
-  if (campaign.headerVariables.length !== expected.header) details.headerVariables = [`Map ${expected.header} header variable(s).`];
-  if (campaign.bodyVariables.length !== expected.body) details.bodyVariables = [`Map ${expected.body} body variable(s).`];
-  if (Object.keys(details).length) throw badRequest('VALIDATION_ERROR', 'Map every template variable.', details);
+  if (campaign.headerVariables.length !== req.header) details.headerVariables = [`Map ${req.header} header variable(s).`];
+  if (campaign.bodyVariables.length !== req.body) details.bodyVariables = [`Map ${req.body} body variable(s).`];
+  if (campaign.buttonVariables.length !== req.buttons.length) details.buttonVariables = [`Map ${req.buttons.length} button value(s).`];
+  // The same-for-everyone values are checked once here; per-contact values are resolved per recipient.
+  const placeholder = (n: number) => Array<string>(n).fill('x');
+  const extras = checkSendValues(req, {
+    headerParams: placeholder(req.header),
+    bodyParams: placeholder(req.body),
+    buttonParams: placeholder(req.buttons.length),
+    extras: (campaign.templateExtras ?? {}) as TemplateExtras,
+  });
+  Object.assign(details, extras);
+  if (Object.keys(details).length) throw badRequest('VALIDATION_ERROR', 'Fill in everything this template needs.', details);
 }
+
+const extrasOf = (campaign: CampaignDoc) => (campaign.templateExtras ?? {}) as TemplateExtras;
 
 export interface AudiencePreview {
   matched: number;
@@ -126,7 +139,9 @@ export async function previewCampaign(workspace: WorkspaceDoc, campaign: Campaig
 }
 
 function variableSkipReason(contact: Parameters<typeof fieldValue>[0], campaign: CampaignDoc): string | null {
-  return resolveVariables(contact, campaign.headerVariables as VariableSpec[]) && resolveVariables(contact, campaign.bodyVariables as VariableSpec[])
+  return resolveVariables(contact, campaign.headerVariables as VariableSpec[]) &&
+    resolveVariables(contact, campaign.bodyVariables as VariableSpec[]) &&
+    resolveVariables(contact, campaign.buttonVariables as VariableSpec[])
     ? null
     : 'missing_variable';
 }
@@ -134,8 +149,14 @@ function variableSkipReason(contact: Parameters<typeof fieldValue>[0], campaign:
 function renderContent(template: TemplateDoc, contact: Parameters<typeof fieldValue>[0], campaign: CampaignDoc) {
   const header = resolveVariables(contact, campaign.headerVariables as VariableSpec[]);
   const body = resolveVariables(contact, campaign.bodyVariables as VariableSpec[]);
-  if (!header || !body) return null;
-  return buildTemplateContent(template, header, body);
+  const buttons = resolveVariables(contact, campaign.buttonVariables as VariableSpec[]);
+  if (!header || !body || !buttons) return null;
+  try {
+    return buildTemplateContent(template, header, body, buttons, extrasOf(campaign));
+  } catch {
+    // Not fully configured yet: the preview still counts the audience.
+    return null;
+  }
 }
 
 /**
@@ -162,7 +183,8 @@ export async function launchCampaign(workspace: WorkspaceDoc, campaign: Campaign
   for await (const contact of cursor) {
     const header = resolveVariables(contact, campaign.headerVariables as VariableSpec[]);
     const body = resolveVariables(contact, campaign.bodyVariables as VariableSpec[]);
-    const skipReason = consentSkipReason(contact, filter) ?? (header && body ? null : 'missing_variable');
+    const buttons = resolveVariables(contact, campaign.buttonVariables as VariableSpec[]);
+    const skipReason = consentSkipReason(contact, filter) ?? (header && body && buttons ? null : 'missing_variable');
     if (!skipReason) eligible++;
     rows.push({
       workspaceId: workspace._id,
@@ -173,6 +195,7 @@ export async function launchCampaign(workspace: WorkspaceDoc, campaign: Campaign
       skipReason,
       headerParams: header ?? [],
       bodyParams: body ?? [],
+      buttonParams: buttons ?? [],
     });
   }
   if (eligible === 0) throw new AppError(422, 'NO_ELIGIBLE_RECIPIENTS', 'No contacts in this audience can receive the message.');
@@ -247,7 +270,7 @@ export async function processCampaignDispatch(data: { workspaceId: string; campa
     );
     if (!recipient) break;
     try {
-      const content = buildTemplateContent(liveTemplate, recipient.headerParams, recipient.bodyParams);
+      const content = buildTemplateContent(liveTemplate, recipient.headerParams, recipient.bodyParams, recipient.buttonParams, extrasOf(campaign));
       await queueCampaignMessage(workspaceId, recipient, content, `campaign:${campaign.id}:${recipient.contactId}`);
     } catch (err) {
       const code = (err as AppError).code;

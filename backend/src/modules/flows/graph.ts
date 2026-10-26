@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { templateExtrasSchema } from '../templates/templateSend.js';
 
 /**
  * Flow graph format (React Flow compatible). Nodes carry typed config in `data`;
@@ -86,6 +87,8 @@ export const nodeConfigSchemas = {
     templateId: z.string().min(1, 'Choose a template.'),
     headerVariables: z.array(variableSpec).max(1).default([]),
     bodyVariables: z.array(variableSpec).max(50).default([]),
+    buttonVariables: z.array(variableSpec).max(10).default([]),
+    templateExtras: templateExtrasSchema.default({}),
   }),
   send_buttons: z.object({
     text: z.string().trim().min(1, 'Write the message.').max(1024),

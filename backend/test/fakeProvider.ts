@@ -86,6 +86,13 @@ export class FakeProvider implements WhatsAppProvider {
     return `handle-${file.data.length}`;
   }
 
+  uploaded: { mimeType: string; fileName: string }[] = [];
+
+  async uploadMedia(_creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }) {
+    this.uploaded.push({ mimeType: file.mimeType, fileName: file.fileName });
+    return `media-${this.uploaded.length}`;
+  }
+
   async listLibraryTemplates() {
     return this.library;
   }

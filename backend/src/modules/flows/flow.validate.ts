@@ -2,7 +2,8 @@ import { Types } from 'mongoose';
 import { AiAgent } from '../ai/ai.model.js';
 import { Form } from '../forms/form.model.js';
 import { Tag } from '../contacts/tag.model.js';
-import { MessageTemplate, templateVariables } from '../templates/template.model.js';
+import { MessageTemplate } from '../templates/template.model.js';
+import { checkSendValues, sendRequirements, type TemplateExtras } from '../templates/templateSend.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
 import { Flow, FlowVersion } from './flow.model.js';
 import { WAITING_NODES, nodeConfigSchemas, outputHandles, type Graph, type GraphNode } from './graph.js';
@@ -96,9 +97,20 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
       if (!t) add(node.id, 'The selected template no longer exists.');
       else if (t.status !== 'APPROVED') add(node.id, `Template "${t.name}" is not approved yet.`);
       else {
-        const vars = templateVariables(t.components as never);
-        if (((d.headerVariables as unknown[]) ?? []).length !== vars.header || ((d.bodyVariables as unknown[]) ?? []).length !== vars.body) {
+        const req = sendRequirements(t.components as never);
+        const count = (key: string) => ((d[key] as unknown[]) ?? []).length;
+        if (count('headerVariables') !== req.header || count('bodyVariables') !== req.body || count('buttonVariables') !== req.buttons.length) {
           add(node.id, 'Map every template variable.');
+        } else {
+          const placeholder = (n: number) => Array<string>(n).fill('x');
+          // Offer expiry is checked when the step runs, not when the flow is published.
+          const { offerExpiresAt: _expiry, ...issues } = checkSendValues(req, {
+            headerParams: placeholder(req.header),
+            bodyParams: placeholder(req.body),
+            buttonParams: placeholder(req.buttons.length),
+            extras: (d.templateExtras ?? {}) as TemplateExtras,
+          });
+          for (const messages of Object.values(issues)) add(node.id, messages[0]!);
         }
       }
     }

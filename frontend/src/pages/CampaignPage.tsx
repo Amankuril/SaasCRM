@@ -3,6 +3,7 @@ import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Rocket, Save, T
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { TemplatePreview } from '../components/TemplatePreview';
+import { TemplateExtrasFields, emptyExtras, extrasPreview } from '../components/TemplateSendFields';
 import { VariableRow } from '../components/VariableRow';
 import { Modal, STAGES, TagChip } from '../components/crm';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
@@ -53,6 +54,8 @@ function CampaignEditor({ campaign }: { campaign: Campaign }) {
     templateId: campaign.templateId,
     headerVariables: campaign.headerVariables,
     bodyVariables: campaign.bodyVariables,
+    buttonVariables: campaign.buttonVariables ?? [],
+    templateExtras: campaign.templateExtras,
     audience: campaign.audience,
     sendRatePerMinute: campaign.sendRatePerMinute,
     quietHours: campaign.quietHours,
@@ -77,6 +80,9 @@ function CampaignEditor({ campaign }: { campaign: Campaign }) {
       ...d,
       headerVariables: fit(d.headerVariables, template.variables.header, { source: 'field', value: 'first_name', fallback: 'there' }),
       bodyVariables: fit(d.bodyVariables, template.variables.body, { source: 'field', value: 'first_name', fallback: 'there' }),
+      buttonVariables: fit(d.buttonVariables, template.requirements.buttons.length, { source: 'static', value: '', fallback: '' }),
+      // Saved values survive a reload; a different template starts from blank card slots.
+      templateExtras: d.templateExtras?.cards?.length === template.requirements.cards.length ? d.templateExtras : { ...d.templateExtras, ...emptyExtras(template.requirements) },
     }));
   }, [template]);
 
@@ -163,7 +169,7 @@ function CampaignEditor({ campaign }: { campaign: Campaign }) {
             ) : (
               <div className="space-y-4">
                 <Field label="Approved template" htmlFor="c-tpl" error={fieldError(error, 'templateId')}>
-                  <Select id="c-tpl" disabled={!editable} value={draft.templateId ?? ''} onChange={(e) => set({ templateId: e.target.value || null, headerVariables: [], bodyVariables: [] })}>
+                  <Select id="c-tpl" disabled={!editable} value={draft.templateId ?? ''} onChange={(e) => set({ templateId: e.target.value || null, headerVariables: [], bodyVariables: [], buttonVariables: [], templateExtras: null })}>
                     <option value="">Choose a template</option>
                     {templates.data?.templates.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -180,13 +186,31 @@ function CampaignEditor({ campaign }: { campaign: Campaign }) {
                     {draft.bodyVariables.map((v, i) => (
                       <VariableRow key={`b${i}`} label={`Body {{${i + 1}}}`} spec={v} disabled={!editable} onChange={(spec) => set({ bodyVariables: draft.bodyVariables.map((x, j) => (j === i ? spec : x)) })} />
                     ))}
-                    {(fieldError(error, 'bodyVariables') || fieldError(error, 'headerVariables')) && (
-                      <p className="text-xs text-red-600">{fieldError(error, 'bodyVariables') ?? fieldError(error, 'headerVariables')}</p>
+                    {template.requirements.buttons.map((b, i) => (
+                      <VariableRow
+                        key={`btn${i}`}
+                        label={b.type === 'COPY_CODE' ? 'Offer code' : `“${b.text}” link`}
+                        spec={draft.buttonVariables[i] ?? { source: 'static', value: '', fallback: '' }}
+                        disabled={!editable}
+                        onChange={(spec) => set({ buttonVariables: template.requirements.buttons.map((_, j) => (j === i ? spec : (draft.buttonVariables[j] ?? { source: 'static', value: '', fallback: '' }))) })}
+                      />
+                    ))}
+                    {(fieldError(error, 'bodyVariables') || fieldError(error, 'headerVariables') || fieldError(error, 'buttonVariables')) && (
+                      <p className="text-xs text-red-600">{fieldError(error, 'bodyVariables') ?? fieldError(error, 'headerVariables') ?? fieldError(error, 'buttonVariables')}</p>
                     )}
+                    <TemplateExtrasFields
+                      requirements={template.requirements}
+                      value={draft.templateExtras ?? {}}
+                      onChange={(templateExtras) => set({ templateExtras })}
+                      disabled={!editable}
+                      error={error}
+                      shared
+                    />
                     <TemplatePreview
                       components={template.components}
                       headerParams={draft.headerVariables.map(sampleValue)}
                       bodyParams={draft.bodyVariables.map(sampleValue)}
+                      {...extrasPreview(draft.templateExtras ?? {})}
                     />
                   </>
                 )}

@@ -203,6 +203,10 @@ export class SandboxProvider implements WhatsAppProvider {
     return `sandbox-handle-${file.data.length}-${randomBytes(4).toString('hex')}`;
   }
 
+  async uploadMedia() {
+    return `${Date.now()}${randomBytes(3).readUIntBE(0, 3)}`;
+  }
+
   async listLibraryTemplates(_creds: ProviderCredentials, filters: LibraryFilters) {
     const q = filters.search?.toLowerCase();
     return SANDBOX_LIBRARY.filter(

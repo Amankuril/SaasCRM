@@ -17,11 +17,47 @@ export interface PhoneNumberInfo {
   messagingLimitTier: string | null;
 }
 
+export interface TemplateMediaParam {
+  type: 'image' | 'video' | 'document';
+  /** A public https URL, or the id of media uploaded to WhatsApp. */
+  link?: string;
+  id?: string;
+  filename?: string;
+}
+
+export interface TemplateLocationParam {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
+
+/** Per-send values for a template button, addressed by its position. */
+export type TemplateButtonParam =
+  | { index: number; subType: 'url'; text: string }
+  | { index: number; subType: 'copy_code'; couponCode: string }
+  | { index: number; subType: 'quick_reply'; payload: string }
+  | { index: number; subType: 'flow'; flowToken: string }
+  | { index: number; subType: 'catalog'; thumbnail: string }
+  | { index: number; subType: 'mpm'; thumbnail: string; sections: { title: string; items: string[] }[] };
+
+export interface TemplateCardParams {
+  media: TemplateMediaParam;
+  bodyParams: string[];
+  buttons: TemplateButtonParam[];
+}
+
 export interface TemplateSendParams {
   name: string;
   language: string;
   headerParams: string[];
   bodyParams: string[];
+  headerMedia?: TemplateMediaParam;
+  headerLocation?: TemplateLocationParam;
+  buttons?: TemplateButtonParam[];
+  /** Limited-time offer expiry (epoch ms). */
+  offerExpiresAt?: number;
+  cards?: TemplateCardParams[];
 }
 
 export interface InteractiveParts {
@@ -137,6 +173,8 @@ export interface WhatsAppProvider {
   deleteTemplate(creds: ProviderCredentials, template: { providerTemplateId: string; name: string }): Promise<void>;
   /** Uploads a sample media file for a template header/card; returns the handle Meta expects in `header_handle`. */
   uploadTemplateMedia(creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }): Promise<string>;
+  /** Uploads a file for sending (e.g. a template header image); returns the WhatsApp media id. */
+  uploadMedia(creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }): Promise<string>;
   /** Browses Meta's pre-approved Template Library. */
   listLibraryTemplates(creds: ProviderCredentials, filters: LibraryFilters): Promise<LibraryTemplate[]>;
   createFromLibrary(creds: ProviderCredentials, draft: LibraryTemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;

@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link, useSearchParams } from 'react-router';
 import { ContactDetails } from '../components/ContactDetails';
 import { TemplatePreview } from '../components/TemplatePreview';
+import { ButtonValueInputs, TemplateExtrasFields, emptyExtras, extrasPreview } from '../components/TemplateSendFields';
 import { initials, Modal, relativeTime, TagChip } from '../components/crm';
 import { Alert, Badge, Button, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
-import { ApiError, api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TimelineItem } from '../lib/api';
+import { ApiError, api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TemplateExtras, type TimelineItem } from '../lib/api';
 import { useMembers, useTags } from '../lib/hooks';
 import { useAuth } from '../auth/AuthContext';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -518,6 +519,8 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
   const [templateId, setTemplateId] = useState('');
   const [headerParams, setHeaderParams] = useState<string[]>([]);
   const [bodyParams, setBodyParams] = useState<string[]>([]);
+  const [buttonParams, setButtonParams] = useState<string[]>([]);
+  const [extras, setExtras] = useState<TemplateExtras>({});
   const useTemplate = mode === 'reply' && !windowOpen;
   const [suggestion, setSuggestion] = useState<AgentDecision | null>(null);
   const suggest = useMutation({
@@ -539,7 +542,7 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
     mutationFn: () => {
       const base = `/workspaces/${workspace.id}/conversations/${id}`;
       if (mode === 'note') return api.post(`${base}/notes`, { body: text });
-      return api.post(`${base}/messages`, useTemplate ? { type: 'template', templateId, headerParams, bodyParams } : { type: 'text', text });
+      return api.post(`${base}/messages`, useTemplate ? { type: 'template', templateId, headerParams, bodyParams, buttonParams, extras } : { type: 'text', text });
     },
     onSuccess: () => {
       setText('');
@@ -608,6 +611,8 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
             setTemplateId(e.target.value);
             setHeaderParams(Array(t?.variables.header ?? 0).fill(''));
             setBodyParams(Array(t?.variables.body ?? 0).fill(''));
+            setButtonParams(Array(t?.requirements.buttons.length ?? 0).fill(''));
+            setExtras(emptyExtras(t?.requirements));
           }}>
             <option value="">{templates.data?.templates.length === 0 ? 'No approved templates' : 'Choose an approved template'}</option>
             {templates.data?.templates.map((t) => (
@@ -625,8 +630,10 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
                 {bodyParams.map((v, i) => (
                   <Input key={`b${i}`} aria-label={`Body {{${i + 1}}}`} placeholder={`Body {{${i + 1}}}`} value={v} onChange={(e) => setBodyParams(bodyParams.map((x, j) => (j === i ? e.target.value : x)))} />
                 ))}
+                <ButtonValueInputs requirements={template.requirements} values={buttonParams} onChange={setButtonParams} error={send.error} />
+                <TemplateExtrasFields requirements={template.requirements} value={extras} onChange={setExtras} error={send.error} />
               </div>
-              <TemplatePreview components={template.components} headerParams={headerParams} bodyParams={bodyParams} />
+              <TemplatePreview components={template.components} headerParams={headerParams} bodyParams={bodyParams} {...extrasPreview(extras)} />
             </div>
           )}
           <Button loading={send.isPending} disabled={!templateId} onClick={submit}>

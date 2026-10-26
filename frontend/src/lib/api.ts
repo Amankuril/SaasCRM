@@ -247,6 +247,7 @@ export interface MessageTemplate {
   rejectedReason: string | null;
   components: TemplateComponent[];
   variables: { header: number; body: number };
+  requirements: SendRequirements;
   type: TemplateType;
   /** Raw builder input of a DRAFT. */
   draft: Record<string, unknown> | null;
@@ -258,6 +259,35 @@ export interface MessageTemplate {
   syncedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What a template needs at send time beyond header/body text variables. */
+export interface SendRequirements {
+  header: number;
+  body: number;
+  headerMedia: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null;
+  headerLocation: boolean;
+  buttons: { index: number; type: 'URL' | 'COPY_CODE'; text: string }[];
+  offer: { expires: boolean } | null;
+  products: 'CATALOG' | 'MPM' | null;
+  otp: boolean;
+  cards: { media: 'IMAGE' | 'VIDEO'; body: number; buttons: { index: number; type: 'URL'; text: string }[] }[];
+}
+
+export interface TemplateMediaInput {
+  link?: string;
+  id?: string;
+  filename?: string;
+}
+
+export interface TemplateExtras {
+  headerMedia?: TemplateMediaInput;
+  headerLocation?: { latitude: number; longitude: number; name?: string; address?: string };
+  offerExpiresAt?: string;
+  offerExpiresInMinutes?: number;
+  products?: { thumbnail: string; items: string[] };
+  otpCode?: string;
+  cards?: { media: TemplateMediaInput; bodyParams: string[]; buttonParams: string[] }[];
 }
 
 export interface TemplatePage {
@@ -398,6 +428,8 @@ export interface Campaign {
   templateName: string | null;
   headerVariables: VariableSpec[];
   bodyVariables: VariableSpec[];
+  buttonVariables: VariableSpec[];
+  templateExtras: TemplateExtras | null;
   audience: { type: 'all' | 'segment' | 'filter'; segmentId: string | null; filter: AudienceFilter };
   sendRatePerMinute: number;
   quietHours: { enabled: boolean; start: string; end: string };

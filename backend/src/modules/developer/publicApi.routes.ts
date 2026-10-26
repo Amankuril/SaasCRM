@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import { buttonParamsSchema, templateExtrasSchema } from '../templates/templateSend.js';
 import { isTest } from '../../config/env.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { emailSchema, objectId, parse } from '../../lib/validate.js';
@@ -253,6 +254,14 @@ const sendSchema = z.discriminatedUnion('type', [
     template: z.object({ name: z.string().trim().min(1).max(512), language: z.string().trim().max(15).optional() }),
     header_params: z.array(z.string().max(1024)).max(1).default([]),
     body_params: z.array(z.string().max(1024)).max(50).default([]),
+    // URL suffixes / coupon codes, in button order.
+    button_params: buttonParamsSchema,
+    header_media: z.object({ link: z.string().url().max(2000).optional(), id: z.string().max(100).optional(), filename: z.string().max(240).optional() }).optional(),
+    header_location: z.object({ latitude: z.number(), longitude: z.number(), name: z.string().max(100).optional(), address: z.string().max(300).optional() }).optional(),
+    offer_expires_at: z.string().optional(),
+    products: z.object({ thumbnail: z.string(), items: z.array(z.string()).default([]) }).optional(),
+    otp_code: z.string().optional(),
+    cards: z.array(z.object({ media: z.object({ link: z.string().optional(), id: z.string().optional() }), body_params: z.array(z.string()).default([]), button_params: z.array(z.string()).default([]) })).optional(),
   }),
 ]);
 
@@ -282,6 +291,16 @@ publicApiRouter.post('/messages', requireScope('messages:send'), async (req, res
           templateId: (await findTemplate(workspaceId, input.template.name, input.template.language)).id as string,
           headerParams: input.header_params,
           bodyParams: input.body_params,
+          buttonParams: input.button_params,
+          // Re-checked against the dashboard schema so both entry points accept the same values.
+          extras: parse(templateExtrasSchema, {
+            headerMedia: input.header_media,
+            headerLocation: input.header_location,
+            offerExpiresAt: input.offer_expires_at,
+            products: input.products,
+            otpCode: input.otp_code,
+            cards: input.cards?.map((c) => ({ media: c.media, bodyParams: c.body_params, buttonParams: c.button_params })),
+          }),
         };
   const { message, duplicate } = await queueOutboundMessage(req.workspace!, null, send, scopedKey);
   res.status(duplicate ? 200 : 202).json({ data: apiMessage(message) });

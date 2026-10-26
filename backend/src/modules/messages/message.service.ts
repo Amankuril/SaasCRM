@@ -4,7 +4,10 @@ import type { JobContext } from '../../jobs/queue.js';
 import { enqueue } from '../../jobs/queue.js';
 import { Contact } from '../contacts/contact.model.js';
 import { findOrCreateContact, isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
-import { MessageTemplate, templateVariables, type TemplateDoc } from '../templates/template.model.js';
+import { MessageTemplate, type TemplateDoc } from '../templates/template.model.js';
+import { checkSendValues, pinOfferExpiry, sendRequirements, toSendParams, type TemplateExtras } from '../templates/templateSend.js';
+import { Form } from '../forms/form.model.js';
+import { newFlowToken } from '../forms/flowToken.js';
 import type { UserDoc } from '../auth/user.model.js';
 import { credentialsOf, getConnection, markConnectionAuthError } from '../whatsapp/connection.service.js';
 import { ProviderError, whatsappProvider, type OutboundMessage, type StatusEvent, type TemplateComponent } from '../whatsapp/provider/index.js';
@@ -19,7 +22,7 @@ import { emitEvent } from '../developer/webhook.service.js';
 
 export type SendInput =
   | { to: string; type: 'text'; text: string }
-  | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[] }
+  | { to: string; type: 'template'; templateId: string; headerParams?: string[]; bodyParams?: string[]; buttonParams?: string[]; extras?: TemplateExtras }
   | { to: string; type: 'buttons'; text: string; header?: string; footer?: string; buttons: { id: string; title: string }[] }
   | { to: string; type: 'cta_url'; text: string; header?: string; footer?: string; buttonText: string; url: string }
   | { to: string; type: 'flow'; text: string; flowId: string; flowToken: string; ctaText: string; screen: string; formId: string; formName: string };
@@ -76,7 +79,7 @@ export async function queueOutboundMessage(
       ? await MessageTemplate.findOne({ _id: input.templateId, workspaceId: workspace._id })
       : null;
     if (!template) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { templateId: ['Template not found.'] });
-    content = buildTemplateContent(template, input.headerParams ?? [], input.bodyParams ?? []);
+    content = buildTemplateContent(template, input.headerParams ?? [], input.bodyParams ?? [], input.buttonParams ?? [], input.extras ?? {});
   }
 
   // Counts against the plan's message allowance (accepted sends, not deliveries).
@@ -151,22 +154,22 @@ async function syncCampaignRecipient(message: MessageDoc) {
 }
 
 /** Snapshot of the template + rendered parameters, so history stays accurate if the template changes. */
-export function buildTemplateContent(template: TemplateDoc, headerParams: string[], bodyParams: string[]) {
+export function buildTemplateContent(template: TemplateDoc, headerParams: string[], bodyParams: string[], buttonParams: string[] = [], rawExtras: TemplateExtras = {}) {
+  const extras = pinOfferExpiry(rawExtras);
   if (template.status !== 'APPROVED') {
     throw new AppError(422, 'TEMPLATE_NOT_APPROVED', `Template "${template.name}" is ${template.status.toLowerCase()}, not approved.`);
   }
   const components = template.components as TemplateComponent[];
-  const expected = templateVariables(components);
-  const details: Record<string, string[]> = {};
-  if (headerParams.length !== expected.header) details.headerParams = [`This template needs ${expected.header} header value(s).`];
-  if (bodyParams.length !== expected.body) details.bodyParams = [`This template needs ${expected.body} body value(s).`];
-  if ([...headerParams, ...bodyParams].some((p) => !p.trim())) details.bodyParams = ['Template values cannot be empty.'];
+  const requirements = sendRequirements(components);
+  const details = checkSendValues(requirements, { headerParams, bodyParams, buttonParams, extras });
   if (Object.keys(details).length) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', details);
 
   const render = (text: string | undefined, params: string[]) =>
     (text ?? '').replace(/\{\{(\d+)\}\}/g, (_, n: string) => params[Number(n) - 1] ?? '');
   const header = components.find((c) => c.type === 'HEADER');
   const body = components.find((c) => c.type === 'BODY');
+  const bodyText = requirements.otp ? `${extras.otpCode} is your verification code.` : render(body?.text, bodyParams);
+  const headerText = header?.format === 'TEXT' ? render(header.text, headerParams) : requirements.headerMedia ? `[${requirements.headerMedia.toLowerCase()}]` : null;
 
   return {
     template: {
@@ -178,10 +181,20 @@ export function buildTemplateContent(template: TemplateDoc, headerParams: string
     },
     headerParams,
     bodyParams,
-    preview: [header?.format === 'TEXT' ? render(header.text, headerParams) : null, render(body?.text, bodyParams)]
-      .filter(Boolean)
-      .join('\n\n'),
+    ...(buttonParams.length ? { buttonParams } : {}),
+    ...(Object.keys(extras).length ? { extras } : {}),
+    preview: [headerText, bodyText].filter(Boolean).join('\n\n'),
   };
+}
+
+/** Fresh flow tokens for the template's form buttons, so submissions are matched to our forms. */
+async function flowTokensFor(workspaceId: Types.ObjectId, components: TemplateComponent[]): Promise<Map<string, string>> {
+  const flowIds = (components.find((c) => c.type === 'BUTTONS')?.buttons ?? []).flatMap((b) => (b.type.toUpperCase() === 'FLOW' && b.flow_id ? [b.flow_id] : []));
+  const tokens = new Map<string, string>();
+  if (!flowIds.length) return tokens;
+  const forms = await Form.find({ workspaceId, providerFlowId: { $in: flowIds } }).select('_id version providerFlowId');
+  for (const f of forms) tokens.set(f.providerFlowId!, newFlowToken({ id: f.id as string, version: f.version }));
+  return tokens;
 }
 
 /** Worker: sends one queued message through the provider. */
@@ -226,12 +239,16 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
           : {
           type: 'template',
           to: contact.phoneE164,
-          template: {
-            name: (content.template as { name: string }).name,
-            language: (content.template as { language: string }).language,
-            headerParams: content.headerParams as string[],
-            bodyParams: content.bodyParams as string[],
-          },
+          template: toSendParams(
+            content.template as { name: string; language: string; components: TemplateComponent[] },
+            {
+              headerParams: content.headerParams as string[],
+              bodyParams: content.bodyParams as string[],
+              buttonParams: content.buttonParams as string[] | undefined,
+              extras: content.extras as TemplateExtras | undefined,
+            },
+            await flowTokensFor(message.workspaceId, (content.template as { components?: TemplateComponent[] }).components ?? []),
+          ),
         };
 
   message.attempts += 1;
