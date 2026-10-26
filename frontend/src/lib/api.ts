@@ -338,7 +338,8 @@ export interface ChatMessage {
   createdAt: string;
 }
 
-export type LifecycleStage = 'new' | 'contacted' | 'qualified' | 'follow_up' | 'converted' | 'lost';
+/** Key of one of the workspace's pipeline stages. */
+export type LifecycleStage = string;
 export type ConsentStatus = 'unknown' | 'opted_in' | 'opted_out';
 export type TagColor = 'gray' | 'red' | 'amber' | 'green' | 'blue' | 'violet' | 'pink';
 
@@ -363,6 +364,7 @@ export interface Contact {
   customFields: Record<string, string>;
   consent: { status: ConsentStatus; source: string | null; updatedAt: string | null };
   source: string | null;
+  attribution: { source: ChatSource; campaignId: string | null; campaignName: string | null; adTitle: string | null; at: string | null } | null;
   lastInboundAt: string | null;
   createdAt: string;
 }
@@ -409,6 +411,11 @@ export interface Member {
 export interface AudienceFilter {
   tagsAny: string[];
   listsAny?: string[];
+  sources?: (ChatSource | 'none')[];
+  campaignIds?: string[];
+  ownerIds?: string[];
+  unassigned?: boolean;
+  addedWithinDays?: number | null;
   excludeTags: string[];
   stages: LifecycleStage[];
   requireOptIn: boolean;
@@ -813,4 +820,57 @@ export interface ListImportReport {
   added: number;
   alreadyInList: number;
   invalid: { row: number; reason: string }[];
+}
+
+// ---- Audience ----
+
+export type ChatSource = 'broadcast' | 'ad' | 'direct';
+export type StageColor = 'green' | 'orange' | 'amber' | 'yellow' | 'blue' | 'indigo' | 'violet' | 'pink' | 'red' | 'teal' | 'gray';
+
+export interface PipelineStage {
+  id: string;
+  key: string;
+  name: string;
+  color: StageColor;
+  order: number;
+  count?: number;
+}
+
+export interface CustomFieldDef {
+  id: string;
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'date';
+  order: number;
+}
+
+export interface FollowUp {
+  id: string;
+  contactId: string;
+  dueAt: string;
+  note: string;
+  assigneeId: string | null;
+  status: 'open' | 'done';
+  completedAt: string | null;
+  createdAt: string;
+  contact?: { id: string; name: string; phone: string } | null;
+}
+
+export interface AudienceRow extends Contact {
+  owner: { id: string; name: string } | null;
+  nextFollowUp: FollowUp | null;
+  openFollowUps: number;
+}
+
+export interface AudienceQuery {
+  q?: string;
+  filter: Partial<AudienceFilter>;
+  addedFrom?: string;
+  addedTo?: string;
+  consent?: ConsentStatus;
+  followUp?: 'overdue' | 'today' | 'upcoming' | 'any' | 'none';
+  sort: 'createdAt' | 'name' | 'phone' | 'stage' | 'lastInboundAt';
+  dir: 'asc' | 'desc';
+  page: number;
+  limit: number;
 }

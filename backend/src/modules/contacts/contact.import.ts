@@ -2,7 +2,7 @@ import type { Types } from 'mongoose';
 import { z } from 'zod';
 import { assertWithinLimit } from '../billing/billing.service.js';
 import { Contact } from './contact.model.js';
-import { LIFECYCLE_STAGES } from './contact.model.js';
+import { stageResolver } from '../audience/stage.service.js';
 import { normalizePhone } from './contact.service.js';
 import { Tag } from './tag.model.js';
 
@@ -47,6 +47,7 @@ export async function importContacts(workspaceId: Types.ObjectId, country: strin
   if (mapping.tags) for (const r of rows) for (const t of splitTags(r[mapping.tags])) fileTagNames.add(t);
   const tagIdByName = await ensureTags(workspaceId, [...fileTagNames]);
   const extraTags = (await Tag.find({ workspaceId, _id: { $in: input.addTagIds } }).select('_id').lean()).map((t) => t._id);
+  const resolveStage = await stageResolver(workspaceId);
 
   type Parsed = { row: number; phone: string; name?: string; email?: string; stage?: string; tags: Types.ObjectId[]; custom: Record<string, string> };
   const parsed: Parsed[] = [];
@@ -61,10 +62,9 @@ export async function importContacts(workspaceId: Types.ObjectId, country: strin
 
     const email = clean(mapping.email && r[mapping.email]);
     if (email && !emailOk(email)) return void report.invalid.push({ row: rowNo, reason: `Invalid email "${email}"` });
-    const stage = clean(mapping.lifecycleStage && r[mapping.lifecycleStage])?.toLowerCase().replace(/[\s-]+/g, '_');
-    if (stage && !(LIFECYCLE_STAGES as readonly string[]).includes(stage)) {
-      return void report.invalid.push({ row: rowNo, reason: `Unknown lifecycle stage "${stage}"` });
-    }
+    const rawStage = clean(mapping.lifecycleStage && r[mapping.lifecycleStage]);
+    const stage = rawStage ? (resolveStage(rawStage) ?? undefined) : undefined;
+    if (rawStage && !stage) return void report.invalid.push({ row: rowNo, reason: `Unknown stage "${rawStage}"` });
 
     const custom: Record<string, string> = {};
     for (const [key, column] of Object.entries(mapping.custom)) {

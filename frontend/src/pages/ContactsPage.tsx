@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { ContactDetails } from '../components/ContactDetails';
 import { ImportContactsModal } from '../components/ImportContactsModal';
 import { TagsModal } from '../components/TagsModal';
-import { CONSENT_LABEL, Modal, STAGES, StageBadge, TagChip } from '../components/crm';
+import { CONSENT_LABEL, Modal, useStageOptions, StageBadge, TagChip } from '../components/crm';
 import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError } from '../components/ui';
 import { ApiError, api, type Contact } from '../lib/api';
 import { useTags } from '../lib/hooks';
@@ -20,6 +20,7 @@ interface ContactPage {
 }
 
 export function ContactsPage() {
+  const STAGES = useStageOptions();
   const { workspace, can } = useWorkspace();
   const writable = workspace.status !== 'suspended';
   const [q, setQ] = useState('');

@@ -11,19 +11,20 @@ import { contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
 import { onTagsAdded } from '../flows/triggers.js';
 import { Conversation } from '../inbox/conversation.model.js';
-import { ConversationNote } from '../inbox/note.model.js';
-import { Message } from '../messages/message.model.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
 import { importContacts, importSchema } from './contact.import.js';
-import { CONSENT_STATUSES, Contact, LIFECYCLE_STAGES, toPublicContact } from './contact.model.js';
+import { CONSENT_STATUSES, Contact, toPublicContact } from './contact.model.js';
+import { assertStage, stageKeySchema } from '../audience/stage.service.js';
 import { normalizePhone } from './contact.service.js';
 import { ContactList } from './contactList.model.js';
 import { Tag } from './tag.model.js';
+import { csvCell } from '../../lib/csv.js';
+import { deleteContactsData } from '../audience/audience.service.js';
 
 const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
   tag: z.string().optional(),
-  stage: z.enum(LIFECYCLE_STAGES).optional(),
+  stage: stageKeySchema.optional(),
   list: z.string().optional(),
   consent: z.enum(CONSENT_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -38,14 +39,21 @@ const fields = {
   name: z.string().trim().max(200).nullable(),
   email: emailSchema.nullable().or(z.literal('').transform(() => null)),
   tags: z.array(z.string()).max(50),
-  lifecycleStage: z.enum(LIFECYCLE_STAGES),
+  lifecycleStage: stageKeySchema,
   ownerId: z.string().nullable(),
   customFields: customFieldsSchema,
   consentStatus: z.enum(CONSENT_STATUSES),
 };
 
 const createSchema = z.object({ phone: z.string().trim().min(5).max(30), ...fields }).partial().required({ phone: true });
-const updateSchema = z.object({ ...fields, phone: z.string().trim().min(5).max(30) }).partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
+const updateSchema = z
+  .object({
+    ...fields,
+    phone: z.string().trim().min(5).max(30),
+    // Changes only the given custom fields (null clears one); `customFields` replaces them all.
+    customFieldPatch: z.record(z.string().regex(/^[a-z0-9_]{1,40}$/), z.string().max(500).nullable()),
+  })
+  .partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
 
 /** Mounted at /api/workspaces/:workspaceId/contacts (workspace already loaded). */
 export const contactRouter = Router({ mergeParams: true });
@@ -132,6 +140,7 @@ contactRouter.post('/', requirePermission('contacts:manage'), async (req, res) =
   if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { phone: ['Enter a valid phone number.'] });
   if (await Contact.exists({ workspaceId, phoneE164 })) throw conflict('CONTACT_EXISTS', 'A contact with this phone number already exists.');
   await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }));
+  if (input.lifecycleStage) await assertStage(workspaceId, input.lifecycleStage);
 
   const contact = await Contact.create({
     workspaceId,
@@ -173,7 +182,10 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
   }
   if (input.name !== undefined) contact.name = input.name || null;
   if (input.email !== undefined) contact.email = input.email;
-  if (input.lifecycleStage) contact.lifecycleStage = input.lifecycleStage;
+  if (input.lifecycleStage) {
+    await assertStage(workspaceId, input.lifecycleStage);
+    contact.lifecycleStage = input.lifecycleStage;
+  }
   let addedTags: Types.ObjectId[] = [];
   if (input.tags) {
     const next = await validTags(workspaceId, input.tags);
@@ -182,6 +194,14 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
   }
   if (input.ownerId !== undefined) contact.ownerId = await validOwner(workspaceId, input.ownerId);
   if (input.customFields) contact.customFields = input.customFields;
+  if (input.customFieldPatch) {
+    const merged = { ...((contact.customFields ?? {}) as Record<string, string>) };
+    for (const [k, v] of Object.entries(input.customFieldPatch)) {
+      if (v === null || v === '') delete merged[k];
+      else merged[k] = v;
+    }
+    contact.customFields = merged;
+  }
   const optedOut = input.consentStatus === 'opted_out' && contact.consent?.status !== 'opted_out';
   if (input.consentStatus && input.consentStatus !== contact.consent?.status) {
     contact.consent = { status: input.consentStatus, source: 'manual', updatedAt: new Date() };
@@ -198,12 +218,7 @@ contactRouter.delete('/:contactId', requirePermission('contacts:delete'), async 
   const contact = await findContact(workspaceId, req.params.contactId);
 
   // Removes the person and their conversation history from this workspace.
-  await Promise.all([
-    Message.deleteMany({ workspaceId, contactId: contact._id }),
-    ConversationNote.deleteMany({ workspaceId, contactId: contact._id }),
-    Conversation.deleteMany({ workspaceId, contactId: contact._id }),
-  ]);
-  await Contact.deleteOne({ _id: contact._id, workspaceId });
+  await deleteContactsData(workspaceId, [contact._id]);
   await audit(req, { workspaceId, action: 'contact.deleted', targetType: 'contact', targetId: contact.id, metadata: { phone: contact.phoneE164 } });
   publish(req.workspace!.id as string, { type: 'contacts.changed' });
   res.status(204).end();
@@ -231,12 +246,4 @@ async function validOwner(workspaceId: Types.ObjectId, ownerId: string | null): 
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** RFC 4180 quoting, plus a guard against spreadsheet formula injection. */
-function csvCell(value: unknown): string {
-  if (value == null) return '';
-  let s = String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

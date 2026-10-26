@@ -19,6 +19,11 @@ import { notify } from '../inbox/conversation.service.js';
 export interface AudienceFilter {
   tagsAny?: Types.ObjectId[] | string[];
   listsAny?: Types.ObjectId[] | string[];
+  sources?: string[];
+  campaignIds?: (Types.ObjectId | string)[];
+  ownerIds?: (Types.ObjectId | string)[];
+  unassigned?: boolean;
+  addedWithinDays?: number | null;
   /** Exact contacts (retargeting); never stored, resolved at use. */
   contactIds?: Types.ObjectId[];
   excludeTags?: Types.ObjectId[] | string[];
@@ -57,6 +62,17 @@ export function targetingQuery(workspaceId: Types.ObjectId, filter: AudienceFilt
   if (filter.stages?.length) query.lifecycleStage = { $in: filter.stages };
   if (filter.listsAny?.length) query.lists = { $in: ids(filter.listsAny) };
   if (filter.contactIds) query._id = { $in: filter.contactIds };
+  const and: Record<string, unknown>[] = [];
+  if (filter.sources?.length) {
+    const named = filter.sources.filter((s) => s !== 'none');
+    and.push({ $or: [...(named.length ? [{ 'attribution.source': { $in: named } }] : []), ...(filter.sources.includes('none') ? [{ 'attribution.source': null }] : [])] });
+  }
+  if (filter.campaignIds?.length) query['attribution.campaignId'] = { $in: ids(filter.campaignIds) };
+  if (filter.ownerIds?.length || filter.unassigned) {
+    and.push({ $or: [...(filter.ownerIds?.length ? [{ ownerId: { $in: ids(filter.ownerIds) } }] : []), ...(filter.unassigned ? [{ ownerId: null }] : [])] });
+  }
+  if (filter.addedWithinDays) query.createdAt = { $gte: new Date(Date.now() - filter.addedWithinDays * 24 * 60 * 60 * 1000) };
+  if (and.length) query.$and = and;
   return query;
 }
 

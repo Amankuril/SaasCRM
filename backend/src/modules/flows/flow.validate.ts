@@ -3,6 +3,7 @@ import { AiAgent } from '../ai/ai.model.js';
 import { Form } from '../forms/form.model.js';
 import { Tag } from '../contacts/tag.model.js';
 import { MessageTemplate } from '../templates/template.model.js';
+import { listStages } from '../audience/stage.service.js';
 import { checkSendValues, sendRequirements, type TemplateExtras } from '../templates/templateSend.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
 import { Flow, FlowVersion } from './flow.model.js';
@@ -113,6 +114,14 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
           for (const messages of Object.values(issues)) add(node.id, messages[0]!);
         }
       }
+    }
+    const stageKeys = [
+      ...(node.type === 'update_contact' ? ((d.actions as { type?: string; stage?: string }[]) ?? []).filter((a) => a.type === 'set_stage').map((a) => a.stage) : []),
+      ...(node.type === 'condition' ? ((d.rules as { field: string; value: string }[]) ?? []).filter((r) => r.field === 'stage').map((r) => r.value) : []),
+    ];
+    if (stageKeys.length) {
+      const known = new Set((await listStages(workspaceId)).map((s) => s.key));
+      if (stageKeys.some((k) => !k || !known.has(k))) add(node.id, 'A selected stage no longer exists.');
     }
     const tagIds = [
       ...(node.type === 'trigger' && d.event === 'tag_added' && typeof d.tagId === 'string' ? [d.tagId] : []),

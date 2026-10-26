@@ -24,6 +24,10 @@ import { FormBuilderPage } from './pages/FormBuilderPage';
 import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
+import { AudienceLayout } from './pages/audience/AudienceLayout';
+import { AudiencePage } from './pages/audience/AudiencePage';
+import { FollowUpsPage } from './pages/audience/FollowUpsPage';
+import { SegmentsPage } from './pages/audience/SegmentsPage';
 import { BroadcastLayout } from './pages/broadcast/BroadcastLayout';
 import { ContactListsPage } from './pages/broadcast/ContactListsPage';
 import { BroadcastGuidePage } from './pages/broadcast/BroadcastGuidePage';
@@ -62,6 +66,11 @@ export function App() {
         <Route path="whatsapp" element={<WhatsAppPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="contacts" element={<ContactsPage />} />
+        <Route path="audience" element={<AudienceLayout />}>
+          <Route index element={<AudiencePage />} />
+          <Route path="segments" element={<SegmentsPage />} />
+          <Route path="follow-ups" element={<FollowUpsPage />} />
+        </Route>
         <Route element={<BroadcastLayout />}>
           <Route path="broadcast" element={<ContactListsPage />} />
           <Route path="broadcast/guide" element={<BroadcastGuidePage />} />

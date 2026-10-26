@@ -1,7 +1,7 @@
 import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { FlowGraphNode, Member, MessageTemplate, Tag, TemplateExtras, VariableSpec, WaForm } from '../../lib/api';
-import { STAGES } from '../crm';
+import { useStageOptions } from '../crm';
 import { TemplatePreview } from '../TemplatePreview';
 import { TemplateExtrasFields, emptyExtras, extrasPreview } from '../TemplateSendFields';
 import { Button, Field, Input, Select } from '../ui';
@@ -475,6 +475,7 @@ const CONDITION_FIELDS = [
 ];
 
 function ConditionForm({ d, set, tags }: { d: Data; set: (p: Data) => void; tags: Tag[] }) {
+  const STAGES = useStageOptions();
   const rules: { field: string; op: string; value: string }[] = d.rules ?? [];
   const update = (i: number, patch: Partial<(typeof rules)[number]>) => set({ rules: rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
   return (
@@ -556,6 +557,7 @@ function ConditionForm({ d, set, tags }: { d: Data; set: (p: Data) => void; tags
 }
 
 function UpdateForm({ d, set, tags }: { d: Data; set: (p: Data) => void; tags: Tag[] }) {
+  const STAGES = useStageOptions();
   const actions: Data[] = d.actions ?? [];
   const update = (i: number, next: Data) => set({ actions: actions.map((a, j) => (j === i ? next : a)) });
   return (

@@ -57,7 +57,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Conversations',
     items: [
       { to: 'inbox', label: 'Team Inbox', icon: MessageSquare, badge: 'inbox' },
-      { to: 'contacts', label: 'Contacts', icon: Contact },
+      { to: 'audience', label: 'Audience', icon: Contact, alsoActive: ['contacts'] },
     ],
   },
   {
@@ -97,7 +97,8 @@ export function WorkspaceLayout() {
   const templatesRoute = useMatch('/w/:workspaceId/templates/*');
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
   const campaignsRoute = useMatch('/w/:workspaceId/campaigns/*');
-  const fullBleed = inboxRoute || builderRoute || templatesRoute || broadcastRoute || campaignsRoute;
+  const audienceRoute = useMatch('/w/:workspaceId/audience/*');
+  const fullBleed = inboxRoute || builderRoute || templatesRoute || broadcastRoute || campaignsRoute || audienceRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({

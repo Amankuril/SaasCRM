@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { STAGES, TagChip } from '../components/crm';
+import { useStageOptions, TagChip } from '../components/crm';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage } from '../components/ui';
 import { api, type AudienceFilter, type Campaign, type ContactList, type Segment, type VariableSpec } from '../lib/api';
 import { useTags } from '../lib/hooks';
@@ -51,6 +51,7 @@ export function sampleValue(v: VariableSpec) {
 }
 
 export function AudiencePicker({ audience, onChange, disabled }: { audience: Campaign['audience']; onChange: (a: Campaign['audience']) => void; disabled: boolean }) {
+  const STAGES = useStageOptions();
   const { workspace, can } = useWorkspace();
   const queryClient = useQueryClient();
   const tags = useTags(workspace.id);

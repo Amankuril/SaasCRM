@@ -60,7 +60,7 @@ function reviewGraph(tagId: string) {
         ],
         timeoutMinutes: 60,
       }),
-      n('tag', 'update_contact', { actions: [{ type: 'add_tag', tagId }, { type: 'set_stage', stage: 'converted' }] }),
+      n('tag', 'update_contact', { actions: [{ type: 'add_tag', tagId }, { type: 'set_stage', stage: 'payment_made' }] }),
       n('cta', 'send_cta', { text: 'Wonderful! Would you share a quick review?', buttonText: 'Share review', url: 'https://g.page/r/clinic/review' }),
       n('wait', 'delay', { amount: 1, unit: 'minutes' }),
       n('email', 'ask', { question: "What's your email for the receipt?", saveTo: 'email', validation: 'email', timeoutMinutes: 60 }),
@@ -161,7 +161,7 @@ describe('running a flow', () => {
     await tap('yes', 'Yes');
     const contact = await Contact.findOne({ workspaceId: ctx.ws.id, phoneE164: `+${CUSTOMER}` });
     expect(contact!.tags.map(String)).toEqual([ctx.vip.id]);
-    expect(contact!.lifecycleStage).toBe('converted');
+    expect(contact!.lifecycleStage).toBe('payment_made');
     expect(fake.sent[1]!.message).toMatchObject({ type: 'cta_url', buttonText: 'Share review', url: 'https://g.page/r/clinic/review' });
     [exec] = await executions();
     expect(exec).toMatchObject({ status: 'waiting', currentNodeId: 'wait', waiting: { kind: 'delay' } });

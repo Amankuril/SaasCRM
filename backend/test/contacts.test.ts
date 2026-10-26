@@ -15,8 +15,8 @@ describe('contacts', () => {
     const { owner, base } = await setup();
     const create = (body: object) => api().post(`${base}/contacts`).set(auth(owner)).send(body);
 
-    const res = await create({ phone: '98111 12222', name: 'Priya Sharma', email: 'Priya@Example.com', lifecycleStage: 'qualified' }).expect(201);
-    expect(res.body.contact).toMatchObject({ phone: '+919811112222', email: 'priya@example.com', lifecycleStage: 'qualified', displayName: 'Priya Sharma' });
+    const res = await create({ phone: '98111 12222', name: 'Priya Sharma', email: 'Priya@Example.com', lifecycleStage: 'hot' }).expect(201);
+    expect(res.body.contact).toMatchObject({ phone: '+919811112222', email: 'priya@example.com', lifecycleStage: 'hot', displayName: 'Priya Sharma' });
 
     const dup = await create({ phone: '+91 98111-12222' });
     expect(dup.status).toBe(409);
@@ -30,7 +30,7 @@ describe('contacts', () => {
     expect(byName.body.contacts.map((c: { name: string }) => c.name)).toEqual(['Priya Sharma']);
     const byPhone = await api().get(`${base}/contacts?q=22233`).set(auth(owner));
     expect(byPhone.body.contacts.map((c: { name: string }) => c.name)).toEqual(['Rahul Verma']);
-    const byStage = await api().get(`${base}/contacts?stage=qualified`).set(auth(owner));
+    const byStage = await api().get(`${base}/contacts?stage=hot`).set(auth(owner));
     expect(byStage.body.total).toBe(1);
     // Regex characters in search are treated literally.
     await api().get(`${base}/contacts?q=(.*`).set(auth(owner)).expect(200);
@@ -62,9 +62,9 @@ describe('contacts', () => {
     const res = await api()
       .patch(`${base}/contacts/${c.body.contact.id}`)
       .set(auth(owner))
-      .send({ name: 'Priya', lifecycleStage: 'follow_up', customFields: { city: 'Pune' }, consentStatus: 'opted_out', ownerId: owner.id })
+      .send({ name: 'Priya', lifecycleStage: 'warm', customFields: { city: 'Pune' }, consentStatus: 'opted_out', ownerId: owner.id })
       .expect(200);
-    expect(res.body.contact).toMatchObject({ name: 'Priya', lifecycleStage: 'follow_up', customFields: { city: 'Pune' }, ownerId: owner.id, consent: { status: 'opted_out', source: 'manual' } });
+    expect(res.body.contact).toMatchObject({ name: 'Priya', lifecycleStage: 'warm', customFields: { city: 'Pune' }, ownerId: owner.id, consent: { status: 'opted_out', source: 'manual' } });
 
     const badOwner = await api().patch(`${base}/contacts/${c.body.contact.id}`).set(auth(owner)).send({ ownerId: '000000000000000000000000' });
     expect(badOwner.status).toBe(400);
@@ -131,7 +131,7 @@ describe('contacts', () => {
     await addMember(owner, ws.id, agent, 'agent');
     const c = await api().post(`${base}/contacts`).set(auth(agent)).send({ phone: '+919811112222' }).expect(201);
 
-    await api().patch(`${base}/contacts/${c.body.contact.id}`).set(auth(agent)).send({ lifecycleStage: 'contacted' }).expect(200);
+    await api().patch(`${base}/contacts/${c.body.contact.id}`).set(auth(agent)).send({ lifecycleStage: 'cold' }).expect(200);
     await api().delete(`${base}/contacts/${c.body.contact.id}`).set(auth(agent)).expect(403);
     await api().post(`${base}/contacts/import`).set(auth(agent)).send({ rows: [{ p: '1' }], mapping: { phone: 'p' }, duplicate: 'skip' }).expect(403);
 

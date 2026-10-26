@@ -140,7 +140,7 @@ export const nodeConfigSchemas = {
         z.discriminatedUnion('type', [
           z.object({ type: z.literal('add_tag'), tagId: z.string().min(1, 'Choose a tag.') }),
           z.object({ type: z.literal('remove_tag'), tagId: z.string().min(1, 'Choose a tag.') }),
-          z.object({ type: z.literal('set_stage'), stage: z.enum(['new', 'contacted', 'qualified', 'follow_up', 'converted', 'lost']) }),
+          z.object({ type: z.literal('set_stage'), stage: z.string().regex(/^[a-z0-9_]{1,40}$/, 'Choose a stage.') }),
           z.object({ type: z.literal('set_field'), field: z.string().regex(/^(name|email|custom\.[a-z0-9_]{1,40})$/), value: z.string().max(500) }),
         ]),
       )

@@ -1,7 +1,6 @@
 import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
 
-export const LIFECYCLE_STAGES = ['new', 'contacted', 'qualified', 'follow_up', 'converted', 'lost'] as const;
 export const CONSENT_STATUSES = ['unknown', 'opted_in', 'opted_out'] as const;
 
 /** The audience/identity layer shared by inbox, campaigns, flows and reports. */
@@ -16,7 +15,8 @@ const contactSchema = new Schema(
     tags: { type: [{ type: Schema.Types.ObjectId, ref: 'Tag' }], default: [] },
     // Contact lists (Broadcast → Contacts List) this contact belongs to.
     lists: { type: [{ type: Schema.Types.ObjectId, ref: 'ContactList' }], default: [] },
-    lifecycleStage: { type: String, enum: LIFECYCLE_STAGES, default: 'new' },
+    // Key of one of the workspace's pipeline stages (see audience/stage.service).
+    lifecycleStage: { type: String, default: 'new' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     customFields: { type: Schema.Types.Mixed, default: {} },
     consent: {
@@ -29,6 +29,14 @@ const contactSchema = new Schema(
     lastInboundAt: { type: Date, default: null },
     lastOutboundAt: { type: Date, default: null },
     source: { type: String, default: null },
+    // How their chat started ("Chat source" in Audience): a broadcast reply, an ad click or a direct message.
+    attribution: {
+      source: { type: String, enum: ['broadcast', 'ad', 'direct', null], default: null },
+      campaignId: { type: Schema.Types.ObjectId, ref: 'Campaign', default: null },
+      campaignName: { type: String, default: null },
+      adTitle: { type: String, default: null },
+      at: { type: Date, default: null },
+    },
   },
   { timestamps: true },
 );
@@ -39,6 +47,7 @@ contactSchema.index({ workspaceId: 1, tags: 1 });
 contactSchema.index({ workspaceId: 1, lists: 1 });
 contactSchema.index({ workspaceId: 1, lifecycleStage: 1 });
 contactSchema.index({ workspaceId: 1, createdAt: -1 });
+contactSchema.index({ workspaceId: 1, 'attribution.source': 1 });
 
 export type ContactDoc = HydratedDocument<InferSchemaType<typeof contactSchema>>;
 export const Contact = model('Contact', contactSchema);
@@ -59,6 +68,15 @@ export function toPublicContact(c: ContactDoc | (InferSchemaType<typeof contactS
     consent: { status: c.consent?.status ?? 'unknown', source: c.consent?.source ?? null, updatedAt: c.consent?.updatedAt ?? null },
     externalId: c.externalId ?? null,
     source: c.source ?? null,
+    attribution: c.attribution?.source
+      ? {
+          source: c.attribution.source,
+          campaignId: c.attribution.campaignId ? String(c.attribution.campaignId) : null,
+          campaignName: c.attribution.campaignName ?? null,
+          adTitle: c.attribution.adTitle ?? null,
+          at: c.attribution.at ?? null,
+        }
+      : null,
     lastInboundAt: c.lastInboundAt ?? null,
     createdAt: c.createdAt,
   };

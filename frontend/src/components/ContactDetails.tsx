@@ -5,11 +5,12 @@ import { api, type ConsentStatus, type Contact, type LifecycleStage } from '../l
 import { useMembers, useTags } from '../lib/hooks';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
-import { CONSENT_LABEL, STAGES, TagChip } from './crm';
+import { CONSENT_LABEL, useStageOptions, TagChip } from './crm';
 import { Alert, Button, Field, Input, Select, errorMessage, fieldError } from './ui';
 
 /** Editable CRM card for one contact. Saves field-by-field (stage, tags...) or via the form. */
 export function ContactDetails({ contact, compact = false }: { contact: Contact; compact?: boolean }) {
+  const STAGES = useStageOptions();
   const { workspace, can } = useWorkspace();
   const queryClient = useQueryClient();
   const editable = can('contacts:manage') && workspace.status !== 'suspended';

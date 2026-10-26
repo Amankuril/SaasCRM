@@ -194,7 +194,7 @@ describe('forms in flows', () => {
         draftGraph: {
           nodes: [
             { id: 't', type: 'trigger', position: { x: 0, y: 0 }, data: { event: 'form_submitted', formId: ctx.form.id } },
-            { id: 'tag', type: 'update_contact', position: { x: 0, y: 1 }, data: { actions: [{ type: 'set_stage', stage: 'qualified' }] } },
+            { id: 'tag', type: 'update_contact', position: { x: 0, y: 1 }, data: { actions: [{ type: 'set_stage', stage: 'hot' }] } },
           ],
           edges: [{ id: 'e1', source: 't', sourceHandle: 'next', target: 'tag' }],
         },
@@ -204,6 +204,6 @@ describe('forms in flows', () => {
     const token = await sendTo(ctx);
     await submit({ name: 'Priya', service: 'checkup', date: '2026-11-05', consent: true, flow_token: token });
     const contact = await Contact.findOne({ workspaceId: ctx.ws.id, phoneE164: `+${CUSTOMER}` });
-    expect(contact!.lifecycleStage).toBe('qualified');
+    expect(contact!.lifecycleStage).toBe('hot');
   });
 });

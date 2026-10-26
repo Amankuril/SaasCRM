@@ -10,7 +10,8 @@ import { publish } from '../../realtime/bus.js';
 import { assertWithinLimit } from '../billing/billing.service.js';
 import { Campaign } from '../campaigns/campaign.model.js';
 import { campaignStats } from '../campaigns/campaign.service.js';
-import { Contact, LIFECYCLE_STAGES, type ContactDoc } from '../contacts/contact.model.js';
+import { Contact, type ContactDoc } from '../contacts/contact.model.js';
+import { assertStage, stageKeySchema } from '../audience/stage.service.js';
 import { findOrCreateContact, normalizePhone } from '../contacts/contact.service.js';
 import { Tag } from '../contacts/tag.model.js';
 import { startExecution } from '../flows/engine.js';
@@ -131,14 +132,14 @@ const customFieldsSchema = z
 const contactFields = {
   name: z.string().trim().max(200).nullable(),
   email: emailSchema.nullable().or(z.literal('').transform(() => null)),
-  lifecycle_stage: z.enum(LIFECYCLE_STAGES),
+  lifecycle_stage: stageKeySchema,
   custom_fields: customFieldsSchema,
   external_id: z.string().trim().max(200).nullable(),
   opt_in_status: z.enum(['opted_in', 'opted_out']),
 };
 const upsertContactSchema = z.object({ phone: z.string().trim().min(5).max(30), tags: z.array(tagNameSchema).max(50).optional(), ...contactFields }).partial().required({ phone: true });
 const updateContactSchema = z.object(contactFields).partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
-const contactListSchema = z.object({ ...pageSchema, phone: z.string().optional(), tag: z.string().optional(), stage: z.enum(LIFECYCLE_STAGES).optional() });
+const contactListSchema = z.object({ ...pageSchema, phone: z.string().optional(), tag: z.string().optional(), stage: stageKeySchema.optional() });
 
 /** Applies API fields to a contact. Custom fields merge (null removes a key); nothing else is touched. */
 function applyContactFields(contact: ContactDoc, input: Partial<z.infer<z.ZodObject<typeof contactFields>>>) {
@@ -189,6 +190,7 @@ publicApiRouter.post('/contacts', requireScope('contacts:write'), idempotent, as
   const created = !contact;
   if (created) await assertWithinLimit(workspaceId, 'contacts', await Contact.countDocuments({ workspaceId }));
   contact ??= new Contact({ workspaceId, phoneE164, source: 'api' });
+  if (input.lifecycle_stage) await assertStage(req.workspace!._id, input.lifecycle_stage, 'lifecycle_stage');
   applyContactFields(contact, input);
   let added: Types.ObjectId[] = [];
   if (input.tags) {
@@ -218,6 +220,7 @@ publicApiRouter.get('/contacts/:contactId', requireScope('contacts:read'), async
 publicApiRouter.patch('/contacts/:contactId', requireScope('contacts:write'), idempotent, async (req, res) => {
   const input = parse(updateContactSchema, req.body);
   const contact = await findContact(req.workspace!._id, req.params.contactId);
+  if (input.lifecycle_stage) await assertStage(req.workspace!._id, input.lifecycle_stage, 'lifecycle_stage');
   applyContactFields(contact, input);
   await contact.save();
   publish(req.workspace!.id as string, { type: 'contacts.changed' });

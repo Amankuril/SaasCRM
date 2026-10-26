@@ -1,6 +1,5 @@
 import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
-import { LIFECYCLE_STAGES } from '../contacts/contact.model.js';
 
 /** Audience rule. Evaluated when a campaign launches; the resulting recipients are snapshotted. */
 export const audienceFilterSchema = new Schema(
@@ -9,7 +8,14 @@ export const audienceFilterSchema = new Schema(
     // Member of any of these contact lists.
     listsAny: { type: [Schema.Types.ObjectId], default: [] },
     excludeTags: { type: [Schema.Types.ObjectId], default: [] },
-    stages: { type: [{ type: String, enum: LIFECYCLE_STAGES }], default: [] },
+    stages: { type: [String], default: [] },
+    // How their chat started (Contact.attribution.source) and from which broadcast.
+    sources: { type: [String], default: [] },
+    campaignIds: { type: [Schema.Types.ObjectId], default: [] },
+    ownerIds: { type: [Schema.Types.ObjectId], default: [] },
+    unassigned: { type: Boolean, default: false },
+    // Only contacts added in the last N days (null = any time).
+    addedWithinDays: { type: Number, default: null },
     // Only contacts who explicitly opted in (opted-out contacts are always excluded).
     requireOptIn: { type: Boolean, default: false },
   },

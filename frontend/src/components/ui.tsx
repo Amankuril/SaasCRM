@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { ApiError } from '../lib/api';
 
 export function cn(...classes: (string | false | null | undefined)[]) {
@@ -22,7 +22,7 @@ export function Button({
   children,
   disabled,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; loading?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; loading?: boolean; ref?: Ref<HTMLButtonElement> }) {
   return (
     <button
       className={cn(

@@ -8,7 +8,8 @@ import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { requirePermission } from '../../middleware/workspace.js';
 import { audit } from '../audit/audit.service.js';
-import { Contact, LIFECYCLE_STAGES } from '../contacts/contact.model.js';
+import { Contact } from '../contacts/contact.model.js';
+import { stageKeySchema } from '../audience/stage.service.js';
 import { MessageTemplate } from '../templates/template.model.js';
 import { CAMPAIGN_STATUSES, Campaign, CampaignRecipient, RECIPIENT_STATUSES, type CampaignDoc } from './campaign.model.js';
 import { campaignStats, launchCampaign, previewCampaign, scheduleDispatch } from './campaign.service.js';
@@ -27,8 +28,13 @@ const variableSchema = z
 export const audienceFilterInput = z.object({
   tagsAny: z.array(z.string()).max(50).default([]),
   listsAny: z.array(z.string()).max(50).default([]),
+  sources: z.array(z.enum(['broadcast', 'ad', 'direct', 'none'])).max(4).default([]),
+  campaignIds: z.array(z.string().regex(/^[a-f0-9]{24}$/)).max(50).default([]),
+  ownerIds: z.array(z.string().regex(/^[a-f0-9]{24}$/)).max(50).default([]),
+  unassigned: z.boolean().default(false),
+  addedWithinDays: z.number().int().min(1).max(3650).nullable().default(null),
   excludeTags: z.array(z.string()).max(50).default([]),
-  stages: z.array(z.enum(LIFECYCLE_STAGES)).default([]),
+  stages: z.array(stageKeySchema).max(50).default([]),
   requireOptIn: z.boolean().default(false),
 });
 
@@ -241,6 +247,11 @@ function serialize(c: CampaignDoc, stats?: Record<string, number>) {
       filter: {
         tagsAny: (c.audience?.filter?.tagsAny ?? []).map(String),
         listsAny: (c.audience?.filter?.listsAny ?? []).map(String),
+        sources: c.audience?.filter?.sources ?? [],
+        campaignIds: (c.audience?.filter?.campaignIds ?? []).map(String),
+        ownerIds: (c.audience?.filter?.ownerIds ?? []).map(String),
+        unassigned: c.audience?.filter?.unassigned ?? false,
+        addedWithinDays: c.audience?.filter?.addedWithinDays ?? null,
         excludeTags: (c.audience?.filter?.excludeTags ?? []).map(String),
         stages: c.audience?.filter?.stages ?? [],
         requireOptIn: c.audience?.filter?.requireOptIn ?? false,
