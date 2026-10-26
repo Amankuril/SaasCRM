@@ -24,7 +24,11 @@ import { FormBuilderPage } from './pages/FormBuilderPage';
 import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
-import { TemplatesPage } from './pages/TemplatesPage';
+import { AllTemplatesPage } from './pages/templates/AllTemplatesPage';
+import { CommunityLibraryPage } from './pages/templates/CommunityLibraryPage';
+import { CreateTemplatePage } from './pages/templates/CreateTemplatePage';
+import { MetaLibraryPage } from './pages/templates/MetaLibraryPage';
+import { TemplatesLayout } from './pages/templates/TemplatesLayout';
 import { WhatsAppPage } from './pages/WhatsAppPage';
 
 // The flow builder pulls in React Flow; load it only when opened.
@@ -69,7 +73,13 @@ export function App() {
             </Suspense>
           }
         />
-        <Route path="templates" element={<TemplatesPage />} />
+        <Route path="templates" element={<TemplatesLayout />}>
+          <Route index element={<AllTemplatesPage />} />
+          <Route path="new" element={<CreateTemplatePage />} />
+          <Route path=":templateId/edit" element={<CreateTemplatePage />} />
+          <Route path="library" element={<MetaLibraryPage />} />
+          <Route path="community" element={<CommunityLibraryPage />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

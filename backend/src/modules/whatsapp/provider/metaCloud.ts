@@ -5,7 +5,11 @@ import {
   type PhoneNumberInfo,
   type ProviderCredentials,
   type ProviderErrorKind,
+  type LibraryFilters,
+  type LibraryTemplate,
+  type LibraryTemplateDraft,
   type ProviderTemplate,
+  type TemplateComponent,
   type TemplateDraft,
   type WhatsAppProvider,
 } from './types.js';
@@ -143,6 +147,84 @@ export class MetaCloudProvider implements WhatsAppProvider {
     return { providerTemplateId: data.id, status: data.status, category: data.category };
   }
 
+  async editTemplate(creds: ProviderCredentials, providerTemplateId: string, edit: { category?: string; components: TemplateComponent[] }) {
+    await this.graph(creds, 'POST', `/${providerTemplateId}`, edit);
+  }
+
+  async deleteTemplate(creds: ProviderCredentials, template: { providerTemplateId: string; name: string }) {
+    // hsm_id limits the delete to this one language version.
+    const params = new URLSearchParams({ name: template.name, hsm_id: template.providerTemplateId });
+    await this.graph(creds, 'DELETE', `/${creds.wabaId}/message_templates?${params}`);
+  }
+
+  /** Resumable Upload API: open an upload session on our app, then send the bytes in one go. */
+  async uploadTemplateMedia(creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }) {
+    if (!env.META_APP_ID) throw new ProviderError('META_APP_ID must be set to upload template media.', 'permanent');
+    const params = new URLSearchParams({ file_name: file.fileName, file_length: String(file.data.length), file_type: file.mimeType });
+    const session = await this.graph<{ id: string }>(creds, 'POST', `/${env.META_APP_ID}/uploads?${params}`);
+
+    let res: Response;
+    try {
+      res = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${session.id}`, {
+        method: 'POST',
+        headers: { Authorization: `OAuth ${creds.accessToken}`, file_offset: '0', 'Content-Type': file.mimeType },
+        body: new Uint8Array(file.data),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (err) {
+      throw new ProviderError(`Could not reach WhatsApp: ${(err as Error).message}`, 'transient');
+    }
+    const data = (await res.json().catch(() => ({}))) as { h?: string } & GraphError;
+    if (!res.ok || !data.h) {
+      const code = data.error?.code != null ? String(data.error.code) : null;
+      throw new ProviderError(data.error?.message ?? `Media upload failed (HTTP ${res.status}).`, classify(res.status, code), code, res.status);
+    }
+    return data.h;
+  }
+
+  async listLibraryTemplates(creds: ProviderCredentials, filters: LibraryFilters): Promise<LibraryTemplate[]> {
+    type Row = {
+      id: string;
+      name: string;
+      language: string;
+      category: string;
+      topic?: string;
+      usecase?: string;
+      industry?: string[];
+      header?: string;
+      body: string;
+      body_params?: string[];
+      buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+    };
+    const params = new URLSearchParams({ limit: '200' });
+    for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
+    const page = await this.graph<{ data: Row[] }>(creds, 'GET', `/message_template_library?${params}`);
+    return page.data.map((t) => ({
+      id: t.id,
+      name: t.name,
+      language: t.language,
+      category: t.category,
+      topic: t.topic ?? null,
+      usecase: t.usecase ?? null,
+      industry: t.industry ?? [],
+      header: t.header ?? null,
+      body: t.body,
+      bodyParams: t.body_params ?? [],
+      buttons: t.buttons ?? [],
+    }));
+  }
+
+  async createFromLibrary(creds: ProviderCredentials, draft: LibraryTemplateDraft) {
+    const data = await this.graph<{ id: string; status: string; category: string }>(creds, 'POST', `/${creds.wabaId}/message_templates`, {
+      name: draft.name,
+      language: draft.language,
+      category: 'UTILITY',
+      library_template_name: draft.libraryTemplateName,
+      ...(draft.buttonInputs.length ? { library_template_button_inputs: JSON.stringify(draft.buttonInputs) } : {}),
+    });
+    return { providerTemplateId: data.id, status: data.status, category: data.category };
+  }
+
   async publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
     const data = await this.graph<{ id: string; validation_errors?: { error?: string; message?: string }[] }>(creds, 'POST', `/${creds.wabaId}/flows`, {
       name: flow.name,
@@ -177,7 +259,7 @@ export class MetaCloudProvider implements WhatsAppProvider {
     await this.graph(creds, 'POST', `/${creds.phoneNumberId}/register`, { messaging_product: 'whatsapp', pin });
   }
 
-  private async graph<T = unknown>(creds: ProviderCredentials, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  private async graph<T = unknown>(creds: ProviderCredentials, method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
     let res: Response;
     try {
       res = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}${path}`, {

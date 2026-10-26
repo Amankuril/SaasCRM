@@ -3,6 +3,8 @@ import {
   ProviderError,
   type OutboundMessage,
   type ProviderCredentials,
+  type LibraryTemplate,
+  type LibraryTemplateDraft,
   type ProviderTemplate,
   type TemplateDraft,
   type WhatsAppProvider,
@@ -65,6 +67,32 @@ export class FakeProvider implements WhatsAppProvider {
   async registerPhone(creds: ProviderCredentials, pin: string) {
     if (this.registerError) throw this.registerError;
     this.registered.push({ phoneNumberId: creds.phoneNumberId, pin });
+  }
+
+  edited: { providerTemplateId: string; edit: { category?: string; components: unknown[] } }[] = [];
+  deleted: { providerTemplateId: string; name: string }[] = [];
+  library: LibraryTemplate[] = [];
+  libraryCreated: LibraryTemplateDraft[] = [];
+
+  async editTemplate(_creds: ProviderCredentials, providerTemplateId: string, edit: { category?: string; components: unknown[] }) {
+    this.edited.push({ providerTemplateId, edit });
+  }
+
+  async deleteTemplate(_creds: ProviderCredentials, template: { providerTemplateId: string; name: string }) {
+    this.deleted.push(template);
+  }
+
+  async uploadTemplateMedia(_creds: ProviderCredentials, file: { data: Buffer }) {
+    return `handle-${file.data.length}`;
+  }
+
+  async listLibraryTemplates() {
+    return this.library;
+  }
+
+  async createFromLibrary(_creds: ProviderCredentials, draft: LibraryTemplateDraft) {
+    this.libraryCreated.push(draft);
+    return { providerTemplateId: `lib-tpl-${this.libraryCreated.length}`, status: 'PENDING', category: 'UTILITY' };
   }
 
   async createTemplate(_creds: ProviderCredentials, draft: TemplateDraft) {

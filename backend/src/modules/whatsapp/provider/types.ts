@@ -56,13 +56,64 @@ export interface ProviderTemplate {
   rejectedReason: string | null;
 }
 
+/** A template button, Meta-shaped (fields depend on `type`). */
+export interface TemplateButton {
+  type: string;
+  /** Absent on COPY_CODE buttons (WhatsApp shows a fixed label). */
+  text?: string;
+  url?: string;
+  phone_number?: string;
+  example?: string[] | string;
+  otp_type?: string;
+  autofill_text?: string;
+  supported_apps?: { package_name: string; signature_hash: string }[];
+  flow_id?: string;
+  navigate_screen?: string;
+  flow_action?: string;
+}
+
 /** Meta-shaped template components (also what we store locally). */
 export interface TemplateComponent {
-  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS' | 'LIMITED_TIME_OFFER' | 'CAROUSEL' | 'CALL_PERMISSION_REQUEST';
   format?: string;
   text?: string;
   example?: Record<string, unknown>;
-  buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+  buttons?: TemplateButton[];
+  cards?: { components: TemplateComponent[] }[];
+  limited_time_offer?: { text: string; has_expiration?: boolean };
+  add_security_recommendation?: boolean;
+  code_expiration_minutes?: number;
+}
+
+/** A ready-made template from Meta's Template Library. */
+export interface LibraryTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  topic: string | null;
+  usecase: string | null;
+  industry: string[];
+  header: string | null;
+  body: string;
+  bodyParams: string[];
+  buttons: { type: string; text: string; url?: string; phone_number?: string }[];
+}
+
+export interface LibraryFilters {
+  search?: string;
+  name?: string;
+  topic?: string;
+  usecase?: string;
+  industry?: string;
+  language?: string;
+}
+
+export interface LibraryTemplateDraft {
+  name: string;
+  language: string;
+  libraryTemplateName: string;
+  buttonInputs: ({ type: 'URL'; url: { base_url: string; url_suffix_example?: string } } | { type: 'PHONE_NUMBER'; phone_number: string })[];
 }
 
 export interface TemplateDraft {
@@ -80,6 +131,15 @@ export interface WhatsAppProvider {
   sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }>;
   listTemplates(creds: ProviderCredentials): Promise<ProviderTemplate[]>;
   createTemplate(creds: ProviderCredentials, draft: TemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
+  /** Edits a submitted template's content; it goes back into review. */
+  editTemplate(creds: ProviderCredentials, providerTemplateId: string, edit: { category?: string; components: TemplateComponent[] }): Promise<void>;
+  /** Deletes one language version of a template. */
+  deleteTemplate(creds: ProviderCredentials, template: { providerTemplateId: string; name: string }): Promise<void>;
+  /** Uploads a sample media file for a template header/card; returns the handle Meta expects in `header_handle`. */
+  uploadTemplateMedia(creds: ProviderCredentials, file: { data: Buffer; mimeType: string; fileName: string }): Promise<string>;
+  /** Browses Meta's pre-approved Template Library. */
+  listLibraryTemplates(creds: ProviderCredentials, filters: LibraryFilters): Promise<LibraryTemplate[]>;
+  createFromLibrary(creds: ProviderCredentials, draft: LibraryTemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
   /** Creates and publishes a WhatsApp Flow (forms). */
   publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }): Promise<PublishedFlow>;
   /** Embedded Signup: swaps the short-lived (30s) code for the business's access token. */

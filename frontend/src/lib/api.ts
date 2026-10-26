@@ -55,14 +55,16 @@ type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const raw = body instanceof Blob;
+  if (body !== undefined) headers['Content-Type'] = raw ? body.type : 'application/json';
+  if (body instanceof File) headers['X-File-Name'] = body.name;
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   const res = await fetch(`/api${path}`, {
     method,
     headers,
     credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
   });
 
   if (res.status === 401 && retry && !path.startsWith('/auth/')) {
@@ -103,6 +105,8 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   delete: <T = void>(path: string) => request<T>('DELETE', path),
+  /** Sends a file as the raw request body (Content-Type and X-File-Name from the file). */
+  upload: <T>(path: string, file: File) => request<T>('POST', path, file),
   download,
 };
 
@@ -208,15 +212,34 @@ export interface ConnectionPayload {
   embeddedSignup: { enabled: true; appId: string; configId: string; graphVersion: string } | { enabled: false };
 }
 
+export interface TemplateButton {
+  type: string;
+  text?: string;
+  url?: string;
+  phone_number?: string;
+  example?: string[] | string;
+  otp_type?: string;
+  flow_id?: string;
+  navigate_screen?: string;
+}
+
 export interface TemplateComponent {
-  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS' | 'LIMITED_TIME_OFFER' | 'CAROUSEL' | 'CALL_PERMISSION_REQUEST';
   format?: string;
   text?: string;
-  buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+  example?: { header_text?: string[]; body_text?: string[][]; header_handle?: string[] };
+  buttons?: TemplateButton[];
+  cards?: { components: TemplateComponent[] }[];
+  limited_time_offer?: { text: string; has_expiration?: boolean };
+  add_security_recommendation?: boolean;
+  code_expiration_minutes?: number;
 }
+
+export type TemplateType = 'CUSTOM' | 'FLOW' | 'AUTHENTICATION' | 'LIMITED_TIME_OFFER' | 'CAROUSEL' | 'CATALOG' | 'MULTI_PRODUCT' | 'CALL_PERMISSION';
 
 export interface MessageTemplate {
   id: string;
+  providerTemplateId: string | null;
   name: string;
   language: string;
   category: string;
@@ -224,8 +247,51 @@ export interface MessageTemplate {
   rejectedReason: string | null;
   components: TemplateComponent[];
   variables: { header: number; body: number };
+  type: TemplateType;
+  /** Raw builder input of a DRAFT. */
+  draft: Record<string, unknown> | null;
+  isFavorite: boolean;
+  libraryTemplateName: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  usage: { campaigns: number; flows: number } | null;
   syncedAt: string | null;
+  createdAt: string;
   updatedAt: string;
+}
+
+export interface TemplatePage {
+  templates: MessageTemplate[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface LibraryTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  topic: string | null;
+  usecase: string | null;
+  industry: string[];
+  header: string | null;
+  body: string;
+  bodyParams: string[];
+  buttons: { type: string; text: string; url?: string; phone_number?: string }[];
+}
+
+export interface CommunityTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  type: TemplateType;
+  components: TemplateComponent[];
+  contributorName: string;
+  mine: boolean;
+  uses: number;
+  createdAt: string;
 }
 
 export type MessageStatus = 'queued' | 'submitted' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';

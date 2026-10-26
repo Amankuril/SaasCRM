@@ -5,7 +5,11 @@ import {
   type NormalizedEvent,
   type OutboundMessage,
   type ProviderCredentials,
+  type LibraryFilters,
+  type LibraryTemplate,
+  type LibraryTemplateDraft,
   type ProviderTemplate,
+  type TemplateComponent,
   type TemplateDraft,
   type WhatsAppProvider,
 } from './types.js';
@@ -54,6 +58,61 @@ function sampleAnswers(flowJson: (typeof flows extends Map<string, infer V> ? V 
   }
   return out;
 }
+
+const SANDBOX_LIBRARY: LibraryTemplate[] = [
+  {
+    id: 'lib-1',
+    name: 'order_confirmation',
+    language: 'en_US',
+    category: 'UTILITY',
+    topic: 'ORDER_MANAGEMENT',
+    usecase: 'ORDER_CONFIRMATION',
+    industry: ['E_COMMERCE'],
+    header: 'Order confirmed',
+    body: 'Hi {{1}}, thank you for your order! Your order number is {{2}}. We will let you know once it ships.',
+    bodyParams: ['Priya', '#A1234'],
+    buttons: [{ type: 'URL', text: 'View order', url: 'https://www.example.com/orders/{{1}}' }],
+  },
+  {
+    id: 'lib-2',
+    name: 'delivery_update',
+    language: 'en_US',
+    category: 'UTILITY',
+    topic: 'ORDER_MANAGEMENT',
+    usecase: 'DELIVERY_UPDATE',
+    industry: ['E_COMMERCE'],
+    header: null,
+    body: 'Good news {{1}}! Your order {{2}} is out for delivery and should arrive {{3}}.',
+    bodyParams: ['Priya', '#A1234', 'today by 6 PM'],
+    buttons: [],
+  },
+  {
+    id: 'lib-3',
+    name: 'payment_due_reminder',
+    language: 'en_US',
+    category: 'UTILITY',
+    topic: 'PAYMENTS',
+    usecase: 'PAYMENT_DUE_REMINDER',
+    industry: ['FINANCIAL_SERVICES'],
+    header: 'Payment reminder',
+    body: 'Hi {{1}}, this is a reminder that your payment of {{2}} is due on {{3}}.',
+    bodyParams: ['Priya', '₹2,500', '30 Oct'],
+    buttons: [{ type: 'PHONE_NUMBER', text: 'Call us' }],
+  },
+  {
+    id: 'lib-4',
+    name: 'feedback_survey',
+    language: 'en_US',
+    category: 'UTILITY',
+    topic: 'CUSTOMER_FEEDBACK',
+    usecase: 'FEEDBACK_SURVEY',
+    industry: ['E_COMMERCE', 'FINANCIAL_SERVICES'],
+    header: null,
+    body: 'Hi {{1}}, thanks for choosing {{2}}. We would love to hear about your experience.',
+    bodyParams: ['Priya', 'Sharma Store'],
+    buttons: [],
+  },
+];
 
 function emitLater(delayMs: number, events: NormalizedEvent[]) {
   setTimeout(() => sandboxEvents.emit('events', events), delayMs).unref();
@@ -114,13 +173,60 @@ export class SandboxProvider implements WhatsAppProvider {
   async createTemplate(creds: ProviderCredentials, draft: TemplateDraft) {
     const providerTemplateId = String(Date.now()) + randomBytes(2).toString('hex');
     this.templates(creds.wabaId).push({ ...draft, providerTemplateId, status: 'PENDING', rejectedReason: null });
-    // Simulated review: approved a few seconds later.
-    setTimeout(() => {
-      const t = this.templates(creds.wabaId).find((x) => x.providerTemplateId === providerTemplateId);
-      if (t) t.status = 'APPROVED';
-      sandboxEvents.emit('events', [{ kind: 'template_status', wabaId: creds.wabaId, providerTemplateId, status: 'APPROVED', reason: null }]);
-    }, 3_000).unref();
+    this.approveLater(creds.wabaId, providerTemplateId);
     return { providerTemplateId, status: 'PENDING', category: draft.category };
+  }
+
+  /** Simulated review: approved a few seconds later. */
+  private approveLater(wabaId: string, providerTemplateId: string) {
+    setTimeout(() => {
+      const t = this.templates(wabaId).find((x) => x.providerTemplateId === providerTemplateId);
+      if (t) t.status = 'APPROVED';
+      sandboxEvents.emit('events', [{ kind: 'template_status', wabaId, providerTemplateId, status: 'APPROVED', reason: null }]);
+    }, 3_000).unref();
+  }
+
+  async editTemplate(creds: ProviderCredentials, providerTemplateId: string, edit: { category?: string; components: TemplateComponent[] }) {
+    const t = this.templates(creds.wabaId).find((x) => x.providerTemplateId === providerTemplateId);
+    if (!t) throw new ProviderError('Template not found.', 'permanent', '100');
+    Object.assign(t, { components: edit.components, status: 'PENDING', ...(edit.category ? { category: edit.category } : {}) });
+    this.approveLater(creds.wabaId, providerTemplateId);
+  }
+
+  async deleteTemplate(creds: ProviderCredentials, template: { providerTemplateId: string }) {
+    const list = this.templates(creds.wabaId);
+    const i = list.findIndex((x) => x.providerTemplateId === template.providerTemplateId);
+    if (i >= 0) list.splice(i, 1);
+  }
+
+  async uploadTemplateMedia(_creds: ProviderCredentials, file: { data: Buffer }) {
+    return `sandbox-handle-${file.data.length}-${randomBytes(4).toString('hex')}`;
+  }
+
+  async listLibraryTemplates(_creds: ProviderCredentials, filters: LibraryFilters) {
+    const q = filters.search?.toLowerCase();
+    return SANDBOX_LIBRARY.filter(
+      (t) =>
+        (!q || `${t.name} ${t.body}`.toLowerCase().includes(q)) &&
+        (!filters.topic || t.topic === filters.topic) &&
+        (!filters.usecase || t.usecase === filters.usecase) &&
+        (!filters.industry || t.industry.includes(filters.industry)) &&
+        (!filters.language || t.language === filters.language),
+    );
+  }
+
+  async createFromLibrary(creds: ProviderCredentials, draft: LibraryTemplateDraft) {
+    const lib = SANDBOX_LIBRARY.find((t) => t.name === draft.libraryTemplateName);
+    if (!lib) throw new ProviderError('Library template not found.', 'permanent', '100');
+    return this.createTemplate(creds, {
+      name: draft.name,
+      language: draft.language,
+      category: 'UTILITY',
+      components: [
+        ...(lib.header ? [{ type: 'HEADER' as const, format: 'TEXT', text: lib.header }] : []),
+        { type: 'BODY' as const, text: lib.body },
+      ],
+    });
   }
 
   async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {

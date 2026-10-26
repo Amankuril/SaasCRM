@@ -87,10 +87,11 @@ const NAV: { section: string; items: NavItem[] }[] = [
 export function WorkspaceLayout() {
   const { workspaceId } = useParams();
   const [mobileOpen, setMobileOpen] = useState(false);
-  // The inbox uses the full height/width instead of the padded page container.
+  // The inbox, flow builder and templates use the full height/width instead of the padded page container.
   const inboxRoute = useMatch('/w/:workspaceId/inbox');
   const builderRoute = useMatch('/w/:workspaceId/flows/:flowId');
-  const fullBleed = inboxRoute || builderRoute;
+  const templatesRoute = useMatch('/w/:workspaceId/templates/*');
+  const fullBleed = inboxRoute || builderRoute || templatesRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({
