@@ -178,6 +178,52 @@ describe('dispatch', () => {
     expect(failed.body.recipients[0].error).toMatchObject({ code: '131026' });
   });
 
+  it('retargets by outcome and hands replies to the campaign teammates in turn', async () => {
+    const ctx = await setup();
+    const agent = await signup();
+    await addMember(ctx.owner, ctx.ws.id, agent, 'agent');
+    for (let i = 0; i < 3; i++) await ctx.contact(`+91982200000${i}`, { name: `C${i}`, tags: [ctx.vip.id] });
+    const c = await draft(ctx, { assigneeIds: [ctx.owner.id, agent.id] });
+    expect((await api().get(`${ctx.base}/campaigns/${c.id}`).set(auth(ctx.owner))).body.campaign.assigneeIds).toEqual([ctx.owner.id, agent.id]);
+    await api().patch(`${ctx.base}/campaigns/${c.id}`).set(auth(ctx.owner)).send({ assigneeIds: ['64b000000000000000000000'] }).expect(400);
+    await api().post(`${ctx.base}/campaigns/${c.id}/launch`).set(auth(ctx.owner)).send({}).expect(200);
+
+    const rows = await recipients(c.id);
+    const msgId = async (contactId: unknown) => (await api().get(`${ctx.base}/messages?contactId=${contactId}`).set(auth(ctx.owner))).body.messages[0].providerMessageId;
+    const t = Math.floor(Date.now() / 1000);
+    const post = async (p: unknown) => {
+      const body = JSON.stringify(p);
+      await api().post('/api/webhooks/whatsapp').set('Content-Type', 'application/json').set('X-Hub-Signature-256', sign(body)).send(body).expect(200);
+    };
+    await post(statusPayload(PHONE_ID, await msgId(rows[0]!.contactId), 'read', t));
+    await post(statusPayload(PHONE_ID, await msgId(rows[1]!.contactId), 'delivered', t));
+    await post(inboundPayload(PHONE_ID, { id: 'wamid.r.1', from: rows[0]!.phone.slice(1), text: 'Yes' }));
+    await post(inboundPayload(PHONE_ID, { id: 'wamid.r.2', from: rows[1]!.phone.slice(1), text: 'Me too' }));
+    const convs = (await api().get(`${ctx.base}/conversations?view=all`).set(auth(ctx.owner))).body.conversations as { contact: { phone: string }; assignee: { id: string } | null }[];
+    const assigneeOf = (phone: string) => convs.find((x) => x.contact.phone === phone)?.assignee?.id;
+    expect([assigneeOf(rows[0]!.phone), assigneeOf(rows[1]!.phone)]).toEqual([ctx.owner.id, agent.id]);
+
+    // Retarget only people who received it but did not read it.
+    const retarget = await draft(ctx, {
+      name: 'Reminder',
+      audience: { type: 'retarget', segmentId: null, filter: { tagsAny: [], excludeTags: [], stages: [], requireOptIn: false }, retarget: { campaignId: c.id, outcomes: ['delivered'] } },
+    });
+    const preview = await api().post(`${ctx.base}/campaigns/${retarget.id}/preview`).set(auth(ctx.owner)).expect(200);
+    expect(preview.body.preview).toMatchObject({ matched: 1, eligible: 1, samples: [{ phone: rows[1]!.phone }] });
+    await api()
+      .patch(`${ctx.base}/campaigns/${retarget.id}`)
+      .set(auth(ctx.owner))
+      .send({ audience: { type: 'retarget', segmentId: null, filter: { tagsAny: [], excludeTags: [], stages: [], requireOptIn: false }, retarget: { campaignId: c.id, outcomes: ['sent'] } } })
+      .expect(200);
+    expect((await api().post(`${ctx.base}/campaigns/${retarget.id}/preview`).set(auth(ctx.owner))).body.preview.matched).toBe(3);
+    // A draft can't be retargeted.
+    await api()
+      .post(`${ctx.base}/campaigns`)
+      .set(auth(ctx.owner))
+      .send({ name: 'x', audience: { type: 'retarget', segmentId: null, filter: {}, retarget: { campaignId: retarget.id, outcomes: ['read'] } } })
+      .expect(400);
+  });
+
   it('a provider failure fails only that recipient', async () => {
     const ctx = await setup();
     await ctx.contact('+919811111111', { name: 'A', tags: [ctx.vip.id] });

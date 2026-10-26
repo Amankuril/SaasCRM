@@ -11,6 +11,24 @@ export function normalizePhone(input: string, defaultCountry?: string): string |
   return phone?.isValid() ? phone.number : null;
 }
 
+/**
+ * Numbers from a contact-list upload. With `international`, every number already
+ * starts with its country code ("919812345678" or "+91 98123 45678") and is used as
+ * written; otherwise numbers without one are read in `country`. Only checks that
+ * the number is possible (right length), so new number ranges aren't rejected.
+ */
+export function normalizeImportPhone(input: string, opts: { international: boolean; country?: string }): string | null {
+  const raw = input.trim();
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 6 || digits.length > 15) return null;
+  const candidates = opts.international || raw.startsWith('+') ? [`+${digits}`] : [raw, `+${digits}`];
+  for (const candidate of candidates) {
+    const phone = parsePhoneNumberFromString(candidate, opts.international ? undefined : (opts.country as CountryCode | undefined));
+    if (phone?.isPossible()) return phone.number;
+  }
+  return null;
+}
+
 /** WhatsApp ids are E.164 digits without "+". */
 export function phoneFromWaId(waId: string): string {
   return `+${waId.replace(/\D/g, '')}`;

@@ -152,7 +152,7 @@ function splitTags(v: string | undefined): string[] {
 }
 
 /** Returns lowercase name -> id, creating tags that don't exist yet. */
-async function ensureTags(workspaceId: Types.ObjectId, names: string[]): Promise<Map<string, Types.ObjectId>> {
+export async function ensureTags(workspaceId: Types.ObjectId, names: string[]): Promise<Map<string, Types.ObjectId>> {
   const map = new Map<string, Types.ObjectId>();
   if (!names.length) return map;
   const existing = await Tag.find({ workspaceId }).lean();

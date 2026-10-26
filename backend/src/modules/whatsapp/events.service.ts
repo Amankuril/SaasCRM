@@ -3,6 +3,7 @@ import { logger } from '../../lib/logger.js';
 import { phoneFromWaId, recordInboundContact } from '../contacts/contact.service.js';
 import { recordInboundOnConversation, messagePreview } from '../inbox/conversation.service.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
+import { assignCampaignReply } from '../campaigns/campaign.service.js';
 import { Contact } from '../contacts/contact.model.js';
 import { apiMessage, contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
@@ -104,6 +105,7 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
     },
     { repliedAt: event.timestamp },
   );
+  await assignCampaignReply(workspaceId, contact._id, event.timestamp);
 
   // WhatsApp Flow replies are form submissions: store and validate them first.
   let form: { formId: string; valid: boolean; data: Record<string, unknown> } | undefined;

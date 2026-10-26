@@ -35,12 +35,20 @@ const campaignSchema = new Schema(
     // Same-for-everyone send values: header media/location, offer expiry, products, carousel cards.
     templateExtras: { type: Schema.Types.Mixed, default: null },
     audience: {
-      type: { type: String, enum: ['all', 'segment', 'filter'], default: 'all' },
+      type: { type: String, enum: ['all', 'segment', 'filter', 'list', 'retarget'], default: 'all' },
       segmentId: { type: Schema.Types.ObjectId, ref: 'Segment', default: null },
       filter: { type: audienceFilterSchema, default: () => ({}) },
+      // Retarget: people from an earlier campaign whose message reached one of these outcomes.
+      retarget: {
+        campaignId: { type: Schema.Types.ObjectId, ref: 'Campaign', default: null },
+        outcomes: { type: [{ type: String, enum: ['read', 'delivered', 'sent', 'failed'] }], default: [] },
+      },
     },
     // The exact filter that produced the recipient list, captured at launch.
     audienceSnapshot: { type: Schema.Types.Mixed, default: null },
+    // Teammates who handle replies: an unassigned chat that replies to this broadcast is assigned to them in turn.
+    assigneeIds: { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], default: [] },
+    assignCursor: { type: Number, default: 0 },
     sendRatePerMinute: { type: Number, min: 1, max: 1000, default: 60 },
     // Don't send between these local times (workspace timezone), e.g. 21:00-09:00.
     quietHours: {

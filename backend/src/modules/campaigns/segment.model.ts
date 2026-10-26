@@ -6,6 +6,8 @@ import { LIFECYCLE_STAGES } from '../contacts/contact.model.js';
 export const audienceFilterSchema = new Schema(
   {
     tagsAny: { type: [Schema.Types.ObjectId], default: [] },
+    // Member of any of these contact lists.
+    listsAny: { type: [Schema.Types.ObjectId], default: [] },
     excludeTags: { type: [Schema.Types.ObjectId], default: [] },
     stages: { type: [{ type: String, enum: LIFECYCLE_STAGES }], default: [] },
     // Only contacts who explicitly opted in (opted-out contacts are always excluded).

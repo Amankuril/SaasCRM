@@ -14,6 +14,8 @@ const contactSchema = new Schema(
     profileName: { type: String, default: null },
     email: { type: String, trim: true, lowercase: true, maxlength: 254, default: null },
     tags: { type: [{ type: Schema.Types.ObjectId, ref: 'Tag' }], default: [] },
+    // Contact lists (Broadcast → Contacts List) this contact belongs to.
+    lists: { type: [{ type: Schema.Types.ObjectId, ref: 'ContactList' }], default: [] },
     lifecycleStage: { type: String, enum: LIFECYCLE_STAGES, default: 'new' },
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     customFields: { type: Schema.Types.Mixed, default: {} },
@@ -34,6 +36,7 @@ const contactSchema = new Schema(
 contactSchema.plugin(tenantScoped);
 contactSchema.index({ workspaceId: 1, phoneE164: 1 }, { unique: true });
 contactSchema.index({ workspaceId: 1, tags: 1 });
+contactSchema.index({ workspaceId: 1, lists: 1 });
 contactSchema.index({ workspaceId: 1, lifecycleStage: 1 });
 contactSchema.index({ workspaceId: 1, createdAt: -1 });
 
@@ -49,6 +52,7 @@ export function toPublicContact(c: ContactDoc | (InferSchemaType<typeof contactS
     displayName: c.name || c.profileName || c.phoneE164,
     email: c.email ?? null,
     tags: (c.tags ?? []).map(String),
+    lists: (c.lists ?? []).map(String),
     lifecycleStage: c.lifecycleStage,
     ownerId: c.ownerId ? String(c.ownerId) : null,
     customFields: (c.customFields ?? {}) as Record<string, string>,

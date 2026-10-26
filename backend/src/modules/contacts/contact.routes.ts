@@ -17,12 +17,15 @@ import { WorkspaceMember } from '../workspaces/member.model.js';
 import { importContacts, importSchema } from './contact.import.js';
 import { CONSENT_STATUSES, Contact, LIFECYCLE_STAGES, toPublicContact } from './contact.model.js';
 import { normalizePhone } from './contact.service.js';
+import { ContactList } from './contactList.model.js';
 import { Tag } from './tag.model.js';
 
 const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
   tag: z.string().optional(),
   stage: z.enum(LIFECYCLE_STAGES).optional(),
+  list: z.string().optional(),
+  consent: z.enum(CONSENT_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
@@ -42,16 +45,18 @@ const fields = {
 };
 
 const createSchema = z.object({ phone: z.string().trim().min(5).max(30), ...fields }).partial().required({ phone: true });
-const updateSchema = z.object(fields).partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
+const updateSchema = z.object({ ...fields, phone: z.string().trim().min(5).max(30) }).partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
 
 /** Mounted at /api/workspaces/:workspaceId/contacts (workspace already loaded). */
 export const contactRouter = Router({ mergeParams: true });
 
 contactRouter.get('/', requirePermission('workspace:read'), async (req, res) => {
-  const { q, tag, stage, page, limit } = parse(listSchema, req.query);
+  const { q, tag, stage, list, consent, page, limit } = parse(listSchema, req.query);
   const workspaceId = req.workspace!._id;
   const filter: Record<string, unknown> = { workspaceId };
   if (stage) filter.lifecycleStage = stage;
+  if (list) filter.lists = objectId(list, 'List');
+  if (consent) filter['consent.status'] = consent;
   if (tag) filter.tags = objectId(tag, 'Tag');
   if (q) {
     const rx = { $regex: escapeRegex(q), $options: 'i' };
@@ -68,7 +73,14 @@ contactRouter.get('/', requirePermission('workspace:read'), async (req, res) => 
 
 contactRouter.get('/export', requirePermission('contacts:export'), async (req, res) => {
   const workspaceId = req.workspace!._id;
-  const [contacts, tags] = await Promise.all([Contact.find({ workspaceId }).sort({ createdAt: 1 }).lean(), Tag.find({ workspaceId }).lean()]);
+  // ?list= exports one contact list ("Export All" in Broadcast).
+  const listId = typeof req.query.list === 'string' ? objectId(req.query.list, 'List') : null;
+  const list = listId ? await ContactList.findOne({ _id: listId, workspaceId }).lean() : null;
+  if (listId && !list) throw notFound('List not found.');
+  const [contacts, tags] = await Promise.all([
+    Contact.find({ workspaceId, ...(listId ? { lists: listId } : {}) }).sort({ createdAt: 1 }).lean(),
+    Tag.find({ workspaceId }).lean(),
+  ]);
   const tagName = new Map(tags.map((t) => [t._id.toString(), t.name]));
   const customKeys = [...new Set(contacts.flatMap((c) => Object.keys((c.customFields ?? {}) as object)))].sort();
 
@@ -94,9 +106,10 @@ contactRouter.get('/export', requirePermission('contacts:export'), async (req, r
     );
   }
 
-  await audit(req, { workspaceId, action: 'contacts.exported', metadata: { count: contacts.length } });
+  await audit(req, { workspaceId, action: 'contacts.exported', metadata: { count: contacts.length, ...(list ? { list: list.name } : {}) } });
+  const slug = list ? list.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'list' : 'contacts';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="contacts-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${slug}-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(lines.join('\n'));
 });
 
@@ -152,6 +165,12 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
   const workspaceId = req.workspace!._id;
   const contact = await findContact(workspaceId, req.params.contactId);
 
+  if (input.phone !== undefined) {
+    const phoneE164 = normalizePhone(input.phone, req.workspace!.country);
+    if (!phoneE164) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { phone: ['Enter a valid phone number.'] });
+    if (phoneE164 !== contact.phoneE164 && (await Contact.exists({ workspaceId, phoneE164 }))) throw conflict('CONTACT_EXISTS', 'Another contact already has this phone number.');
+    contact.phoneE164 = phoneE164;
+  }
   if (input.name !== undefined) contact.name = input.name || null;
   if (input.email !== undefined) contact.email = input.email;
   if (input.lifecycleStage) contact.lifecycleStage = input.lifecycleStage;

@@ -13,9 +13,14 @@ import { getConnection } from '../whatsapp/connection.service.js';
 import { Workspace, type WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { Campaign, CampaignRecipient, type CampaignDoc } from './campaign.model.js';
 import { Segment } from './segment.model.js';
+import { Conversation } from '../inbox/conversation.model.js';
+import { notify } from '../inbox/conversation.service.js';
 
 export interface AudienceFilter {
   tagsAny?: Types.ObjectId[] | string[];
+  listsAny?: Types.ObjectId[] | string[];
+  /** Exact contacts (retargeting); never stored, resolved at use. */
+  contactIds?: Types.ObjectId[];
   excludeTags?: Types.ObjectId[] | string[];
   stages?: string[];
   requireOptIn?: boolean;
@@ -26,6 +31,16 @@ export interface VariableSpec {
   value: string;
   fallback?: string | null;
 }
+
+export type RetargetOutcome = 'read' | 'delivered' | 'sent' | 'failed';
+
+/** Recipient statuses behind each retarget choice. "Delivered" means received but not read. */
+const RETARGET_STATUSES: Record<RetargetOutcome, string[]> = {
+  read: ['read'],
+  delivered: ['delivered'],
+  sent: ['submitted', 'sent', 'delivered', 'read', 'failed'],
+  failed: ['failed'],
+};
 
 const ids = (list?: (Types.ObjectId | string)[]) => (list ?? []).map((v) => new Types.ObjectId(String(v)));
 
@@ -40,6 +55,8 @@ export function targetingQuery(workspaceId: Types.ObjectId, filter: AudienceFilt
   if (filter.excludeTags?.length) tagCond.$nin = ids(filter.excludeTags);
   if (Object.keys(tagCond).length) query.tags = tagCond;
   if (filter.stages?.length) query.lifecycleStage = { $in: filter.stages };
+  if (filter.listsAny?.length) query.lists = { $in: ids(filter.listsAny) };
+  if (filter.contactIds) query._id = { $in: filter.contactIds };
   return query;
 }
 
@@ -50,6 +67,18 @@ export async function resolveAudienceFilter(workspaceId: Types.ObjectId, campaig
     return segment.filter as AudienceFilter;
   }
   if (campaign.audience?.type === 'filter') return campaign.audience.filter as AudienceFilter;
+  if (campaign.audience?.type === 'retarget') {
+    const { campaignId, outcomes } = campaign.audience.retarget ?? {};
+    if (!campaignId || !outcomes?.length) throw badRequest('RETARGET_MISSING', 'Choose the campaign and outcomes to retarget.');
+    const statuses = [...new Set((outcomes as RetargetOutcome[]).flatMap((o) => RETARGET_STATUSES[o]))];
+    const contactIds = await CampaignRecipient.distinct('contactId', { workspaceId, campaignId, status: { $in: statuses } });
+    return { contactIds: contactIds as Types.ObjectId[], requireOptIn: campaign.audience.filter?.requireOptIn ?? false };
+  }
+  if (campaign.audience?.type === 'list') {
+    const filter = campaign.audience.filter as AudienceFilter;
+    if (!filter.listsAny?.length) throw badRequest('LIST_MISSING', 'Choose a contact list for this campaign.');
+    return { listsAny: filter.listsAny, requireOptIn: filter.requireOptIn };
+  }
   return {};
 }
 
@@ -319,6 +348,34 @@ export function quietHoursWait(campaign: Pick<CampaignDoc, 'quietHours'>, timezo
   if (!inQuiet) return 0;
   const minutes = (end - current + 24 * 60) % (24 * 60) || 24 * 60;
   return minutes * 60_000;
+}
+
+/**
+ * A customer replied after a broadcast: if their chat is unassigned and the
+ * campaign named teammates, hand it to the next one in turn.
+ */
+export async function assignCampaignReply(workspaceId: Types.ObjectId, contactId: Types.ObjectId, at: Date): Promise<void> {
+  const recipient = await CampaignRecipient.findOne({
+    workspaceId,
+    contactId,
+    status: { $in: ['submitted', 'sent', 'delivered', 'read'] },
+    createdAt: { $gte: new Date(at.getTime() - 7 * 24 * 60 * 60 * 1000) },
+  })
+    .sort({ createdAt: -1 })
+    .select('campaignId')
+    .lean();
+  if (!recipient) return;
+  const conv = await Conversation.findOne({ workspaceId, contactId, assigneeId: null }).select('_id').lean();
+  if (!conv) return;
+  const campaign = await Campaign.findOneAndUpdate(
+    { _id: recipient.campaignId, workspaceId, 'assigneeIds.0': { $exists: true } },
+    { $inc: { assignCursor: 1 } },
+    { new: false },
+  ).lean();
+  if (!campaign) return;
+  const assigneeId = campaign.assigneeIds[(campaign.assignCursor ?? 0) % campaign.assigneeIds.length]!;
+  const updated = await Conversation.updateOne({ _id: conv._id, workspaceId, assigneeId: null }, { assigneeId, assignedAt: at });
+  if (updated.modifiedCount) notify(workspaceId, conv._id, false);
 }
 
 /** Recipient-level counts: the campaign report always reconciles with the rows. */

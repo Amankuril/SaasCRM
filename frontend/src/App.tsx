@@ -24,6 +24,10 @@ import { FormBuilderPage } from './pages/FormBuilderPage';
 import { FormsPage } from './pages/FormsPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
+import { BroadcastLayout } from './pages/broadcast/BroadcastLayout';
+import { ContactListsPage } from './pages/broadcast/ContactListsPage';
+import { BroadcastGuidePage } from './pages/broadcast/BroadcastGuidePage';
+import { RetargetPage } from './pages/broadcast/RetargetPage';
 import { AutoRepliesPage } from './pages/autoreplies/AutoRepliesPage';
 import { AutoReplyEditorPage } from './pages/autoreplies/AutoReplyEditorPage';
 import { AllTemplatesPage } from './pages/templates/AllTemplatesPage';
@@ -58,8 +62,13 @@ export function App() {
         <Route path="whatsapp" element={<WhatsAppPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="contacts" element={<ContactsPage />} />
-        <Route path="campaigns" element={<CampaignsPage />} />
-        <Route path="campaigns/:campaignId" element={<CampaignPage />} />
+        <Route element={<BroadcastLayout />}>
+          <Route path="broadcast" element={<ContactListsPage />} />
+          <Route path="broadcast/guide" element={<BroadcastGuidePage />} />
+          <Route path="broadcast/retarget" element={<RetargetPage />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns/:campaignId" element={<CampaignPage />} />
+        </Route>
         <Route path="auto-replies" element={<AutoRepliesPage />} />
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />

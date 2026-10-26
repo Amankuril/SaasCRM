@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, FlaskConical, MessageSquare, Network, Pencil, Plus, Search, SlidersHorizontal, Trash2, X, Zap } from 'lucide-react';
 import { useDeferredValue, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { Dialog } from '../../components/Dialog';
 import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
 import { api, type AutoReply, type FlowSummary, type MessageSource, type MessageTemplate, type TryResult, type WaForm } from '../../lib/api';
 import { formatDate } from '../../lib/options';
@@ -298,32 +299,11 @@ export function Toggle({ checked, onChange, disabled, label }: { checked: boolea
   );
 }
 
-function ModalShell({ icon, title, subtitle, onClose, children, footer, width = 'max-w-md' }: { icon: ReactNode; title: string; subtitle: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: string }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center" onClick={onClose}>
-      <div className={cn('w-full overflow-hidden rounded-2xl bg-white shadow-xl', width)} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="flex items-start gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
-          <span className="rounded-lg bg-white p-2 text-emerald-600 ring-1 ring-slate-200">{icon}</span>
-          <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-ink">{title}</h2>
-            <p className="truncate text-xs text-slate-500">{subtitle}</p>
-          </div>
-          <button onClick={onClose} className="rounded-full p-1 text-slate-500 ring-1 ring-slate-300 hover:bg-white" aria-label="Close">
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="p-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">{footer}</div>}
-      </div>
-    </div>
-  );
-}
-
 function PreviewModal({ rule, onClose }: { rule: AutoReply; onClose: () => void }) {
   const names = useActionNames(rule.action);
   const sampleMessage = rule.match === 'event' ? (rule.event === 'first_message' ? 'Hi! 👋' : 'Hello') : (rule.keywords[0] ?? '');
   return (
-    <ModalShell
+    <Dialog
       icon={<MessageSquare className="size-4" />}
       title="Auto Reply Preview"
       subtitle={rule.match === 'event' ? `Event: ${EVENT_LABEL[rule.event ?? 'any_message']}` : `Keyword: ${rule.keywords.join(', ')}`}
@@ -333,7 +313,7 @@ function PreviewModal({ rule, onClose }: { rule: AutoReply; onClose: () => void 
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
         Reply type: <ActionPill type={rule.action.type} />
       </p>
-    </ModalShell>
+    </Dialog>
   );
 }
 
@@ -350,7 +330,7 @@ function TryModal({ onClose, onPreview }: { onClose: () => void; onPreview: (r: 
   const r = run.data;
 
   return (
-    <ModalShell
+    <Dialog
       icon={<FlaskConical className="size-4" />}
       title="Try a message"
       subtitle="See which trigger would answer. Nothing is sent."
@@ -446,7 +426,7 @@ function TryModal({ onClose, onPreview }: { onClose: () => void; onPreview: (r: 
           </div>
         )}
       </div>
-    </ModalShell>
+    </Dialog>
   );
 }
 

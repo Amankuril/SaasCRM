@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import { ContactList } from '../contacts/contactList.model.js';
+import { WorkspaceMember } from '../workspaces/member.model.js';
 import { templateExtrasSchema } from '../templates/templateSend.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
@@ -24,6 +26,7 @@ const variableSchema = z
 
 export const audienceFilterInput = z.object({
   tagsAny: z.array(z.string()).max(50).default([]),
+  listsAny: z.array(z.string()).max(50).default([]),
   excludeTags: z.array(z.string()).max(50).default([]),
   stages: z.array(z.enum(LIFECYCLE_STAGES)).default([]),
   requireOptIn: z.boolean().default(false),
@@ -39,10 +42,14 @@ const campaignInput = z.object({
   buttonVariables: z.array(variableSchema).max(10).default([]),
   templateExtras: templateExtrasSchema.nullable().default(null),
   audience: z.object({
-    type: z.enum(['all', 'segment', 'filter']),
+    type: z.enum(['all', 'segment', 'filter', 'list', 'retarget']),
     segmentId: z.string().nullable().default(null),
     filter: audienceFilterInput.default({}),
+    retarget: z
+      .object({ campaignId: z.string().nullable().default(null), outcomes: z.array(z.enum(['read', 'delivered', 'sent', 'failed'])).max(4).default([]) })
+      .default({}),
   }),
+  assigneeIds: z.array(z.string()).max(50).default([]),
   sendRatePerMinute: z.number().int().min(1).max(1000),
   quietHours: z.object({ enabled: z.boolean(), start: timeOfDay, end: timeOfDay }),
 });
@@ -194,8 +201,25 @@ async function normalize(workspaceId: Types.ObjectId, input: Partial<z.infer<typ
       const ok = input.audience.segmentId && Types.ObjectId.isValid(input.audience.segmentId) && (await Segment.exists({ _id: input.audience.segmentId, workspaceId }));
       if (!ok) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { audience: ['Choose a segment.'] });
     }
+    if (input.audience.type === 'retarget') {
+      const { campaignId, outcomes } = input.audience.retarget;
+      const source = campaignId && Types.ObjectId.isValid(campaignId) ? await Campaign.findOne({ _id: campaignId, workspaceId }).select('status').lean() : null;
+      if (!source || source.status === 'draft') throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { audience: ['Choose a campaign that has been sent.'] });
+      if (!outcomes.length) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { audience: ['Choose who to retarget: Read, Delivered, Sent or Failed.'] });
+    }
+    if (input.audience.type === 'list') {
+      const listIds = input.audience.filter.listsAny;
+      const valid = listIds.every((id) => Types.ObjectId.isValid(id)) && (await ContactList.countDocuments({ workspaceId, _id: { $in: listIds } })) === new Set(listIds).size;
+      if (!listIds.length || !valid) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { audience: ['Choose a contact list.'] });
+    }
     const tagIds = [...input.audience.filter.tagsAny, ...input.audience.filter.excludeTags];
     if (tagIds.some((t) => !Types.ObjectId.isValid(t))) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { audience: ['Unknown tag.'] });
+  }
+  if (input.assigneeIds?.length) {
+    const ids = [...new Set(input.assigneeIds)];
+    const members = ids.every((id) => Types.ObjectId.isValid(id)) ? await WorkspaceMember.countDocuments({ workspaceId, userId: { $in: ids } }) : -1;
+    if (members !== ids.length) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { assigneeIds: ['Choose teammates from this workspace.'] });
+    out.assigneeIds = ids;
   }
   return out;
 }
@@ -216,11 +240,17 @@ function serialize(c: CampaignDoc, stats?: Record<string, number>) {
       segmentId: c.audience?.segmentId?.toString() ?? null,
       filter: {
         tagsAny: (c.audience?.filter?.tagsAny ?? []).map(String),
+        listsAny: (c.audience?.filter?.listsAny ?? []).map(String),
         excludeTags: (c.audience?.filter?.excludeTags ?? []).map(String),
         stages: c.audience?.filter?.stages ?? [],
         requireOptIn: c.audience?.filter?.requireOptIn ?? false,
       },
+      retarget: {
+        campaignId: c.audience?.retarget?.campaignId?.toString() ?? null,
+        outcomes: c.audience?.retarget?.outcomes ?? [],
+      },
     },
+    assigneeIds: (c.assigneeIds ?? []).map(String),
     sendRatePerMinute: c.sendRatePerMinute,
     quietHours: c.quietHours,
     scheduledAt: c.scheduledAt,

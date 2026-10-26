@@ -27,6 +27,7 @@ function serialize(s: SegmentDoc) {
     name: s.name,
     filter: {
       tagsAny: (s.filter?.tagsAny ?? []).map(String),
+      listsAny: (s.filter?.listsAny ?? []).map(String),
       excludeTags: (s.filter?.excludeTags ?? []).map(String),
       stages: s.filter?.stages ?? [],
       requireOptIn: s.filter?.requireOptIn ?? false,

@@ -357,6 +357,7 @@ export interface Contact {
   displayName: string;
   email: string | null;
   tags: string[];
+  lists: string[];
   lifecycleStage: LifecycleStage;
   ownerId: string | null;
   customFields: Record<string, string>;
@@ -407,6 +408,7 @@ export interface Member {
 
 export interface AudienceFilter {
   tagsAny: string[];
+  listsAny?: string[];
   excludeTags: string[];
   stages: LifecycleStage[];
   requireOptIn: boolean;
@@ -417,6 +419,8 @@ export interface VariableSpec {
   value: string;
   fallback: string;
 }
+
+export type RetargetOutcome = 'read' | 'delivered' | 'sent' | 'failed';
 
 export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'cancelled' | 'failed';
 
@@ -430,7 +434,13 @@ export interface Campaign {
   bodyVariables: VariableSpec[];
   buttonVariables: VariableSpec[];
   templateExtras: TemplateExtras | null;
-  audience: { type: 'all' | 'segment' | 'filter'; segmentId: string | null; filter: AudienceFilter };
+  audience: {
+    type: 'all' | 'segment' | 'filter' | 'list' | 'retarget';
+    segmentId: string | null;
+    filter: AudienceFilter;
+    retarget?: { campaignId: string | null; outcomes: RetargetOutcome[] };
+  };
+  assigneeIds: string[];
   sendRatePerMinute: number;
   quietHours: { enabled: boolean; start: string; end: string };
   scheduledAt: string | null;
@@ -785,4 +795,22 @@ export interface TryResult {
   autoReply: AutoReply | null;
   flow: { id: string; name: string } | null;
   notes: string[];
+}
+
+// ---- Contact lists (Broadcast) ----
+
+export interface ContactList {
+  id: string;
+  name: string;
+  count: number;
+  tags: { id: string; name: string; color: TagColor }[];
+  createdAt: string;
+}
+
+export interface ListImportReport {
+  total: number;
+  created: number;
+  added: number;
+  alreadyInList: number;
+  invalid: { row: number; reason: string }[];
 }

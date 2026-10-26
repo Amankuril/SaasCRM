@@ -1,17 +1,15 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Rocket, Save, Trash2, Users } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { TemplatePreview } from '../components/TemplatePreview';
-import { TemplateExtrasFields, emptyExtras, extrasPreview } from '../components/TemplateSendFields';
-import { VariableRow } from '../components/VariableRow';
-import { Modal, STAGES, TagChip } from '../components/crm';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
-import { api, type AudienceFilter, type Campaign, type CampaignPreview, type MessageTemplate, type Segment, type VariableSpec } from '../lib/api';
+import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { STAGES, TagChip } from '../components/crm';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage } from '../components/ui';
+import { api, type AudienceFilter, type Campaign, type ContactList, type Segment, type VariableSpec } from '../lib/api';
 import { useTags } from '../lib/hooks';
-import { formatInZone, zonedLocalToIso } from '../lib/options';
+import { formatInZone } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
 import { CAMPAIGN_STATUS, funnel } from './CampaignsPage';
+import { CampaignBuilder } from './broadcast/CampaignBuilder';
 
 export function CampaignPage() {
   const { campaignId } = useParams();
@@ -22,10 +20,14 @@ export function CampaignPage() {
     refetchInterval: (q) => (q.state.data && isLive(q.state.data.campaign) ? 3_000 : false),
   });
 
-  if (query.isPending) return <Spinner />;
-  if (query.error) return <Alert>{errorMessage(query.error)}</Alert>;
-  const { campaign } = query.data;
-  return campaign.status === 'draft' ? <CampaignEditor key={campaign.id} campaign={campaign} /> : <CampaignReport campaign={campaign} />;
+  if (query.data?.campaign.status === 'draft') return <CampaignBuilder key={query.data.campaign.id} campaign={query.data.campaign} />;
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        {query.isPending ? <Spinner /> : query.error ? <Alert>{errorMessage(query.error)}</Alert> : <CampaignReport campaign={query.data.campaign} />}
+      </div>
+    </div>
+  );
 }
 
 /** Still worth polling: sending, or recently finished (receipts and replies keep arriving). */
@@ -34,7 +36,7 @@ function isLive(c: Campaign): boolean {
   return !!c.completedAt && Date.now() - new Date(c.completedAt).getTime() < 15 * 60_000;
 }
 
-const SKIP_LABEL: Record<string, string> = {
+export const SKIP_LABEL: Record<string, string> = {
   opted_out: 'Opted out',
   no_opt_in: 'No opt-in',
   missing_variable: 'Missing a variable value',
@@ -42,296 +44,13 @@ const SKIP_LABEL: Record<string, string> = {
 };
 
 
-type Draft = Omit<Campaign, 'id' | 'status' | 'templateName' | 'scheduledAt' | 'launchedAt' | 'completedAt' | 'failureReason' | 'createdAt' | 'stats'>;
-
-function CampaignEditor({ campaign }: { campaign: Campaign }) {
-  const { workspace, can } = useWorkspace();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const editable = can('campaigns:manage') && workspace.status !== 'suspended';
-  const [draft, setDraft] = useState<Draft>(() => ({
-    name: campaign.name,
-    templateId: campaign.templateId,
-    headerVariables: campaign.headerVariables,
-    bodyVariables: campaign.bodyVariables,
-    buttonVariables: campaign.buttonVariables ?? [],
-    templateExtras: campaign.templateExtras,
-    audience: campaign.audience,
-    sendRatePerMinute: campaign.sendRatePerMinute,
-    quietHours: campaign.quietHours,
-  }));
-  const [when, setWhen] = useState<'now' | 'later'>('now');
-  const [scheduleLocal, setScheduleLocal] = useState('');
-  const [confirming, setConfirming] = useState(false);
-  const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
-
-  const templates = useQuery({
-    queryKey: ['templates', workspace.id, 'APPROVED'],
-    queryFn: () => api.get<{ templates: MessageTemplate[] }>(`/workspaces/${workspace.id}/templates?status=APPROVED`),
-  });
-  const template = templates.data?.templates.find((t) => t.id === draft.templateId);
-
-  // Keep variable rows in step with the chosen template.
-  useEffect(() => {
-    if (!template) return;
-    const fit = (list: VariableSpec[], n: number, first: VariableSpec) =>
-      Array.from({ length: n }, (_, i) => list[i] ?? (i === 0 ? first : { source: 'static' as const, value: '', fallback: '' }));
-    setDraft((d) => ({
-      ...d,
-      headerVariables: fit(d.headerVariables, template.variables.header, { source: 'field', value: 'first_name', fallback: 'there' }),
-      bodyVariables: fit(d.bodyVariables, template.variables.body, { source: 'field', value: 'first_name', fallback: 'there' }),
-      buttonVariables: fit(d.buttonVariables, template.requirements.buttons.length, { source: 'static', value: '', fallback: '' }),
-      // Saved values survive a reload; a different template starts from blank card slots.
-      templateExtras: d.templateExtras?.cards?.length === template.requirements.cards.length ? d.templateExtras : { ...d.templateExtras, ...emptyExtras(template.requirements) },
-    }));
-  }, [template]);
-
-  const save = useMutation({
-    mutationFn: () => api.patch<{ campaign: Campaign }>(`/workspaces/${workspace.id}/campaigns/${campaign.id}`, draft),
-    onSuccess: ({ campaign: c }) => queryClient.setQueryData(['campaign', workspace.id, campaign.id], { campaign: c }),
-  });
-  const preview = useMutation({
-    mutationFn: async () => {
-      await save.mutateAsync();
-      return api.post<{ preview: CampaignPreview }>(`/workspaces/${workspace.id}/campaigns/${campaign.id}/preview`);
-    },
-  });
-  const launch = useMutation({
-    mutationFn: async () => {
-      await save.mutateAsync();
-      return api.post<{ campaign: Campaign }>(`/workspaces/${workspace.id}/campaigns/${campaign.id}/launch`, {
-        scheduledAt: when === 'later' && scheduleLocal ? zonedLocalToIso(scheduleLocal, workspace.timezone) : null,
-      });
-    },
-    onSuccess: ({ campaign: c }) => {
-      setConfirming(false);
-      queryClient.setQueryData(['campaign', workspace.id, campaign.id], { campaign: c });
-      void queryClient.invalidateQueries({ queryKey: ['campaigns', workspace.id] });
-    },
-  });
-  const remove = useMutation({
-    mutationFn: () => api.delete(`/workspaces/${workspace.id}/campaigns/${campaign.id}`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['campaigns', workspace.id] });
-      navigate(`/w/${workspace.id}/campaigns`);
-    },
-  });
-
-  const error = save.error ?? preview.error ?? launch.error ?? remove.error;
-  const p = preview.data?.preview;
-
-  return (
-    <>
-      <BackLink />
-      <PageHeader
-        title={draft.name || 'Untitled campaign'}
-        description="Draft. Nothing is sent until you launch."
-        actions={
-          editable && (
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => window.confirm('Delete this draft?') && remove.mutate()}>
-                <Trash2 className="size-4" />
-              </Button>
-              <Button variant="secondary" loading={save.isPending && !preview.isPending && !launch.isPending} onClick={() => save.mutate()}>
-                <Save className="size-4" /> Save draft
-              </Button>
-            </div>
-          )
-        }
-      />
-      {error != null && (
-        <div className="mb-4">
-          <Alert>{errorMessage(error)}</Alert>
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="space-y-6 lg:col-span-3">
-          <Section step={1} title="Details">
-            <Field label="Campaign name (internal)" htmlFor="c-name" error={fieldError(error, 'name')}>
-              <Input id="c-name" disabled={!editable} value={draft.name} onChange={(e) => set({ name: e.target.value })} />
-            </Field>
-          </Section>
-
-          <Section step={2} title="Audience">
-            <AudiencePicker audience={draft.audience} onChange={(audience) => set({ audience })} disabled={!editable} />
-          </Section>
-
-          <Section step={3} title="Message">
-            {templates.data?.templates.length === 0 ? (
-              <Alert tone="info">
-                No approved templates.{' '}
-                <Link to={`/w/${workspace.id}/templates`} className="font-medium underline">
-                  Create or sync one
-                </Link>{' '}
-                first.
-              </Alert>
-            ) : (
-              <div className="space-y-4">
-                <Field label="Approved template" htmlFor="c-tpl" error={fieldError(error, 'templateId')}>
-                  <Select id="c-tpl" disabled={!editable} value={draft.templateId ?? ''} onChange={(e) => set({ templateId: e.target.value || null, headerVariables: [], bodyVariables: [], buttonVariables: [], templateExtras: null })}>
-                    <option value="">Choose a template</option>
-                    {templates.data?.templates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.language}, {t.category.toLowerCase()})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                {template && (
-                  <>
-                    {draft.headerVariables.map((v, i) => (
-                      <VariableRow key={`h${i}`} label={`Header {{${i + 1}}}`} spec={v} disabled={!editable} onChange={(spec) => set({ headerVariables: draft.headerVariables.map((x, j) => (j === i ? spec : x)) })} />
-                    ))}
-                    {draft.bodyVariables.map((v, i) => (
-                      <VariableRow key={`b${i}`} label={`Body {{${i + 1}}}`} spec={v} disabled={!editable} onChange={(spec) => set({ bodyVariables: draft.bodyVariables.map((x, j) => (j === i ? spec : x)) })} />
-                    ))}
-                    {template.requirements.buttons.map((b, i) => (
-                      <VariableRow
-                        key={`btn${i}`}
-                        label={b.type === 'COPY_CODE' ? 'Offer code' : `“${b.text}” link`}
-                        spec={draft.buttonVariables[i] ?? { source: 'static', value: '', fallback: '' }}
-                        disabled={!editable}
-                        onChange={(spec) => set({ buttonVariables: template.requirements.buttons.map((_, j) => (j === i ? spec : (draft.buttonVariables[j] ?? { source: 'static', value: '', fallback: '' }))) })}
-                      />
-                    ))}
-                    {(fieldError(error, 'bodyVariables') || fieldError(error, 'headerVariables') || fieldError(error, 'buttonVariables')) && (
-                      <p className="text-xs text-red-600">{fieldError(error, 'bodyVariables') ?? fieldError(error, 'headerVariables') ?? fieldError(error, 'buttonVariables')}</p>
-                    )}
-                    <TemplateExtrasFields
-                      requirements={template.requirements}
-                      value={draft.templateExtras ?? {}}
-                      onChange={(templateExtras) => set({ templateExtras })}
-                      disabled={!editable}
-                      error={error}
-                      shared
-                    />
-                    <TemplatePreview
-                      components={template.components}
-                      headerParams={draft.headerVariables.map(sampleValue)}
-                      bodyParams={draft.bodyVariables.map(sampleValue)}
-                      {...extrasPreview(draft.templateExtras ?? {})}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-          </Section>
-
-          <Section step={4} title="Sending">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Messages per minute" htmlFor="c-rate" hint="Stay within your WhatsApp messaging limit.">
-                <Input
-                  id="c-rate"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  disabled={!editable}
-                  value={draft.sendRatePerMinute}
-                  onChange={(e) => set({ sendRatePerMinute: Math.max(1, Math.min(1000, Number(e.target.value) || 1)) })}
-                />
-              </Field>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <input type="checkbox" disabled={!editable} checked={draft.quietHours.enabled} onChange={(e) => set({ quietHours: { ...draft.quietHours, enabled: e.target.checked } })} />
-                  Pause during quiet hours
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input aria-label="Quiet hours start" type="time" disabled={!editable || !draft.quietHours.enabled} value={draft.quietHours.start} onChange={(e) => set({ quietHours: { ...draft.quietHours, start: e.target.value } })} />
-                  <span className="text-slate-400">to</span>
-                  <Input aria-label="Quiet hours end" type="time" disabled={!editable || !draft.quietHours.enabled} value={draft.quietHours.end} onChange={(e) => set({ quietHours: { ...draft.quietHours, end: e.target.value } })} />
-                </div>
-                <p className="text-xs text-slate-500">In {workspace.timezone}.</p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} /> Send now
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} /> Schedule
-              </label>
-              {when === 'later' && (
-                <div className="flex items-center gap-2">
-                  <Input aria-label="Send at" type="datetime-local" value={scheduleLocal} onChange={(e) => setScheduleLocal(e.target.value)} className="w-56" />
-                  <span className="text-xs text-slate-500">{workspace.timezone}</span>
-                </div>
-              )}
-            </div>
-            {fieldError(error, 'scheduledAt') && <p className="mt-1 text-xs text-red-600">{fieldError(error, 'scheduledAt')}</p>}
-          </Section>
-        </div>
-
-        <div className="lg:col-span-2">
-          <Card className="sticky top-6 p-5">
-            <h2 className="text-sm font-semibold text-ink">Review</h2>
-            <p className="mt-1 text-sm text-slate-500">See exactly who will get the message before launching.</p>
-            <Button variant="secondary" className="mt-4 w-full" loading={preview.isPending} onClick={() => preview.mutate()}>
-              <Users className="size-4" /> Check audience
-            </Button>
-            {p && (
-              <div className="mt-4 space-y-3 text-sm">
-                <dl className="grid grid-cols-2 gap-2">
-                  <Stat label="Matched contacts" value={p.matched} />
-                  <Stat label="Will receive it" value={p.eligible} strong />
-                </dl>
-                {Object.keys(p.skipped).length > 0 && (
-                  <div className="rounded-lg bg-amber-50 p-3 text-amber-900">
-                    <p className="text-xs font-medium">Skipped</p>
-                    <ul className="mt-1 space-y-0.5 text-xs">
-                      {Object.entries(p.skipped).map(([reason, n]) => (
-                        <li key={reason}>
-                          {SKIP_LABEL[reason] ?? reason}: {n}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {p.samples.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-slate-500">Sample messages</p>
-                    <ul className="space-y-2">
-                      {p.samples.map((s) => (
-                        <li key={s.phone} className="rounded-lg bg-slate-50 p-2.5 text-xs">
-                          <p className="font-medium text-slate-700">{s.contact}</p>
-                          <p className="mt-0.5 whitespace-pre-wrap text-slate-600">{s.preview}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            {editable && (
-              <Button className="mt-5 w-full" disabled={!draft.templateId || (when === 'later' && !scheduleLocal)} onClick={() => preview.mutateAsync().then(() => setConfirming(true))}>
-                <Rocket className="size-4" /> {when === 'later' ? 'Schedule broadcast' : 'Launch broadcast'}
-              </Button>
-            )}
-          </Card>
-        </div>
-      </div>
-
-      {confirming && p && (
-        <ConfirmLaunch
-          preview={p}
-          when={when === 'later' && scheduleLocal ? formatInZone(zonedLocalToIso(scheduleLocal, workspace.timezone), workspace.timezone) : null}
-          loading={launch.isPending}
-          error={launch.error}
-          onCancel={() => setConfirming(false)}
-          onConfirm={() => launch.mutate()}
-        />
-      )}
-    </>
-  );
-}
-
-function sampleValue(v: VariableSpec) {
+export function sampleValue(v: VariableSpec) {
   if (v.source === 'static') return v.value;
   const sample: Record<string, string> = { first_name: 'Priya', name: 'Priya Sharma', phone: '+919811112222', email: 'priya@example.com' };
   return sample[v.value] ?? (v.value.startsWith('custom.') ? `[${v.value.slice(7)}]` : '');
 }
 
-function AudiencePicker({ audience, onChange, disabled }: { audience: Draft['audience']; onChange: (a: Draft['audience']) => void; disabled: boolean }) {
+export function AudiencePicker({ audience, onChange, disabled }: { audience: Campaign['audience']; onChange: (a: Campaign['audience']) => void; disabled: boolean }) {
   const { workspace, can } = useWorkspace();
   const queryClient = useQueryClient();
   const tags = useTags(workspace.id);
@@ -340,7 +59,20 @@ function AudiencePicker({ audience, onChange, disabled }: { audience: Draft['aud
     queryFn: () => api.get<{ segments: Segment[] }>(`/workspaces/${workspace.id}/segments`),
     select: (d) => d.segments,
   });
-  const filter = audience.type === 'segment' ? segments.data?.find((s) => s.id === audience.segmentId)?.filter : audience.type === 'filter' ? audience.filter : undefined;
+  const contactLists = useQuery({
+    queryKey: ['contact-lists', workspace.id, ''],
+    queryFn: () => api.get<{ lists: ContactList[] }>(`/workspaces/${workspace.id}/contact-lists`),
+    enabled: audience.type === 'list',
+  });
+  const listIds = audience.filter.listsAny ?? [];
+  const filter =
+    audience.type === 'segment'
+      ? segments.data?.find((s) => s.id === audience.segmentId)?.filter
+      : audience.type === 'filter'
+        ? audience.filter
+        : audience.type === 'list'
+          ? { tagsAny: [], excludeTags: [], stages: [], requireOptIn: audience.filter.requireOptIn, listsAny: listIds }
+          : undefined;
   const countFilter: AudienceFilter = filter ?? { tagsAny: [], excludeTags: [], stages: [], requireOptIn: false };
   const filterKey = JSON.stringify(countFilter);
   const count = useQuery({
@@ -368,6 +100,7 @@ function AudiencePicker({ audience, onChange, disabled }: { audience: Draft['aud
         {(
           [
             ['all', 'All contacts'],
+            ['list', 'Contact list'],
             ['segment', 'Saved segment'],
             ['filter', 'Tags & stages'],
           ] as const
@@ -383,6 +116,39 @@ function AudiencePicker({ audience, onChange, disabled }: { audience: Draft['aud
           </button>
         ))}
       </div>
+
+      {audience.type === 'list' && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-slate-500">Send to everyone in any of these lists</p>
+          {contactLists.data?.lists.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              No lists yet.{' '}
+              <Link to={`/w/${workspace.id}/broadcast`} className="font-medium underline">
+                Create one in Contacts List
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {contactLists.data?.lists.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ ...audience, filter: { ...audience.filter, listsAny: toggle(listIds, l.id) } })}
+                  className={cn('rounded-full border px-2.5 py-0.5 text-xs', listIds.includes(l.id) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600')}
+                >
+                  {l.name} · {l.count}
+                </button>
+              ))}
+            </div>
+          )}
+          <label className="flex items-center gap-2">
+            <input type="checkbox" disabled={disabled} checked={audience.filter.requireOptIn} onChange={(e) => onChange({ ...audience, filter: { ...audience.filter, requireOptIn: e.target.checked } })} />
+            Only contacts who have opted in
+          </label>
+        </div>
+      )}
 
       {audience.type === 'segment' && (
         <Field label="Segment" htmlFor="c-seg">
@@ -448,7 +214,7 @@ function AudiencePicker({ audience, onChange, disabled }: { audience: Draft['aud
         </div>
       )}
 
-      {count.data && (audience.type !== 'segment' || audience.segmentId) && (
+      {count.data && (audience.type !== 'segment' || audience.segmentId) && (audience.type !== 'list' || listIds.length > 0) && (
         <p className="rounded-lg bg-slate-50 px-3 py-2 text-slate-700">
           <strong>{count.data.reachable}</strong> reachable of {count.data.matched} matching contacts
           {count.data.optedOut > 0 && ` (${count.data.optedOut} opted out)`}
@@ -474,52 +240,6 @@ function TagPicker({ tags, selected, onToggle, disabled }: { tags: { id: string;
         </button>
       ))}
     </div>
-  );
-}
-
-function ConfirmLaunch({
-  preview,
-  when,
-  loading,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  preview: CampaignPreview;
-  when: string | null;
-  loading: boolean;
-  error: unknown;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const large = preview.eligible > 100;
-  const [ack, setAck] = useState(!large);
-  return (
-    <Modal title={when ? 'Schedule this broadcast?' : 'Send this broadcast now?'} onClose={onCancel}>
-      <div className="space-y-4 text-sm">
-        {error != null && <Alert>{errorMessage(error)}</Alert>}
-        <p className="text-slate-700">
-          <strong>{preview.eligible}</strong> contact(s) will receive this message{when ? ` on ${when}` : ' starting now'}.
-          {preview.matched - preview.eligible > 0 && ` ${preview.matched - preview.eligible} will be skipped.`}
-        </p>
-        <p className="text-slate-500">Messages already accepted by WhatsApp can't be recalled, but you can pause or cancel the rest at any time.</p>
-        {large && (
-          <label className="flex items-start gap-2">
-            <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
-            I confirm sending to {preview.eligible} contacts.
-          </label>
-        )}
-        {preview.eligible === 0 && <Alert>Nobody in this audience can receive the message.</Alert>}
-        <div className="flex gap-2">
-          <Button loading={loading} disabled={!ack || preview.eligible === 0} onClick={onConfirm}>
-            {when ? 'Schedule' : 'Send now'}
-          </Button>
-          <Button variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -714,19 +434,7 @@ function BackLink() {
   );
 }
 
-function Section({ step, title, children }: { step: number; title: string; children: ReactNode }) {
-  return (
-    <Card className="p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink">
-        <span className="flex size-6 items-center justify-center rounded-full bg-brand-50 text-xs text-brand-700">{step}</span>
-        {title}
-      </h2>
-      {children}
-    </Card>
-  );
-}
-
-function Stat({ label, value, sub, strong }: { label: string; value: number; sub?: string; strong?: boolean }) {
+export function Stat({ label, value, sub, strong }: { label: string; value: number; sub?: string; strong?: boolean }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="text-xs text-slate-500">{label}</p>

@@ -24,7 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Logo } from '../components/Logo';
 import { Alert, Spinner, cn } from '../components/ui';
@@ -41,6 +41,8 @@ interface NavItem {
   permission?: Permission;
   soon?: boolean;
   badge?: 'inbox';
+  /** Other sections (path under the workspace) that also highlight this item. */
+  alsoActive?: string[];
 }
 
 const NAV: { section: string; items: NavItem[] }[] = [
@@ -61,7 +63,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Marketing',
     items: [
-      { to: 'campaigns', label: 'Broadcasts', icon: Megaphone },
+      { to: 'broadcast', label: 'Broadcasts', icon: Megaphone, alsoActive: ['campaigns'] },
       { to: 'templates', label: 'Templates', icon: FileText },
     ],
   },
@@ -93,7 +95,9 @@ export function WorkspaceLayout() {
   const inboxRoute = useMatch('/w/:workspaceId/inbox');
   const builderRoute = useMatch('/w/:workspaceId/flows/:flowId');
   const templatesRoute = useMatch('/w/:workspaceId/templates/*');
-  const fullBleed = inboxRoute || builderRoute || templatesRoute;
+  const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
+  const campaignsRoute = useMatch('/w/:workspaceId/campaigns/*');
+  const fullBleed = inboxRoute || builderRoute || templatesRoute || broadcastRoute || campaignsRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({
@@ -180,6 +184,8 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
   const { user, logout } = useAuth();
   const { workspace, membership } = useWorkspace();
   const can = (p?: Permission) => !p || membership.permissions.includes(p);
+  const { pathname } = useLocation();
+  const alsoActive = (item: NavItem) => (item.alsoActive ?? []).some((section) => pathname.startsWith(`/w/${workspace.id}/${section}`));
 
   return (
     <aside
@@ -223,7 +229,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                         className={({ isActive }) =>
                           cn(
                             'flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium',
-                            isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-100',
+                            isActive || alsoActive(item) ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-100',
                           )
                         }
                       >
