@@ -17,6 +17,7 @@ export interface JobPayloads {
   'flow.resume': { workspaceId: string; executionId: string; token: string };
   'integration.webhook': { workspaceId: string; deliveryId: string; token: string };
   'billing.sweep': Record<string, never>;
+  'sheets.poll': Record<string, never>;
 }
 export type JobName = keyof JobPayloads;
 
@@ -34,6 +35,7 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'flow.resume': 'flows',
   'integration.webhook': 'integration-webhooks',
   'billing.sweep': 'billing',
+  'sheets.poll': 'sheets',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -43,6 +45,7 @@ const CONCURRENCY: Record<JobName, number> = {
   'flow.resume': 10,
   'integration.webhook': 20,
   'billing.sweep': 1,
+  'sheets.poll': 1,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

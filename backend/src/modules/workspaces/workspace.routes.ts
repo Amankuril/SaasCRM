@@ -28,6 +28,7 @@ import { connectionRouter } from '../whatsapp/connection.routes.js';
 import { memberRouter } from './member.routes.js';
 import { toPublicWorkspace } from './workspace.model.js';
 import { createWorkspace, listUserWorkspaces, workspaceContext } from './workspace.service.js';
+import { sheetsRouter } from '../integrations/sheets.routes.js';
 
 const workspaceFields = {
   name: z.string().trim().min(2, 'Business name must be at least 2 characters.').max(100),
@@ -108,6 +109,7 @@ scoped.use('/campaigns', campaignRouter);
 scoped.use('/segments', segmentRouter);
 scoped.use('/flows', flowRouter);
 scoped.use('/auto-replies', autoReplyRouter);
+scoped.use('/integrations/google-sheets', sheetsRouter);
 scoped.use('/ai', aiRouter);
 scoped.use('/forms', formRouter);
 scoped.use('/developer', developerRouter);

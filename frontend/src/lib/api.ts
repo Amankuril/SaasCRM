@@ -971,3 +971,55 @@ export interface Appointment {
   assignee: { id: string; name: string } | null;
   createdAt: string;
 }
+
+// ---- Google Sheets integration ----
+
+export interface SheetVariable {
+  source: 'column' | 'static';
+  value: string;
+  fallback?: string | null;
+}
+
+export type SheetRowState = 'skipped' | 'waiting' | 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+export type SheetCounts = Record<SheetRowState, number> & { messages: number };
+
+export interface SheetCampaign {
+  id: string;
+  name: string;
+  status: 'draft' | 'active' | 'paused';
+  /** What the list shows: `error` when the last check failed. */
+  state: 'draft' | 'active' | 'paused' | 'error';
+  step: 'start' | 'link' | 'connect' | 'select' | 'map' | 'settings';
+  sheetUrl: string;
+  spreadsheetTitle: string;
+  access: 'link' | 'google';
+  googleAccount: { id: string; email: string } | null;
+  tab: { gid: string; title: string } | null;
+  headers: string[];
+  phoneColumn: string | null;
+  nameColumn: string | null;
+  templateId: string | null;
+  template: { id: string; name: string; category: string; language: string; status: string } | null;
+  headerVariables: SheetVariable[];
+  bodyVariables: SheetVariable[];
+  buttonVariables: SheetVariable[];
+  templateExtras: TemplateExtras | null;
+  sendDelayMinutes: number;
+  startFrom: 'new' | 'all';
+  lastSyncAt: string | null;
+  lastError: string | null;
+  rowCount: number;
+  invalidRows: number;
+  waitingRows: number;
+  counts: SheetCounts | null;
+  createdAt: string;
+}
+
+export interface SheetSyncResult {
+  rows: number;
+  added: number;
+  skipped: number;
+  waiting: number;
+  invalid: number;
+  sent: number;
+}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
+  Blocks,
   Bot,
   ChevronsUpDown,
   ClipboardList,
@@ -74,6 +75,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: 'flows', label: 'Flow Builder', icon: Workflow },
       { to: 'forms', label: 'Forms', icon: ClipboardList },
       { to: 'ai', label: 'AI Agent', icon: Bot },
+      { to: 'integrations', label: 'Integrations', icon: Blocks },
     ],
   },
   {

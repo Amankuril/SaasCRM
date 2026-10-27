@@ -64,6 +64,13 @@ const envSchema = z.object({
   META_APP_ID: optionalString,
   META_ES_CONFIG_ID: optionalString,
   META_WEBHOOK_VERIFY_TOKEN: optionalString,
+
+  // Google Sheets integration. Without an OAuth client, sheets shared as
+  // "Anyone with the link" still work; with one, private sheets can be connected.
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
+  // How often active Google Sheets campaigns are checked for new rows.
+  SHEETS_POLL_SECONDS: z.coerce.number().int().min(15).max(3600).default(60),
 });
 
 const parsed = envSchema.safeParse(process.env);

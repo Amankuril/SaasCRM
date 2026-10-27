@@ -15,6 +15,7 @@ import { billingWebhookRouter } from './modules/billing/billing.routes.js';
 import { publicApiRouter } from './modules/developer/publicApi.routes.js';
 import { publicInvitationRouter } from './modules/invitations/invitation.routes.js';
 import { webhookRouter } from './modules/whatsapp/webhook.routes.js';
+import { googleCallbackRouter } from './modules/integrations/sheets.routes.js';
 import { workspacesRouter } from './modules/workspaces/workspace.routes.js';
 import './jobs/index.js';
 
@@ -53,6 +54,7 @@ export function createApp() {
   // Public REST API (workspace API keys). Server-to-server: no cookies, no CORS.
   app.use('/api/v1', publicApiRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/integrations', googleCallbackRouter);
   app.use('/api/invitations', publicInvitationRouter);
   app.use('/api/workspaces', requireAuth, workspacesRouter);
   app.use('/api/admin', requireAuth, requirePlatformAdmin, adminRouter);

@@ -43,6 +43,10 @@ import { CreateTemplatePage } from './pages/templates/CreateTemplatePage';
 import { MetaLibraryPage } from './pages/templates/MetaLibraryPage';
 import { TemplatesLayout } from './pages/templates/TemplatesLayout';
 import { WhatsAppPage } from './pages/WhatsAppPage';
+import { IntegrationsPage } from './pages/integrations/IntegrationsPage';
+import { SheetCampaignsPage } from './pages/integrations/SheetCampaignsPage';
+import { SheetSetupPage } from './pages/integrations/SheetSetupPage';
+import { SheetDataPage } from './pages/integrations/SheetDataPage';
 
 // The flow builder pulls in React Flow; load it only when opened.
 const FlowBuilderPage = lazy(() => import('./pages/FlowBuilderPage').then((m) => ({ default: m.FlowBuilderPage })));
@@ -91,6 +95,11 @@ export function App() {
         <Route path="forms" element={<FormsListPage />} />
         <Route path="forms/:formId" element={<FormBuilderPage />} />
         <Route path="ai" element={<AiAgentPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="integrations/google-sheets" element={<SheetCampaignsPage />} />
+        <Route path="integrations/google-sheets/new" element={<SheetSetupPage />} />
+        <Route path="integrations/google-sheets/:campaignId/setup" element={<SheetSetupPage />} />
+        <Route path="integrations/google-sheets/:campaignId/data" element={<SheetDataPage />} />
         <Route path="developer" element={<DeveloperPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
