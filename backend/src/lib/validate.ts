@@ -20,7 +20,8 @@ export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters.')
-  .max(128, 'Password must be at most 128 characters.');
+  .max(128, 'Password must be at most 128 characters.')
+  .refine((p) => /[A-Za-z]/.test(p) && /\d/.test(p), 'Use at least one letter and one number.');
 
 // Constructing a formatter accepts IANA aliases (Asia/Kolkata vs Asia/Calcutta), unlike
 // Intl.supportedValuesOf, whose canonical names vary by ICU version.

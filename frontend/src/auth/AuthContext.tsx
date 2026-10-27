@@ -6,6 +6,8 @@ import {
   setAccessToken,
   setSessionExpiredHandler,
   type AuthPayload,
+  type LoginChallenge,
+  type SessionEndReason,
   type User,
   type WorkspaceSummary,
 } from '../lib/api';
@@ -14,7 +16,16 @@ interface AuthContextValue {
   status: 'loading' | 'authenticated' | 'anonymous';
   user: User | null;
   workspaces: WorkspaceSummary[];
-  login: (email: string, password: string, portal?: 'app' | 'admin') => Promise<void>;
+  /** Business login, step 1: checks the password and emails a code. */
+  login: (email: string, password: string) => Promise<LoginChallenge>;
+  /** Step 2: the emailed code; `force` closes a session open in another browser. */
+  verifyLogin: (challengeToken: string, code: string | undefined, force?: boolean) => Promise<void>;
+  resendCode: (challengeToken: string) => Promise<Omit<LoginChallenge, 'otpRequired' | 'challengeToken'>>;
+  /** Super Admin portal: password only. */
+  adminLogin: (email: string, password: string) => Promise<void>;
+  /** Why the last session ended on its own (shown once on the login page). */
+  endedReason: SessionEndReason | null;
+  clearEndedReason: () => void;
   signup: (name: string, email: string, password: string) => Promise<void>;
   /** Logs out and goes to `redirectTo` (default: the login page). */
   logout: (redirectTo?: string) => Promise<void>;
@@ -33,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthContextValue['status']>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [endedReason, setEndedReason] = useState<SessionEndReason | null>(null);
 
   const reset = useCallback(() => {
     setAccessToken(null);
@@ -52,14 +64,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore the session from the refresh cookie on first load.
   useEffect(() => {
-    setSessionExpiredHandler(reset);
+    setSessionExpiredHandler((reason) => {
+      setEndedReason(reason);
+      reset();
+    });
     refreshAccessToken()
       .then(async (token) => {
         if (token) await reload();
         else reset();
       })
-      .catch(reset);
+      .catch(() => reset());
   }, [reload, reset]);
+
+  // Open tabs check in, so a login elsewhere knows this session is in use (and this tab
+  // learns quickly when it was replaced).
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const beat = () => void api.post('/auth/heartbeat').catch(() => undefined);
+    beat();
+    const timer = setInterval(beat, 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && beat();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [status]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -67,8 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       workspaces,
       reload,
-      login: async (email, password, portal = 'app') => {
-        const res = await api.post<AuthPayload>('/auth/login', { email, password, portal });
+      endedReason,
+      clearEndedReason: () => setEndedReason(null),
+      login: (email, password) => api.post<LoginChallenge>('/auth/login', { email, password }),
+      verifyLogin: async (challengeToken, code, force = false) => {
+        const res = await api.post<AuthPayload>('/auth/login/verify', { challengeToken, code, force });
+        setAccessToken(res.accessToken);
+        setEndedReason(null);
+        await reload();
+      },
+      resendCode: (challengeToken) => api.post('/auth/login/resend', { challengeToken }),
+      adminLogin: async (email, password) => {
+        const res = await api.post<AuthPayload>('/auth/login', { email, password, portal: 'admin' });
         setAccessToken(res.accessToken);
         await reload();
       },
@@ -85,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.replace(redirectTo);
       },
     }),
-    [status, user, workspaces, reload],
+    [status, user, workspaces, reload, endedReason],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

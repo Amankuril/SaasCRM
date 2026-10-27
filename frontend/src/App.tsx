@@ -47,6 +47,7 @@ import { IntegrationsPage } from './pages/integrations/IntegrationsPage';
 import { SheetCampaignsPage } from './pages/integrations/SheetCampaignsPage';
 import { SheetSetupPage } from './pages/integrations/SheetSetupPage';
 import { SheetDataPage } from './pages/integrations/SheetDataPage';
+import { SessionReplacedDialog, SingleTabGuard } from './auth/SessionGuards';
 
 // The flow builder pulls in React Flow; load it only when opened.
 const FlowBuilderPage = lazy(() => import('./pages/FlowBuilderPage').then((m) => ({ default: m.FlowBuilderPage })));
@@ -56,6 +57,9 @@ export function App() {
   if (status === 'loading') return <Spinner label="Loading Zeta Connect…" />;
 
   return (
+    <>
+    <SingleTabGuard />
+    <SessionReplacedDialog />
     <Routes>
       <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
       <Route path="/signup" element={<GuestOnly><SignupPage /></GuestOnly>} />
@@ -122,6 +126,7 @@ export function App() {
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    </>
   );
 }
 

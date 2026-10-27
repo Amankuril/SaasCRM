@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express';
 import { Types } from 'mongoose';
 import { forbidden, unauthorized } from '../lib/errors.js';
 import { verifyAccessToken } from '../lib/tokens.js';
+import { sessionReplaced } from '../modules/auth/auth.service.js';
 import { Session } from '../modules/auth/session.model.js';
 import { User } from '../modules/auth/user.model.js';
 
@@ -12,8 +13,10 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   const payload = token ? verifyAccessToken(token) : null;
   if (!payload || !Types.ObjectId.isValid(payload.sid)) throw unauthorized('Your session has expired. Please log in again.', 'TOKEN_INVALID');
 
-  const session = await Session.findOne({ _id: payload.sid, userId: payload.sub, revokedAt: null }).lean();
-  if (!session || session.expiresAt.getTime() <= Date.now()) {
+  const session = await Session.findOne({ _id: payload.sid, userId: payload.sub }).lean();
+  // Tell a tab whose session was taken over by a newer login, so it can say why.
+  if (session?.revokedReason === 'replaced') throw sessionReplaced();
+  if (!session || session.revokedAt || session.expiresAt.getTime() <= Date.now()) {
     throw unauthorized('Your session has expired. Please log in again.', 'SESSION_EXPIRED');
   }
 

@@ -9,6 +9,12 @@ const sessionSchema = new Schema(
     previousTokenHash: { type: String, default: null, index: true },
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
+    // `replaced`: the account logged in somewhere else (one business session at a time).
+    revokedReason: { type: String, enum: ['logout', 'replaced', 'reuse', null], default: null },
+    // `admin` sessions (Super Admin portal) are not limited to one at a time.
+    portal: { type: String, enum: ['app', 'admin'], default: 'app' },
+    // Heartbeat from an open tab; a session seen recently counts as "logged in elsewhere".
+    lastSeenAt: { type: Date, default: () => new Date() },
     lastUsedAt: { type: Date, default: () => new Date() },
     userAgent: { type: String, default: null },
     ip: { type: String, default: null },

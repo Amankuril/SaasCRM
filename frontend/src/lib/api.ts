@@ -16,7 +16,10 @@ export class ApiError extends Error {
 
 let accessToken: string | null = null;
 let refreshing: Promise<string | null> | null = null;
-let onSessionExpired: (() => void) | null = null;
+/** `replaced`: the account logged in on another browser or tab. */
+export type SessionEndReason = 'expired' | 'replaced';
+let onSessionExpired: ((reason: SessionEndReason) => void) | null = null;
+let lastRefreshError: string | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -26,7 +29,7 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-export function setSessionExpiredHandler(handler: () => void) {
+export function setSessionExpiredHandler(handler: (reason: SessionEndReason) => void) {
   onSessionExpired = handler;
 }
 
@@ -35,11 +38,25 @@ export interface AuthPayload {
   accessToken: string;
 }
 
+/** Business login, step 1 answer: a code was emailed. */
+export interface LoginChallenge {
+  otpRequired: true;
+  challengeToken: string;
+  /** Masked, e.g. "as****@gmail.com". */
+  email: string;
+  expiresInSeconds: number;
+  resendInSeconds: number;
+}
+
 /** Single-flight refresh so parallel 401s trigger only one /refresh call. */
 export function refreshAccessToken(): Promise<string | null> {
   refreshing ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
     .then(async (res) => {
-      if (!res.ok) return null;
+      if (!res.ok) {
+        lastRefreshError = ((await res.json().catch(() => null)) as { error?: { code?: string } } | null)?.error?.code ?? null;
+        return null;
+      }
+      lastRefreshError = null;
       const body = (await res.json()) as AuthPayload;
       accessToken = body.accessToken;
       return body.accessToken;
@@ -67,10 +84,11 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
     body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
   });
 
-  if (res.status === 401 && retry && !path.startsWith('/auth/')) {
-    const token = await refreshAccessToken();
+  if (res.status === 401 && retry && (!path.startsWith('/auth/') || path === '/auth/heartbeat')) {
+    const code = ((await res.clone().json().catch(() => null)) as { error?: { code?: string } } | null)?.error?.code;
+    const token = code === 'SESSION_REPLACED' ? null : await refreshAccessToken();
     if (token) return request<T>(method, path, body, false);
-    onSessionExpired?.();
+    onSessionExpired?.(code === 'SESSION_REPLACED' || lastRefreshError === 'SESSION_REPLACED' ? 'replaced' : 'expired');
   }
 
   if (res.status === 204) return undefined as T;

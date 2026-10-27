@@ -65,6 +65,19 @@ const envSchema = z.object({
   META_ES_CONFIG_ID: optionalString,
   META_WEBHOOK_VERIFY_TOKEN: optionalString,
 
+  // Outgoing email (login codes). Without SMTP_HOST, development logs codes to the console;
+  // production refuses business logins until it is set.
+  SMTP_HOST: optionalString,
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  // true for port 465 (implicit TLS); false uses STARTTLS when the server offers it.
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SMTP_USER: optionalString,
+  SMTP_PASS: optionalString,
+  MAIL_FROM: z.string().default('Zeta Connect <no-reply@zetaconnect.app>'),
+
   // Google Sheets integration. Without an OAuth client, sheets shared as
   // "Anyone with the link" still work; with one, private sheets can be connected.
   GOOGLE_CLIENT_ID: optionalString,
