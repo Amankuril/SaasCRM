@@ -233,6 +233,14 @@ export class SandboxProvider implements WhatsAppProvider {
     });
   }
 
+  async listFlows() {
+    return [...flows.keys()].map((id) => ({ id, name: `Sandbox flow ${id.slice(-4)}`, status: 'PUBLISHED', categories: ['OTHER'] }));
+  }
+
+  async getFlowJson(_creds: ProviderCredentials, flowId: string) {
+    return flows.get(flowId) ?? null;
+  }
+
   async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
     const providerFlowId = `sandbox-flow-${randomBytes(4).toString('hex')}`;
     flows.set(providerFlowId, flow.flowJson as typeof flows extends Map<string, infer V> ? V : never);

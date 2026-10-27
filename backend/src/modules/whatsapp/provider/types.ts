@@ -184,7 +184,11 @@ export interface WhatsAppProvider {
   listLibraryTemplates(creds: ProviderCredentials, filters: LibraryFilters): Promise<LibraryTemplate[]>;
   createFromLibrary(creds: ProviderCredentials, draft: LibraryTemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
   /** Creates and publishes a WhatsApp Flow (forms). */
-  publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }): Promise<PublishedFlow>;
+  publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown; categories?: string[] }): Promise<PublishedFlow>;
+  /** WhatsApp Flows already in the business account (for Sync). */
+  listFlows(creds: ProviderCredentials): Promise<{ id: string; name: string; status: string; categories: string[] }[]>;
+  /** A flow's current Flow JSON, or null when it has none. */
+  getFlowJson(creds: ProviderCredentials, flowId: string): Promise<unknown | null>;
   /** Embedded Signup: swaps the short-lived (30s) code for the business's access token. */
   exchangeSignupCode(code: string): Promise<string>;
   /** Registers the number for Cloud API messaging and sets its two-step verification PIN. */

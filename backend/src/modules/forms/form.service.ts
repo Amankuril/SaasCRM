@@ -30,7 +30,7 @@ export async function sendForm(
       flowId: form.providerFlowId,
       flowToken: newFlowToken({ id: form.id as string, version: form.version }),
       ctaText: form.ctaText,
-      screen: FORM_SCREEN_ID,
+      screen: form.entryScreen || FORM_SCREEN_ID,
       formId: form.id as string,
       formName: form.name,
     },

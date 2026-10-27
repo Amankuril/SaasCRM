@@ -103,6 +103,99 @@ describe('form publishing', () => {
   });
 });
 
+const SCREENS = [
+  {
+    id: 's1',
+    title: 'Your details',
+    footerLabel: 'Next',
+    components: [
+      { id: 'c1', type: 'heading', text: 'Book a visit' },
+      { id: 'c2', type: 'text_input', key: 'name', label: 'Full name', required: true, inputType: 'text', saveTo: 'name' },
+      { id: 'c3', type: 'multi_choice', key: 'topics', label: 'What do you need help with?', required: false, options: [{ id: 'a', title: 'Cleaning' }, { id: 'b', title: 'Whitening' }] },
+    ],
+  },
+  {
+    id: 's2',
+    title: 'Pick a slot',
+    footerLabel: 'Submit',
+    components: [
+      { id: 'c4', type: 'date', key: 'date', label: 'Preferred appointment date', required: true },
+      { id: 'c5', type: 'opt_in', key: 'consent', label: 'Send me reminders', required: false },
+    ],
+  },
+];
+
+describe('multi-screen forms', () => {
+  it('publishes screens that navigate forward and complete with every answer', async () => {
+    const { owner, base, form } = await setup();
+    const saved = (await api().patch(`${base}/forms/${form.id}`).set(auth(owner)).send({ screens: SCREENS, category: 'APPOINTMENT_BOOKING' }).expect(200)).body.form;
+    expect(saved.fields.map((f: { key: string }) => f.key)).toEqual(['name', 'topics', 'date', 'consent']);
+    const preview = (await api().get(`${base}/forms/${form.id}/flow-json`).set(auth(owner)).expect(200)).body;
+    expect(preview.published).toBeNull();
+
+    await api().post(`${base}/forms/${form.id}/publish`).set(auth(owner)).expect(200);
+    expect(wa.published[0]!.categories).toEqual(['APPOINTMENT_BOOKING']);
+    const json = wa.published[0]!.flowJson as { screens: { id: string; terminal?: boolean; data?: Record<string, unknown>; layout: { children: Record<string, unknown>[] } }[] };
+    expect(json.screens.map((s) => s.id)).toEqual(['FORM', 'SCREEN_A']);
+    const first = json.screens[0]!.layout.children;
+    expect(first.map((c) => c.type)).toEqual(['TextHeading', 'TextInput', 'CheckboxGroup', 'Footer']);
+    expect(first.at(-1)).toMatchObject({ label: 'Next', 'on-click-action': { name: 'navigate', next: { name: 'SCREEN_A' }, payload: { name: '${form.name}', topics: '${form.topics}' } } });
+    expect(json.screens[1]).toMatchObject({ terminal: true, data: { name: expect.any(Object), topics: expect.any(Object) } });
+    expect(json.screens[1]!.layout.children.at(-1)).toMatchObject({
+      'on-click-action': { name: 'complete', payload: { name: '${data.name}', topics: '${data.topics}', date: '${form.date}', consent: '${form.consent}' } },
+    });
+    const live = (await api().get(`${base}/forms/${form.id}/flow-json`).set(auth(owner))).body;
+    expect(live.published).toEqual(json);
+  });
+
+  it('checks per-screen limits', async () => {
+    const { owner, base, form } = await setup();
+    const bad = [{ id: 's1', title: 'A title that is far too long for WhatsApp', footerLabel: 'Go', components: [] }];
+    await api().patch(`${base}/forms/${form.id}`).set(auth(owner)).send({ screens: bad }).expect(200);
+    const res = await api().post(`${base}/forms/${form.id}/publish`).set(auth(owner)).expect(422);
+    expect(res.body.error.details.issues.length).toBeGreaterThan(0);
+  });
+
+  it('imports pasted Flow JSON as editable screens, or keeps unsupported JSON as-is', async () => {
+    const { owner, base } = await setup();
+    const flow = {
+      version: '6.3',
+      screens: [
+        { id: 'WELCOME', title: 'Hello', terminal: true, layout: { type: 'SingleColumnLayout', children: [
+          { type: 'TextInput', name: 'city', label: 'City', required: true },
+          { type: 'Footer', label: 'Done', 'on-click-action': { name: 'complete', payload: { city: '${form.city}' } } },
+        ] } },
+      ],
+    };
+    const editable = (await api().post(`${base}/forms/import`).set(auth(owner)).send({ name: 'Imported', flowJson: JSON.stringify(flow) }).expect(201)).body;
+    expect(editable.editable).toBe(true);
+    expect(editable.form.screens[0].components[0]).toMatchObject({ type: 'text_input', key: 'city', label: 'City' });
+
+    const dynamic = { ...flow, data_api_version: '3.0', screens: [{ ...flow.screens[0], layout: { type: 'SingleColumnLayout', children: [{ type: 'NavigationList', name: 'x', 'list-items': [] }] } }] };
+    const raw = (await api().post(`${base}/forms/import`).set(auth(owner)).send({ name: 'Raw', flowJson: dynamic }).expect(201)).body;
+    expect(raw.editable).toBe(false);
+    await api().post(`${base}/forms/${raw.form.id}/publish`).set(auth(owner)).expect(200);
+    expect(wa.published.at(-1)!.flowJson).toEqual(dynamic);
+
+    await api().post(`${base}/forms/import`).set(auth(owner)).send({ name: 'Bad', flowJson: '{not json' }).expect(400);
+    await api().post(`${base}/forms/import`).set(auth(owner)).send({ name: 'Bad', flowJson: { screens: [] } }).expect(400);
+  });
+
+  it('syncs flows made outside the app, skipping its own publishes', async () => {
+    const { owner, base, form } = await publishedForm();
+    wa.remoteFlows = [
+      { id: 'flow-1', name: `Appointment request v1 (${form.id.slice(-6)})`, status: 'PUBLISHED', categories: ['OTHER'], json: null },
+      { id: 'meta-9', name: 'Feedback survey', status: 'PUBLISHED', categories: ['SURVEY'], json: { version: '6.3', screens: [{ id: 'START', title: 'Feedback', terminal: true, layout: { type: 'SingleColumnLayout', children: [{ type: 'TextArea', name: 'notes', label: 'Notes' }, { type: 'Footer', label: 'Send', 'on-click-action': { name: 'complete', payload: { notes: '${form.notes}' } } }] } }] } },
+      { id: 'meta-old', name: 'Old', status: 'DEPRECATED', categories: [], json: null },
+    ];
+    const res = (await api().post(`${base}/forms/sync`).set(auth(owner)).expect(200)).body;
+    expect(res).toEqual({ imported: 1, total: 3 });
+    const forms = (await api().get(`${base}/forms`).set(auth(owner))).body.forms as { name: string; status: string; category: string; providerFlowId: string }[];
+    expect(forms.find((f) => f.name === 'Feedback survey')).toMatchObject({ status: 'published', category: 'SURVEY', providerFlowId: 'meta-9' });
+    expect((await api().post(`${base}/forms/sync`).set(auth(owner))).body.imported).toBe(0);
+  });
+});
+
 describe('sending and submissions', () => {
   it('sends the form inside the 24h window only', async () => {
     const ctx = await publishedForm();

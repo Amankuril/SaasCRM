@@ -46,10 +46,19 @@ export class FakeProvider implements WhatsAppProvider {
     return this.templates;
   }
 
-  published: { name: string; flowJson: unknown }[] = [];
+  published: { name: string; flowJson: unknown; categories?: string[] }[] = [];
+  remoteFlows: { id: string; name: string; status: string; categories: string[]; json: unknown }[] = [];
+
+  async listFlows() {
+    return this.remoteFlows.map(({ json: _json, ...f }) => f);
+  }
+
+  async getFlowJson(_creds: ProviderCredentials, flowId: string) {
+    return this.remoteFlows.find((f) => f.id === flowId)?.json ?? null;
+  }
   flowValidationErrors: string[] = [];
 
-  async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
+  async publishFlow(_creds: ProviderCredentials, flow: { name: string; flowJson: unknown; categories?: string[] }) {
     this.published.push(flow);
     return { providerFlowId: `flow-${this.published.length}`, validationErrors: this.flowValidationErrors };
   }

@@ -33,7 +33,16 @@ const formSchema = new Schema(
     screenTitle: { type: String, trim: true, maxlength: 30, default: 'Details' },
     submitLabel: { type: String, trim: true, maxlength: 35, default: 'Submit' },
     successMessage: { type: String, trim: true, maxlength: 1024, default: 'Thanks! We received your details.' },
+    // Pre-screens forms kept one flat list of fields; new forms use `screens`.
     fields: { type: [fieldSchema], default: [] },
+    screens: { type: [Schema.Types.Mixed], default: [] },
+    // WhatsApp Flow category (SIGN_UP, APPOINTMENT_BOOKING, ...).
+    category: { type: String, default: 'OTHER' },
+    // Imported Flow JSON the builder can't edit; published as-is.
+    rawFlowJson: { type: Schema.Types.Mixed, default: null },
+    publishedFlowJson: { type: Schema.Types.Mixed, default: null },
+    // First screen of the published flow (what sends open).
+    entryScreen: { type: String, default: 'FORM' },
     version: { type: Number, default: 0 },
     publishedFields: { type: [fieldSchema], default: [] },
     providerFlowId: { type: String, default: null },

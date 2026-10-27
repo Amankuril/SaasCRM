@@ -94,11 +94,12 @@ export function WorkspaceLayout() {
   // The inbox, flow builder and templates use the full height/width instead of the padded page container.
   const inboxRoute = useMatch('/w/:workspaceId/inbox');
   const builderRoute = useMatch('/w/:workspaceId/flows/:flowId');
+  const formBuilderRoute = useMatch('/w/:workspaceId/forms/:formId');
   const templatesRoute = useMatch('/w/:workspaceId/templates/*');
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
   const campaignsRoute = useMatch('/w/:workspaceId/campaigns/*');
   const audienceRoute = useMatch('/w/:workspaceId/audience/*');
-  const fullBleed = inboxRoute || builderRoute || templatesRoute || broadcastRoute || campaignsRoute || audienceRoute;
+  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || campaignsRoute || audienceRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({

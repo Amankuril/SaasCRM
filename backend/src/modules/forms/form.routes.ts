@@ -10,7 +10,8 @@ import { Contact } from '../contacts/contact.model.js';
 import { normalizePhone } from '../contacts/contact.service.js';
 import { credentialsOf, getConnection, providerToAppError } from '../whatsapp/connection.service.js';
 import { whatsappProvider } from '../whatsapp/provider/index.js';
-import { buildFlowJson, displayValue, fieldInput, validateFields, type FormField } from './flowJson.js';
+import { displayValue, type FormField } from './flowJson.js';
+import { FORM_CATEGORIES, buildScreensFlowJson, fieldsFromFlowJson, fieldsToScreens, flowJsonToScreens, inputsOf, screenSchema, validateScreens, type FormScreen } from './screens.js';
 import { Form, FormSubmission, type FormDoc } from './form.model.js';
 import { sendForm } from './form.service.js';
 
@@ -22,24 +23,56 @@ const updateSchema = z
     screenTitle: z.string().trim().min(1).max(30, 'Form title is at most 30 characters.'),
     submitLabel: z.string().trim().min(1).max(35, 'Submit button is at most 35 characters.'),
     successMessage: z.string().trim().max(1024),
+    category: z.enum(FORM_CATEGORIES),
     // Shape-checked here; WhatsApp limits are checked on publish so drafts can be saved half-done.
+    screens: z.array(screenSchema).max(10),
+    // Pre-screens API: a flat list of fields becomes one screen.
     fields: z.array(z.object({}).passthrough()).max(50),
+    // Edits an imported form's JSON; null switches it back to the builder.
+    rawFlowJson: z.unknown(),
   })
   .partial();
+
+/** The form's screens (pre-screens forms are converted on the fly). */
+function screensOf(f: FormDoc): FormScreen[] {
+  if (f.screens.length) return f.screens as FormScreen[];
+  return f.fields.length ? fieldsToScreens(f.fields as FormField[], f.screenTitle, f.submitLabel) : [];
+}
+
+function parseFlowJson(raw: unknown): Record<string, unknown> {
+  let json = raw;
+  if (typeof raw === 'string') {
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { flowJson: ['This is not valid JSON.'] });
+    }
+  }
+  const screens = (json as { screens?: unknown })?.screens;
+  if (!json || typeof json !== 'object' || !Array.isArray(screens) || !screens.length) {
+    throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { flowJson: ['Flow JSON needs a "screens" list.'] });
+  }
+  return json as Record<string, unknown>;
+}
 
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(25) });
 
 function serialize(f: FormDoc, submissions?: number) {
+  const screens = screensOf(f);
   return {
     id: f.id as string,
     name: f.name,
     status: f.status,
+    category: f.category,
+    screens,
+    rawFlowJson: f.rawFlowJson ?? null,
+    providerFlowId: f.providerFlowId,
     intro: f.intro,
     ctaText: f.ctaText,
     screenTitle: f.screenTitle,
     submitLabel: f.submitLabel,
     successMessage: f.successMessage,
-    fields: f.fields,
+    fields: f.rawFlowJson ? fieldsFromFlowJson(f.rawFlowJson) : inputsOf(screens),
     version: f.version,
     publishError: f.publishError,
     publishedAt: f.publishedAt,
@@ -64,29 +97,97 @@ formRouter.get('/', requirePermission('workspace:read'), async (req, res) => {
 });
 
 formRouter.post('/', requirePermission('forms:manage'), async (req, res) => {
-  const { name } = parse(z.object({ name: z.string().trim().min(1).max(80).default('Untitled form') }), req.body);
+  const { name, category } = parse(z.object({ name: z.string().trim().min(1).max(80).default('Untitled form'), category: z.enum(FORM_CATEGORIES).default('OTHER') }), req.body);
   await assertFeature(req.workspace!._id, 'forms');
   await assertWithinLimit(req.workspace!._id, 'forms', await Form.countDocuments({ workspaceId: req.workspace!._id }));
   const form = await Form.create({
     workspaceId: req.workspace!._id,
     name,
+    category,
     createdBy: req.user!._id,
-    fields: [
+    screens: fieldsToScreens([
       { key: 'name', label: 'Full name', type: 'short_text', required: true, options: [], saveTo: 'name' },
       { key: 'email', label: 'Email', type: 'email', required: false, options: [], saveTo: 'email' },
-    ],
+    ]),
   });
   res.status(201).json({ form: serialize(form) });
+});
+
+/** "Paste Flow JSON": becomes editable screens when possible, otherwise is kept as-is. */
+formRouter.post('/import', requirePermission('forms:manage'), async (req, res) => {
+  const input = parse(z.object({ name: z.string().trim().min(1).max(80), category: z.enum(FORM_CATEGORIES).default('OTHER'), flowJson: z.unknown() }), req.body);
+  const workspaceId = req.workspace!._id;
+  await assertFeature(workspaceId, 'forms');
+  await assertWithinLimit(workspaceId, 'forms', await Form.countDocuments({ workspaceId }));
+  const json = parseFlowJson(input.flowJson);
+  const screens = flowJsonToScreens(json);
+  const form = await Form.create({ workspaceId, name: input.name, category: input.category, createdBy: req.user!._id, ...(screens ? { screens } : { rawFlowJson: json }) });
+  res.status(201).json({ form: serialize(form), editable: !!screens });
+});
+
+/** Imports flows made elsewhere (Meta's Flow Builder, other tools) from the WhatsApp account. */
+formRouter.post('/sync', requirePermission('forms:manage'), async (req, res) => {
+  const workspaceId = req.workspace!._id;
+  const conn = await getConnection(workspaceId, true);
+  if (!conn || conn.status !== 'connected') throw conflict('WHATSAPP_NOT_CONNECTED', 'Connect a working WhatsApp number first.');
+  let remote;
+  try {
+    remote = await whatsappProvider().listFlows(credentialsOf(conn));
+  } catch (err) {
+    throw providerToAppError(err, 'Could not load your WhatsApp forms');
+  }
+  const local = await Form.find({ workspaceId }).select('_id providerFlowId').lean();
+  const knownIds = new Set(local.map((f) => f.providerFlowId).filter(Boolean));
+  const ownSuffixes = new Set(local.map((f) => f._id.toString().slice(-6)));
+  let imported = 0;
+  for (const flow of remote) {
+    // Our own publishes are named "<form> vN (<id suffix>)"; older versions aren't new forms.
+    const suffix = /\(([a-f0-9]{6})\)$/.exec(flow.name)?.[1];
+    if (knownIds.has(flow.id) || (suffix && ownSuffixes.has(suffix)) || flow.status === 'DEPRECATED') continue;
+    const json = await whatsappProvider().getFlowJson(credentialsOf(conn), flow.id).catch(() => null);
+    const screens = json ? flowJsonToScreens(json) : null;
+    const published = flow.status === 'PUBLISHED';
+    await Form.create({
+      workspaceId,
+      name: flow.name.slice(0, 80),
+      category: (FORM_CATEGORIES as readonly string[]).includes(flow.categories[0] ?? '') ? flow.categories[0] : 'OTHER',
+      createdBy: req.user!._id,
+      ...(screens ? { screens } : json ? { rawFlowJson: json } : {}),
+      providerFlowId: flow.id,
+      status: published ? 'published' : 'draft',
+      ...(published && json
+        ? {
+            version: 1,
+            publishedAt: new Date(),
+            publishedFlowJson: json,
+            publishedFields: fieldsFromFlowJson(json),
+            entryScreen: String((json as { screens: { id: string }[] }).screens[0]?.id ?? 'FORM'),
+          }
+        : {}),
+    });
+    imported++;
+  }
+  res.json({ imported, total: remote.length });
 });
 
 formRouter.get('/:formId', requirePermission('workspace:read'), async (req, res) => {
   res.json({ form: serialize(await findForm(req.workspace!._id, req.params.formId)) });
 });
 
+/** The Flow JSON the draft would publish (and what's live), for the code view and download. */
+formRouter.get('/:formId/flow-json', requirePermission('workspace:read'), async (req, res) => {
+  const form = await findForm(req.workspace!._id, req.params.formId);
+  const draft = form.rawFlowJson ?? buildScreensFlowJson(screensOf(form));
+  res.json({ draft, published: form.publishedFlowJson ?? null, flowId: form.providerFlowId });
+});
+
 formRouter.patch('/:formId', requirePermission('forms:manage'), async (req, res) => {
   const input = parse(updateSchema, req.body);
   const form = await findForm(req.workspace!._id, req.params.formId);
-  form.set(input);
+  const { fields, rawFlowJson, ...rest } = input;
+  form.set(rest);
+  if (rawFlowJson !== undefined) form.rawFlowJson = rawFlowJson === null ? null : parseFlowJson(rawFlowJson);
+  if (fields && !input.screens) form.screens = fieldsToScreens(fields as FormField[], input.screenTitle ?? form.screenTitle, input.submitLabel ?? form.submitLabel);
   form.draftUpdatedAt = new Date();
   await form.save();
   res.json({ form: serialize(form) });
@@ -105,18 +206,20 @@ formRouter.post('/:formId/publish', requirePermission('forms:manage'), async (re
   const workspaceId = req.workspace!._id;
   const form = await findForm(workspaceId, req.params.formId);
   await assertFeature(workspaceId, 'forms');
-  const fields = form.fields as FormField[];
-  const issues = validateFields(fields);
+  const raw = form.rawFlowJson as Record<string, unknown> | null;
+  const screens = screensOf(form);
+  const issues = raw ? [] : validateScreens(screens);
   if (issues.length) throw new AppError(422, 'FORM_INVALID', 'Fix the form before publishing.', { issues });
 
   const conn = await getConnection(workspaceId, true);
   if (!conn || conn.status !== 'connected') throw conflict('WHATSAPP_NOT_CONNECTED', 'Connect a working WhatsApp number first.');
-  const normalized = fields.map((f) => fieldInput.parse(f));
-  const flowJson = buildFlowJson({ screenTitle: form.screenTitle, submitLabel: form.submitLabel, intro: form.intro, fields: normalized });
+  const flowJson = raw ?? buildScreensFlowJson(screens);
+  const normalized = raw ? fieldsFromFlowJson(raw) : inputsOf(screens);
+  const entryScreen = String((flowJson as { screens: { id: string }[] }).screens[0]?.id ?? 'FORM');
 
   let result;
   try {
-    result = await whatsappProvider().publishFlow(credentialsOf(conn), { name: `${form.name} v${form.version + 1} (${form.id.slice(-6)})`, flowJson });
+    result = await whatsappProvider().publishFlow(credentialsOf(conn), { name: `${form.name} v${form.version + 1} (${form.id.slice(-6)})`, flowJson, categories: [form.category] });
   } catch (err) {
     form.set({ status: form.providerFlowId ? form.status : 'failed', publishError: (err as Error).message });
     await form.save();
@@ -133,6 +236,8 @@ formRouter.post('/:formId/publish', requirePermission('forms:manage'), async (re
     providerFlowId: result.providerFlowId,
     version: form.version + 1,
     publishedFields: normalized,
+    publishedFlowJson: flowJson,
+    entryScreen,
     publishError: null,
     publishedAt: new Date(),
   });
@@ -165,7 +270,7 @@ formRouter.get('/:formId/submissions', requirePermission('workspace:read'), asyn
   ]);
   const contacts = await Contact.find({ workspaceId, _id: { $in: rows.map((r) => r.contactId) } }).select('name profileName phoneE164').lean();
   const contactOf = new Map(contacts.map((c) => [c._id.toString(), c]));
-  const fields = (form.publishedFields.length ? form.publishedFields : form.fields) as FormField[];
+  const fields = (form.publishedFields.length ? form.publishedFields : form.rawFlowJson ? fieldsFromFlowJson(form.rawFlowJson) : inputsOf(screensOf(form))) as FormField[];
 
   res.json({
     columns: fields.map((f) => ({ key: f.key, label: f.label })),

@@ -597,10 +597,57 @@ export interface FormField {
   saveTo: string | null;
 }
 
+export type FormComponentType =
+  | 'heading'
+  | 'subheading'
+  | 'caption'
+  | 'body'
+  | 'text_input'
+  | 'text_area'
+  | 'single_choice'
+  | 'multi_choice'
+  | 'dropdown'
+  | 'date'
+  | 'image'
+  | 'opt_in'
+  | 'link';
+
+export interface FormComponent {
+  id: string;
+  type: FormComponentType;
+  key?: string;
+  label?: string;
+  text?: string;
+  required?: boolean;
+  inputType?: 'text' | 'email' | 'phone' | 'number' | 'password' | 'passcode';
+  helperText?: string;
+  options?: { id: string; title: string }[];
+  /** Base64 image data without the data: prefix. */
+  image?: string;
+  height?: number;
+  url?: string;
+  saveTo?: string | null;
+}
+
+export interface FormScreen {
+  id: string;
+  title: string;
+  footerLabel: string;
+  components: FormComponent[];
+}
+
+export const FORM_CATEGORIES = ['SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION', 'CONTACT_US', 'CUSTOMER_SUPPORT', 'SURVEY', 'OTHER'] as const;
+export type FormCategory = (typeof FORM_CATEGORIES)[number];
+
 export interface WaForm {
   id: string;
   name: string;
   status: 'draft' | 'published' | 'failed';
+  category: FormCategory;
+  screens: FormScreen[];
+  /** Imported Flow JSON the builder can't edit visually. */
+  rawFlowJson: Record<string, unknown> | null;
+  providerFlowId: string | null;
   intro: string;
   ctaText: string;
   screenTitle: string;

@@ -217,7 +217,7 @@ async function resolveForms(workspaceId: Types.ObjectId, input: TemplateInput): 
     if (!form || form.status !== 'published' || !form.providerFlowId) {
       throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { buttons: ['The selected form is not published to WhatsApp yet.'] });
     }
-    refs.set(id, { flowId: form.providerFlowId, screen: FORM_SCREEN_ID });
+    refs.set(id, { flowId: form.providerFlowId, screen: form.entryScreen || FORM_SCREEN_ID });
   }
   return refs;
 }

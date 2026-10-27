@@ -263,10 +263,33 @@ export class MetaCloudProvider implements WhatsAppProvider {
     return { providerTemplateId: data.id, status: data.status, category: data.category };
   }
 
-  async publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown }) {
+  async listFlows(creds: ProviderCredentials) {
+    const flows: { id: string; name: string; status: string; categories: string[] }[] = [];
+    let path: string | null = `/${creds.wabaId}/flows?fields=id,name,status,categories&limit=100`;
+    while (path) {
+      const page: { data: { id: string; name: string; status: string; categories?: string[] }[]; paging?: { next?: string } } = await this.graph(creds, 'GET', path);
+      for (const f of page.data) flows.push({ id: f.id, name: f.name, status: f.status, categories: f.categories ?? [] });
+      path = page.paging?.next ? page.paging.next.replace(/^https:\/\/graph\.facebook\.com\/v[\d.]+/, '') : null;
+    }
+    return flows;
+  }
+
+  async getFlowJson(creds: ProviderCredentials, flowId: string) {
+    const assets = await this.graph<{ data: { asset_type: string; download_url: string }[] }>(creds, 'GET', `/${flowId}/assets`);
+    const url = assets.data.find((a) => a.asset_type === 'FLOW_JSON')?.download_url;
+    if (!url) return null;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async publishFlow(creds: ProviderCredentials, flow: { name: string; flowJson: unknown; categories?: string[] }) {
     const data = await this.graph<{ id: string; validation_errors?: { error?: string; message?: string }[] }>(creds, 'POST', `/${creds.wabaId}/flows`, {
       name: flow.name,
-      categories: ['OTHER'],
+      categories: flow.categories?.length ? flow.categories : ['OTHER'],
       flow_json: JSON.stringify(flow.flowJson),
       publish: true,
     });

@@ -20,8 +20,8 @@ import { AiAgentPage } from './pages/AiAgentPage';
 import { DeveloperPage } from './pages/DeveloperPage';
 import { BillingPage } from './pages/BillingPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
-import { FormBuilderPage } from './pages/FormBuilderPage';
-import { FormsPage } from './pages/FormsPage';
+import { FormBuilderPage } from './pages/forms/FormBuilderPage';
+import { FormsListPage } from './pages/forms/FormsListPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { InboxPage } from './pages/InboxPage';
 import { AudienceLayout } from './pages/audience/AudienceLayout';
@@ -88,7 +88,7 @@ export function App() {
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
         <Route path="flows" element={<FlowsPage />} />
-        <Route path="forms" element={<FormsPage />} />
+        <Route path="forms" element={<FormsListPage />} />
         <Route path="forms/:formId" element={<FormBuilderPage />} />
         <Route path="ai" element={<AiAgentPage />} />
         <Route path="developer" element={<DeveloperPage />} />
