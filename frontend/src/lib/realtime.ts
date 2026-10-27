@@ -6,7 +6,9 @@ import { getAccessToken, refreshAccessToken } from './api';
 type RealtimeEvent =
   | { type: 'conversation.changed'; conversationId: string }
   | { type: 'messages.changed'; conversationId: string }
-  | { type: 'contacts.changed' };
+  | { type: 'contacts.changed' }
+  | { type: 'tasks.changed' }
+  | { type: 'appointments.changed' };
 
 /**
  * Live updates for the current workspace. The server only sends "something
@@ -60,6 +62,15 @@ export function useRealtime(workspaceId: string) {
       if (event.type === 'contacts.changed') {
         void queryClient.invalidateQueries({ queryKey: ['contacts', workspaceId] });
         void queryClient.invalidateQueries({ queryKey: ['tags', workspaceId] });
+        void queryClient.invalidateQueries({ queryKey: ['audience', workspaceId] });
+        return;
+      }
+      if (event.type === 'tasks.changed') {
+        void queryClient.invalidateQueries({ queryKey: ['tasks', workspaceId] });
+        return;
+      }
+      if (event.type === 'appointments.changed') {
+        void queryClient.invalidateQueries({ queryKey: ['appointments', workspaceId] });
         return;
       }
       void queryClient.invalidateQueries({ queryKey: ['conversations', workspaceId] });

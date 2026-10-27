@@ -874,3 +874,53 @@ export interface AudienceQuery {
   page: number;
   limit: number;
 }
+
+// ---- Ticket / Task Board ----
+
+export type TaskType = 'task' | 'ticket';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface TaskColumn {
+  id: string;
+  key: string;
+  name: string;
+  color: StageColor;
+  order: number;
+  isDone: boolean;
+}
+
+export interface BoardTask {
+  id: string;
+  number: number;
+  type: TaskType;
+  title: string;
+  description: string;
+  status: string;
+  priority: TaskPriority;
+  assignee: { id: string; name: string } | null;
+  contact: { id: string; name: string; phone: string } | null;
+  dueAt: string | null;
+  position: number;
+  completedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Appointments ----
+
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+export type AppointmentSource = 'ai_assistant' | 'flow' | 'manual' | 'api';
+
+export interface Appointment {
+  id: string;
+  contact: { id: string; name: string; phone: string } | null;
+  service: string;
+  startAt: string;
+  durationMinutes: number;
+  status: AppointmentStatus;
+  source: AppointmentSource;
+  notes: string;
+  assignee: { id: string; name: string } | null;
+  createdAt: string;
+}

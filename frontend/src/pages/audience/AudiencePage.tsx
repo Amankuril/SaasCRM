@@ -526,7 +526,7 @@ function BulkBar({ count, busy, onAction, onClear }: { count: number; busy: bool
 }
 
 /** Side panel with the full contact card (stage, consent, owner, custom fields, notes…). */
-function ContactPanel({ contactId, onClose }: { contactId: string; onClose: () => void }) {
+export function ContactPanel({ contactId, onClose }: { contactId: string; onClose: () => void }) {
   const { workspace } = useWorkspace();
   const contact = useQuery({
     queryKey: ['contact', workspace.id, contactId],

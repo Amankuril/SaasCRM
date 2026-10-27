@@ -19,10 +19,10 @@ const SECTIONS: { title: string; items: Item[] }[] = [
     items: [
       { to: '', label: 'Audience', hint: 'All customers', icon: Users, end: true },
       { to: 'segments', label: 'Segments', hint: 'Saved filters', icon: Bookmark, child: true },
-      { label: 'Sales Pipeline', hint: 'Lifecycle stages', icon: Columns3 },
-      { label: 'Ticket / Task Board', hint: 'Tasks & tickets', icon: KanbanSquare },
+      { to: 'pipeline', label: 'Sales Pipeline', hint: 'Lifecycle stages', icon: Columns3 },
+      { to: 'tasks', label: 'Ticket / Task Board', hint: 'Tasks & tickets', icon: KanbanSquare },
       { to: 'follow-ups', label: 'Follow-ups', hint: 'Scheduled follow-ups', icon: AlarmClock },
-      { label: 'Appointments', hint: 'AI-booked appointments', icon: CalendarCheck },
+      { to: 'appointments', label: 'Appointments', hint: 'AI-booked appointments', icon: CalendarCheck },
     ],
   },
   {

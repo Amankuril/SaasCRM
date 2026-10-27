@@ -27,6 +27,9 @@ import { InboxPage } from './pages/InboxPage';
 import { AudienceLayout } from './pages/audience/AudienceLayout';
 import { AudiencePage } from './pages/audience/AudiencePage';
 import { FollowUpsPage } from './pages/audience/FollowUpsPage';
+import { AppointmentsPage } from './pages/audience/AppointmentsPage';
+import { PipelinePage } from './pages/audience/PipelinePage';
+import { TaskBoardPage } from './pages/audience/TaskBoardPage';
 import { SegmentsPage } from './pages/audience/SegmentsPage';
 import { BroadcastLayout } from './pages/broadcast/BroadcastLayout';
 import { ContactListsPage } from './pages/broadcast/ContactListsPage';
@@ -70,6 +73,9 @@ export function App() {
           <Route index element={<AudiencePage />} />
           <Route path="segments" element={<SegmentsPage />} />
           <Route path="follow-ups" element={<FollowUpsPage />} />
+          <Route path="pipeline" element={<PipelinePage />} />
+          <Route path="tasks" element={<TaskBoardPage />} />
+          <Route path="appointments" element={<AppointmentsPage />} />
         </Route>
         <Route element={<BroadcastLayout />}>
           <Route path="broadcast" element={<ContactListsPage />} />

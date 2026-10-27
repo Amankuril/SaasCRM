@@ -14,7 +14,9 @@ import { logger } from '../lib/logger.js';
 export type RealtimeEvent =
   | { type: 'conversation.changed'; conversationId: string }
   | { type: 'messages.changed'; conversationId: string }
-  | { type: 'contacts.changed' };
+  | { type: 'contacts.changed' }
+  | { type: 'tasks.changed' }
+  | { type: 'appointments.changed' };
 
 type Handler = (workspaceId: string, event: RealtimeEvent) => void;
 
