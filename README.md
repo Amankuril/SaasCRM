@@ -121,8 +121,8 @@ npm --prefix backend run make-admin -- you@example.com
 | `npm run install:all` | Installs backend and frontend dependencies (each in its own folder) |
 | `npm run dev` | API (tsx watch) + web app (Vite) together |
 | `npm test` | Backend tests (Vitest + Supertest + in-memory MongoDB) |
-| `npm run typecheck` | TypeScript checks for both apps |
-| `npm run build` | Production builds (`backend/dist`, `frontend/dist`) |
+| `npm run typecheck` | TypeScript checks for both apps (run before pushing: production builds skip them) |
+| `npm run build` | Production builds without type-checking (`backend/dist` via esbuild, `frontend/dist` via Vite) |
 
 ## Multi-tenancy rules
 

@@ -14,7 +14,7 @@ How this differs from the usual SOP:
 | Usual SOP | This project |
 |---|---|
 | `Backend/`, `Frontend/` | `backend/`, `frontend/` (lowercase) |
-| `pm2 start server.js` | TypeScript: `npm run build`, then run `dist/server.js` |
+| `pm2 start server.js` | TypeScript: `npm run build` (esbuild), then run `dist/server.js` |
 | API on 5000, separate socket server on 5001 | One process on **4000** serves both `/api` and `/socket.io` |
 | No worker | Separate **worker** process (`dist/worker.js`), API runs with `RUN_WORKERS=false` |
 | `/health`, `/ready` | Only `/api/health` |
@@ -53,8 +53,8 @@ sudo systemctl enable --now redis-server
 redis-cli ping        # → PONG
 ```
 
-Small VPS (1–2 GB RAM): the TypeScript build needs ~1.1 GB, so add swap once and give Node more heap,
-otherwise `npm run build` hangs or dies with "JavaScript heap out of memory":
+Small VPS (1–2 GB RAM): `npm run build` only transpiles (esbuild / Vite, no type-check), so it is quick
+and light, but `npm ci` and the Vite bundle still like some headroom. Add swap once and give Node more heap:
 
 ```bash
 sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
@@ -275,38 +275,25 @@ Point the outside services at the subdomain:
 
 ## 9. deploy.sh (daily workflow)
 
-```bash
-nano ~/deploy.sh
-```
+The script lives in the repo at `scripts/deploy.sh`. Copy it once (and again whenever it changes;
+it is not run from the repo so a `git pull` never rewrites it mid-run):
 
 ```bash
-#!/bin/bash
-set -e
-export NODE_OPTIONS=--max-old-space-size=1536
-echo "Deploy started..."
-cd ~/SaasCRM
-git pull origin main
-
-# Backend
-cd backend
-npm ci
-npm run build
-pm2 restart zeta-api zeta-worker --update-env
-
-# Frontend
-cd ../frontend
-npm ci
-npm run build
-sudo rm -rf /var/www/zeta-app/*
-sudo cp -r dist/* /var/www/zeta-app/
-
-echo "Deploy finished"
-```
-
-```bash
-chmod +x ~/deploy.sh
+cp ~/SaasCRM/scripts/deploy.sh ~/deploy.sh && chmod +x ~/deploy.sh
 ~/deploy.sh
 ```
+
+What it does, and why it is fast:
+
+- `npm run build` **does not type-check** on the server (backend: esbuild, ~1 s; frontend: `vite build`).
+  Type errors are caught on your machine: run `npm run typecheck` (repo root) before every push.
+  The full checks still exist as `npm run build:tsc` (backend) and `npm run build:check` (frontend).
+- `npm ci` runs only when that app's `package-lock.json` changed since its last install.
+- The backend (and its pm2 restart) or the frontend is skipped when nothing in it changed since the
+  last **successful** deploy (stored in `~/.zeta-deployed-commit`, so a failed deploy is fully retried).
+- The frontend is swapped into `/var/www/zeta-app` with `rsync --delete` (no empty-site moment).
+
+`FORCE=1 ~/deploy.sh` reinstalls and rebuilds everything.
 
 ## 10. Test
 
