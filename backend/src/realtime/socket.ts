@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { verifyAccessToken } from '../lib/tokens.js';
 import { Session } from '../modules/auth/session.model.js';
+import { User } from '../modules/auth/user.model.js';
 import { WorkspaceMember } from '../modules/workspaces/member.model.js';
 import { subscribe } from './bus.js';
 
@@ -30,7 +31,9 @@ export function attachRealtime(server: HttpServer): Server {
       const ok =
         typeof workspaceId === 'string' &&
         Types.ObjectId.isValid(workspaceId) &&
-        !!(await WorkspaceMember.exists({ workspaceId, userId: socket.data.userId as string }));
+        (!!(await WorkspaceMember.exists({ workspaceId, userId: socket.data.userId as string })) ||
+          // Platform admins on support access see the same live updates.
+          !!(await User.exists({ _id: socket.data.userId as string, isPlatformAdmin: true, status: 'active' })));
       if (ok) {
         for (const room of socket.rooms) if (room.startsWith('ws:')) void socket.leave(room);
         void socket.join(`ws:${workspaceId}`);

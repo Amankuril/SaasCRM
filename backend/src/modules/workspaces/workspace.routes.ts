@@ -67,6 +67,7 @@ scoped.get('/', requirePermission('workspace:read'), async (req, res) => {
   const s = e.subscription;
   res.json({
     ...workspaceContext(req.workspace!, req.membership!),
+    supportAccess: req.supportAccess ?? false,
     // Enough for the app-wide plan banner; details live on the Billing page.
     subscription: { planCode: s.planCode, planName: e.plan.name, status: s.status, access: e.access, trialEndsAt: s.trialEndsAt, graceEndsAt: s.graceEndsAt, currentPeriodEnd: s.currentPeriodEnd, cancelAtPeriodEnd: s.cancelAtPeriodEnd, features: e.features },
   });

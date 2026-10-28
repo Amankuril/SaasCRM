@@ -7,6 +7,7 @@ import { getMailer, loginCodeEmail } from '../../lib/mailer.js';
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
 import { emailSchema, parse, passwordSchema } from '../../lib/validate.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { assertNotInMaintenance, platformSettings } from '../admin/admin.service.js';
 import { listUserWorkspaces } from '../workspaces/workspace.service.js';
 import {
   CODE_MAX_ATTEMPTS,
@@ -84,8 +85,21 @@ const loginSchema = z.object({
 
 export const authRouter = Router();
 
+/** Public: what the login/sign-up pages need to know before the user tries. */
+authRouter.get('/status', async (_req, res) => {
+  const s = await platformSettings();
+  res.json({ signupsEnabled: s.signupsEnabled, maintenance: { active: s.maintenanceMode, message: s.maintenanceMessage || null } });
+});
+
+/** Signed-in: the platform-wide banner set from the Super Admin panel. */
+authRouter.get('/announcement', requireAuth, async (_req, res) => {
+  const a = (await platformSettings()).announcement;
+  res.json({ announcement: a?.active && a.text ? { text: a.text, tone: a.tone } : null });
+});
+
 authRouter.post('/signup', authLimiter, async (req, res) => {
   const body = parse(signupSchema, req.body);
+  if (!(await platformSettings()).signupsEnabled) throw forbidden('New sign-ups are paused right now. Please try again later.', 'SIGNUPS_DISABLED');
   if (await User.exists({ email: body.email })) {
     throw conflict('EMAIL_TAKEN', 'An account with this email already exists.');
   }
@@ -107,6 +121,7 @@ authRouter.post('/login', authLimiter, async (req, res, next) => {
   const valid = await verifyPassword(body.password, user?.passwordHash);
   if (!user || !valid) return wrongPassword('app', body.email);
   if (user.status !== 'active') throw unauthorized('Your account has been disabled.', 'ACCOUNT_INACTIVE');
+  await assertNotInMaintenance(user.isPlatformAdmin);
   await clearFailedLogins('app', body.email);
 
   // Step 2: a code goes to the account's email; the session starts once it is entered.

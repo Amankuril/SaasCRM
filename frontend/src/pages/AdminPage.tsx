@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Building2, Layers, LogOut } from 'lucide-react';
+import { Activity, ArrowLeft, Building2, History, Layers, LogOut, Settings2, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, Navigate } from 'react-router';
+import { Link, Navigate, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Modal } from '../components/crm';
 import { Logo } from '../components/Logo';
@@ -9,8 +9,11 @@ import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Selec
 import { api, type FeatureKey, type LimitKey, type PlanInfo, type SubscriptionStatus, type Workspace, type WorkspaceStatus } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { money } from './BillingPage';
+import { ActivityTab } from './admin/ActivityTab';
+import { SettingsTab } from './admin/SettingsTab';
+import { UsersTab } from './admin/UsersTab';
 
-interface AdminWorkspace extends Workspace {
+export interface AdminWorkspace extends Workspace {
   memberCount: number;
   owners: (string | null)[];
   suspendedReason: string | null;
@@ -25,7 +28,7 @@ interface Stats {
   currency: string;
 }
 
-interface AdminPlan extends PlanInfo {
+export interface AdminPlan extends PlanInfo {
   sortOrder: number;
   providerPlanIds: { monthly: string | null; yearly: string | null };
   subscribers: number;
@@ -47,13 +50,15 @@ interface OpsRow {
   graceEndsAt: string | null;
 }
 
-const STATUS_TONE = { setup: 'amber', active: 'green', suspended: 'red' } as const;
-const SUB_TONE: Record<SubscriptionStatus, 'blue' | 'green' | 'amber' | 'red' | 'gray'> = { trialing: 'blue', active: 'green', past_due: 'amber', suspended: 'red', cancelled: 'gray', expired: 'red' };
-type Tab = 'tenants' | 'plans' | 'ops';
+export const STATUS_TONE = { setup: 'amber', active: 'green', suspended: 'red' } as const;
+export const SUB_TONE: Record<SubscriptionStatus, 'blue' | 'green' | 'amber' | 'red' | 'gray'> = { trialing: 'blue', active: 'green', past_due: 'amber', suspended: 'red', cancelled: 'gray', expired: 'red' };
+type Tab = 'tenants' | 'users' | 'plans' | 'ops' | 'activity' | 'settings';
 
 export function AdminPage() {
   const { user, workspaces, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>('tenants');
+  const [params, setParams] = useSearchParams();
+  const tab = (params.get('tab') as Tab | null) ?? 'tenants';
+  const setTab = (t: Tab) => setParams(t === 'tenants' ? {} : { tab: t }, { replace: true });
   const stats = useQuery({ queryKey: ['admin', 'stats'], queryFn: () => api.get<Stats>('/admin/stats'), enabled: !!user?.isPlatformAdmin });
 
   if (!user?.isPlatformAdmin) return <Navigate to="/" replace />;
@@ -74,7 +79,7 @@ export function AdminPage() {
           </button>
         )}
       </div>
-      <PageHeader title="Super Admin" description="All businesses (tenants), plans and platform health." />
+      <PageHeader title="Super Admin" description="Every business, user, plan and platform switch. Everything you change here is logged." />
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
         <StatCard label="Users" value={s?.users} />
@@ -87,9 +92,12 @@ export function AdminPage() {
       <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
         {(
           [
-            ['tenants', 'Tenants', Building2],
+            ['tenants', 'Businesses', Building2],
+            ['users', 'Users', Users],
             ['plans', 'Plans', Layers],
             ['ops', 'Operations', Activity],
+            ['activity', 'Activity & audit', History],
+            ['settings', 'Platform settings', Settings2],
           ] as const
         ).map(([id, label, Icon]) => (
           <button
@@ -102,8 +110,11 @@ export function AdminPage() {
         ))}
       </div>
       {tab === 'tenants' && <TenantsTab />}
+      {tab === 'users' && <UsersTab />}
       {tab === 'plans' && <PlansTab />}
       {tab === 'ops' && <OpsTab />}
+      {tab === 'activity' && <ActivityTab />}
+      {tab === 'settings' && <SettingsTab />}
     </div>
   );
 }
@@ -132,7 +143,7 @@ function TenantsTab() {
   return (
     <Card>
       <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
-        <Input aria-label="Search workspaces" placeholder="Search by business name…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
+        <Input aria-label="Search workspaces" placeholder="Search business, owner email or name…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
         <div className="w-44">
           <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value as '' | WorkspaceStatus)}>
             <option value="">All statuses</option>
@@ -172,7 +183,9 @@ function TenantsTab() {
               {list.data.workspaces.map((ws) => (
                 <tr key={ws.id}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{ws.name}</p>
+                    <Link to={`/admin/workspaces/${ws.id}`} className="font-medium text-slate-800 hover:text-brand-700 hover:underline">
+                      {ws.name}
+                    </Link>
                     <p className="text-xs text-slate-500">
                       {ws.industry ?? 'No industry'} · {ws.country} · {ws.memberCount} member(s)
                     </p>
@@ -198,6 +211,9 @@ function TenantsTab() {
                   <td className="hidden px-4 py-3 text-slate-500 md:table-cell">{formatDate(ws.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <Link to={`/admin/workspaces/${ws.id}`} className="inline-flex items-center rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700">
+                        Manage
+                      </Link>
                       <Button variant="secondary" onClick={() => setManaging(ws)}>
                         Plan
                       </Button>
@@ -230,7 +246,7 @@ function TenantsTab() {
   );
 }
 
-function SubscriptionModal({ ws, onClose }: { ws: AdminWorkspace; onClose: () => void }) {
+export function SubscriptionModal({ ws, onClose }: { ws: Pick<AdminWorkspace, 'id' | 'name' | 'subscription'>; onClose: () => void }) {
   const queryClient = useQueryClient();
   const plans = useQuery({ queryKey: ['admin', 'plans'], queryFn: () => api.get<{ plans: AdminPlan[] }>('/admin/plans') });
   const [planCode, setPlanCode] = useState('');
@@ -304,7 +320,7 @@ function SubscriptionModal({ ws, onClose }: { ws: AdminWorkspace; onClose: () =>
 
 // ---------------------------------------------------------------------------
 
-const LIMIT_LABEL: Record<LimitKey, string> = {
+export const LIMIT_LABEL: Record<LimitKey, string> = {
   monthlyMessages: 'Messages / period',
   contacts: 'Contacts',
   seats: 'Team members',
@@ -313,7 +329,7 @@ const LIMIT_LABEL: Record<LimitKey, string> = {
   aiRepliesPerMonth: 'AI replies / period',
   apiRequestsPerMinute: 'API requests / min',
 };
-const FEATURES: FeatureKey[] = ['campaigns', 'flows', 'forms', 'ai', 'api'];
+export const FEATURES: FeatureKey[] = ['campaigns', 'flows', 'forms', 'ai', 'api'];
 
 function PlansTab() {
   const plans = useQuery({ queryKey: ['admin', 'plans'], queryFn: () => api.get<{ plans: AdminPlan[] }>('/admin/plans') });
@@ -539,7 +555,7 @@ function Attention({ title, rows, date }: { title: string; rows: OpsRow[]; date:
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: ReactNode; tone: string }) {
+export function Metric({ label, value, tone }: { label: string; value: ReactNode; tone: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="text-xs text-slate-500">{label}</p>
@@ -548,7 +564,7 @@ function Metric({ label, value, tone }: { label: string; value: ReactNode; tone:
   );
 }
 
-function StatCard({ label, value }: { label: string; value: ReactNode | undefined }) {
+export function StatCard({ label, value }: { label: string; value: ReactNode | undefined }) {
   return (
     <Card className="p-4">
       <p className="text-xs text-slate-500">{label}</p>

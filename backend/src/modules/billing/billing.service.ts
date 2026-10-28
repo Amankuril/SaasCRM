@@ -3,6 +3,8 @@ import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import {
   ACCESS_STATUSES,
+  FEATURE_KEYS,
+  LIMIT_KEYS,
   BillingEvent,
   Invoice,
   Plan,
@@ -121,9 +123,14 @@ export async function getEntitlements(workspaceId: Types.ObjectId): Promise<Enti
     plan,
     subscription,
     access: ACCESS_STATUSES.has(subscription.status as SubscriptionStatus),
-    limits: plan.limits as unknown as Record<LimitKey, number | null>,
-    features: plan.features as unknown as Record<FeatureKey, boolean>,
+    limits: { ...(plan.toObject().limits as Record<LimitKey, number | null>), ...pick(subscription.limitOverrides, LIMIT_KEYS) },
+    features: { ...(plan.toObject().features as Record<FeatureKey, boolean>), ...pick(subscription.featureOverrides, FEATURE_KEYS) },
   };
+}
+
+function pick<K extends string>(source: unknown, keys: readonly K[]): Partial<Record<K, never>> {
+  const obj = (source ?? {}) as Record<string, never>;
+  return Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]])) as Partial<Record<K, never>>;
 }
 
 const STATUS_MESSAGE: Record<string, string> = {

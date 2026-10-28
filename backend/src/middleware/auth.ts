@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express';
 import { Types } from 'mongoose';
 import { forbidden, unauthorized } from '../lib/errors.js';
 import { verifyAccessToken } from '../lib/tokens.js';
+import { assertNotInMaintenance } from '../modules/admin/admin.service.js';
 import { sessionReplaced } from '../modules/auth/auth.service.js';
 import { Session } from '../modules/auth/session.model.js';
 import { User } from '../modules/auth/user.model.js';
@@ -22,6 +23,9 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
 
   const user = await User.findById(payload.sub);
   if (!user || user.status !== 'active') throw unauthorized('Your account is not active.', 'ACCOUNT_INACTIVE');
+
+  // Maintenance mode locks businesses out; platform admins keep working.
+  if (!user.isPlatformAdmin) await assertNotInMaintenance(false);
 
   req.user = user;
   req.sessionId = payload.sid;

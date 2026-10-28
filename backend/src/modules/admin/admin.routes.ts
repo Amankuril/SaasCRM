@@ -3,9 +3,11 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { queueStats } from '../../jobs/queue.js';
 import { notFound } from '../../lib/errors.js';
-import { logger } from '../../lib/logger.js';
 import { objectId, parse } from '../../lib/validate.js';
-import { audit } from '../audit/audit.service.js';
+import { adminLog } from './admin.service.js';
+import { adminPlatformRouter } from './adminPlatform.routes.js';
+import { adminUsersRouter, escapeRegex } from './adminUsers.routes.js';
+import { adminWorkspaceRouter } from './adminWorkspace.routes.js';
 import { FEATURE_KEYS, LIMIT_KEYS, Plan, SUBSCRIPTION_STATUSES, Subscription, type FeatureKey, type LimitKey } from '../billing/billing.model.js';
 import { toPublicPlan, toPublicSubscription } from '../billing/billing.routes.js';
 import { adminUpdateSubscription, getSubscription } from '../billing/billing.service.js';
@@ -24,13 +26,11 @@ const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
 });
 
-const statusSchema = z.object({
-  status: z.enum(WORKSPACE_STATUSES),
-  reason: z.string().trim().max(500).optional(),
-});
-
 /** Mounted at /api/admin behind requireAuth + requirePlatformAdmin. */
 export const adminRouter = Router();
+adminRouter.use('/users', adminUsersRouter);
+adminRouter.use('/workspaces/:id', adminWorkspaceRouter);
+adminRouter.use(adminPlatformRouter);
 
 adminRouter.get('/stats', async (_req, res) => {
   const [users, byStatus] = await Promise.all([
@@ -59,9 +59,15 @@ adminRouter.get('/stats', async (_req, res) => {
 
 adminRouter.get('/workspaces', async (req, res) => {
   const { status, q } = parse(listSchema, req.query);
+  // Search matches the business name/slug or any member's email/name.
+  let byPeople: unknown[] = [];
+  if (q) {
+    const people = await User.find({ $or: [{ email: { $regex: escapeRegex(q), $options: 'i' } }, { name: { $regex: escapeRegex(q), $options: 'i' } }] }).select('_id').limit(200).lean();
+    byPeople = await WorkspaceMember.distinct('workspaceId', { userId: { $in: people.map((u) => u._id) } }).setOptions({ skipTenantScope: true });
+  }
   const filter = {
     ...(status ? { status } : {}),
-    ...(q ? { name: { $regex: escapeRegex(q), $options: 'i' } } : {}),
+    ...(q ? { $or: [{ name: { $regex: escapeRegex(q), $options: 'i' } }, { slug: { $regex: escapeRegex(q), $options: 'i' } }, { _id: { $in: byPeople } }] } : {}),
   };
   const workspaces = await Workspace.find(filter).sort({ createdAt: -1 }).limit(200);
   const ids = workspaces.map((w) => w._id);
@@ -91,25 +97,6 @@ adminRouter.get('/workspaces', async (req, res) => {
   });
 });
 
-adminRouter.patch('/workspaces/:id', async (req, res) => {
-  const { status, reason } = parse(statusSchema, req.body);
-  const workspace = await Workspace.findById(objectId(req.params.id, 'Workspace'));
-  if (!workspace) throw notFound('Workspace not found.');
-
-  const from = workspace.status;
-  workspace.status = status;
-  workspace.suspendedReason = status === 'suspended' ? (reason ?? null) : null;
-  await workspace.save();
-  await audit(req, {
-    workspaceId: workspace._id,
-    action: 'admin.workspace_status_changed',
-    targetType: 'workspace',
-    targetId: workspace.id,
-    metadata: { from, to: status, reason: reason ?? null },
-  });
-  res.json({ workspace: { ...toPublicWorkspace(workspace), suspendedReason: workspace.suspendedReason } });
-});
-
 // ---- Subscription overrides (offline payments, extensions, comps) ----
 
 const subscriptionOverrideSchema = z
@@ -130,8 +117,8 @@ adminRouter.patch('/workspaces/:id/subscription', async (req, res) => {
   const before = await getSubscription(workspace._id);
   const snapshot = { planCode: before.planCode, status: before.status, currentPeriodEnd: before.currentPeriodEnd, trialEndsAt: before.trialEndsAt };
   const sub = await adminUpdateSubscription(workspace._id, input);
-  await audit(req, {
-    workspaceId: workspace._id,
+  await adminLog(req, {
+    workspace,
     action: 'admin.subscription_changed',
     targetType: 'workspace',
     targetId: workspace.id,
@@ -178,8 +165,7 @@ adminRouter.patch('/plans/:code', async (req, res) => {
   for (const [k, v] of Object.entries(features ?? {})) plan.set(`features.${k}`, v);
   for (const [k, v] of Object.entries(providerPlanIds ?? {})) plan.set(`providerPlanIds.${k}`, v || null);
   await plan.save();
-  // Platform-wide change (no workspace to attach an audit row to): keep it in the server log.
-  logger.info({ actor: req.user!.id as string, plan: plan.code, before, change: input }, 'admin.plan_updated');
+  await adminLog(req, { action: 'admin.plan_updated', targetType: 'plan', targetId: plan.code, metadata: { before, change: input } });
   res.json({ plan: toPublicPlan(plan) });
 });
 
@@ -213,7 +199,3 @@ adminRouter.get('/ops', async (_req, res) => {
     billing: { trialsEnding: trialsEnding.map(row), pastDue: pastDue.map(row) },
   });
 });
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}

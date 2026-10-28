@@ -124,7 +124,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
-  delete: <T = void>(path: string) => request<T>('DELETE', path),
+  delete: <T = void>(path: string, body?: unknown) => request<T>('DELETE', path, body),
   /** Sends a file as the raw request body (Content-Type and X-File-Name from the file). */
   upload: <T>(path: string, file: File) => request<T>('POST', path, file),
   download,
@@ -189,6 +189,8 @@ export interface WorkspaceContextPayload {
   workspace: Workspace;
   membership: { id: string; role: Role; permissions: Permission[] };
   subscription: SubscriptionSummary;
+  /** A platform admin inside a business they are not a member of. */
+  supportAccess?: boolean;
 }
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'cancelled' | 'expired';

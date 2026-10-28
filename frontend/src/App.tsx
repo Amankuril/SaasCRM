@@ -6,6 +6,7 @@ import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminPage } from './pages/AdminPage';
+import { AdminWorkspacePage } from './pages/admin/AdminWorkspacePage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
@@ -69,6 +70,7 @@ export function App() {
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
       <Route path="/admin/login" element={<AdminGuestOnly><AdminLoginPage /></AdminGuestOnly>} />
       <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
+      <Route path="/admin/workspaces/:id" element={<RequireAuth><AdminWorkspacePage /></RequireAuth>} />
 
       <Route path="/w/:workspaceId" element={<RequireAuth><WorkspaceLayout /></RequireAuth>}>
         <Route index element={<DashboardPage />} />

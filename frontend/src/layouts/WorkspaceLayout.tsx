@@ -140,6 +140,8 @@ export function WorkspaceLayout() {
           </header>
 
           <main className={cn('flex-1', fullBleed ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-y-auto')}>
+            <SupportBanner />
+            <AnnouncementBanner />
             <PlanBanner />
             {value!.workspace.status === 'suspended' && (
               <div className="border-b border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
@@ -160,6 +162,38 @@ export function WorkspaceLayout() {
       </div>
     </WorkspaceContext.Provider>
   );
+}
+
+/** A platform admin working inside a customer's workspace: make it impossible to forget. */
+function SupportBanner() {
+  const { workspace, supportAccess } = useWorkspace();
+  if (!supportAccess) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-violet-300 bg-violet-600 px-6 py-2 text-sm text-white">
+      <ShieldCheck className="size-4" />
+      <span>
+        Support access: you are inside <strong>{workspace.name}</strong> as owner. Every change is logged under your account.
+      </span>
+      <Link to={`/admin/workspaces/${workspace.id}`} className="ml-auto font-semibold underline">
+        Back to Super Admin
+      </Link>
+    </div>
+  );
+}
+
+const ANNOUNCEMENT_TONE = { info: 'border-sky-200 bg-sky-50 text-sky-800', warning: 'border-amber-200 bg-amber-50 text-amber-800', critical: 'border-red-200 bg-red-50 text-red-700' } as const;
+
+/** Platform-wide message set from the Super Admin panel. */
+function AnnouncementBanner() {
+  const q = useQuery({
+    queryKey: ['announcement'],
+    queryFn: () => api.get<{ announcement: { text: string; tone: keyof typeof ANNOUNCEMENT_TONE } | null }>('/auth/announcement'),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const a = q.data?.announcement;
+  if (!a) return null;
+  return <div className={cn('border-b px-6 py-2.5 text-sm', ANNOUNCEMENT_TONE[a.tone])}>{a.text}</div>;
 }
 
 /** App-wide notice for trials ending, failed payments and read-only plans. */

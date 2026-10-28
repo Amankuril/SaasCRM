@@ -14,19 +14,25 @@ const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 export const loadWorkspace: RequestHandler = async (req, _res, next) => {
   const workspaceId = objectId(req.params.workspaceId, 'Workspace');
 
-  const membership = await WorkspaceMember.findOne({ workspaceId, userId: req.user!._id });
+  let membership = await WorkspaceMember.findOne({ workspaceId, userId: req.user!._id });
+  // Support access: a platform admin who is not a member acts as an (unsaved) owner. Every
+  // change they make is still audited under their own account, flagged `supportAccess`.
+  const support = !membership && req.user!.isPlatformAdmin;
+  if (support) membership = new WorkspaceMember({ workspaceId, userId: req.user!._id, role: 'owner' });
   if (!membership) throw notFound('Workspace not found.');
 
   const workspace = await Workspace.findById(workspaceId);
   if (!workspace) throw notFound('Workspace not found.');
 
-  // Suspended workspaces stay readable (export, history) but cannot change anything.
-  if (workspace.status === 'suspended' && !READ_METHODS.has(req.method)) {
+  // Suspended workspaces stay readable (export, history) but cannot change anything,
+  // except for platform admins fixing things on the customer's behalf.
+  if (workspace.status === 'suspended' && !READ_METHODS.has(req.method) && !req.user!.isPlatformAdmin) {
     throw new AppError(403, 'WORKSPACE_SUSPENDED', 'This workspace is suspended. Contact support to restore access.');
   }
 
   req.workspace = workspace;
   req.membership = membership;
+  req.supportAccess = support;
   next();
 };
 

@@ -70,8 +70,12 @@ const subscriptionSchema = new Schema(
     // Reminder emails already sent, e.g. "trial_3d:2026-10-01".
     notices: { type: [String], default: [] },
     lastPaymentAt: { type: Date, default: null },
+    // Platform admin overrides on top of the plan, e.g. { contacts: 50000 } or { ai: true }.
+    // A key that is present wins over the plan (a `null` limit = unlimited).
+    limitOverrides: { type: Schema.Types.Mixed, default: () => ({}) },
+    featureOverrides: { type: Schema.Types.Mixed, default: () => ({}) },
   },
-  { timestamps: true },
+  { timestamps: true, minimize: false },
 );
 subscriptionSchema.plugin(tenantScoped);
 subscriptionSchema.index({ workspaceId: 1 }, { unique: true });

@@ -12,6 +12,8 @@ declare global {
       /** Set by `loadWorkspace`, derived from the user's membership, never from the client alone. */
       workspace?: WorkspaceDoc;
       membership?: MemberDoc;
+      /** A platform admin inside a workspace they are not a member of. */
+      supportAccess?: boolean;
       /** Set by `requireApiKey` on public API (/api/v1) requests. */
       apiKey?: ApiKeyDoc;
     }

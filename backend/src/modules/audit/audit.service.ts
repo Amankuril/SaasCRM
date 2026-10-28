@@ -16,6 +16,7 @@ export async function audit(req: Request, entry: AuditEntry): Promise<void> {
   try {
     await AuditLog.create({
       ...entry,
+      ...(req.supportAccess ? { metadata: { ...entry.metadata, supportAccess: true } } : {}),
       actorUserId: req.user?._id ?? null,
       ip: req.ip ?? null,
       userAgent: req.get('user-agent') ?? null,
