@@ -19,18 +19,37 @@ export function LoginPage() {
 }
 
 function PasswordStep({ email, setEmail, onChallenge }: { email: string; setEmail: (v: string) => void; onChallenge: (c: LoginChallenge) => void }) {
-  const { login, endedReason, clearEndedReason } = useAuth();
+  const { login, verifyLogin, endedReason, clearEndedReason } = useAuth();
   const [params] = useSearchParams();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Bypass emails (no code): the pre-verified challenge, kept for "log in here".
+  const [direct, setDirect] = useState<{ token: string; elsewhere: { device: string; lastSeenAt: string } } | null>(null);
+
+  async function finish(challengeToken: string, force = false) {
+    try {
+      // GuestOnly redirects to ?next once the user is authenticated.
+      await verifyLogin(challengeToken, undefined, force);
+      clearEndedReason();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'SESSION_ACTIVE') setDirect({ token: challengeToken, elsewhere: err.details as unknown as { device: string; lastSeenAt: string } });
+      else {
+        setDirect(null);
+        setError(err);
+      }
+      setSubmitting(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      onChallenge(await login(email.trim(), password));
+      const start = await login(email.trim(), password);
+      if (!start.otpRequired) return void (await finish(start.challengeToken));
+      onChallenge(start);
       clearEndedReason();
     } catch (err) {
       setError(err);
@@ -81,6 +100,18 @@ function PasswordStep({ email, setEmail, onChallenge }: { email: string; setEmai
           <ShieldCheck className="size-3.5 text-brand-600" /> We'll email you a 6-digit code to confirm it's you.
         </p>
       </form>
+
+      {direct && (
+        <ActiveSessionDialog
+          info={direct.elsewhere}
+          busy={submitting}
+          onCancel={() => setDirect(null)}
+          onConfirm={() => {
+            setSubmitting(true);
+            void finish(direct.token, true);
+          }}
+        />
+      )}
     </AuthLayout>
   );
 }

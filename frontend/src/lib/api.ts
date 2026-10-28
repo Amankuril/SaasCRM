@@ -38,7 +38,9 @@ export interface AuthPayload {
   accessToken: string;
 }
 
-/** Business login, step 1 answer: a code was emailed. */
+/** Business login, step 1 answer: a code was emailed, or (bypass emails) none is needed. */
+export type LoginStart = LoginChallenge | { otpRequired: false; challengeToken: string };
+
 export interface LoginChallenge {
   otpRequired: true;
   challengeToken: string;

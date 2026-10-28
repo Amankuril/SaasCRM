@@ -77,6 +77,11 @@ const envSchema = z.object({
   SMTP_USER: optionalString,
   SMTP_PASS: optionalString,
   MAIL_FROM: z.string().default('Zeta Connect <no-reply@zetaconnect.app>'),
+  // Comma-separated business-login emails that skip the emailed code (password only).
+  OTP_BYPASS_EMAILS: z
+    .string()
+    .default('')
+    .transform((v) => new Set(v.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean))),
 
   // Google Sheets integration. Without an OAuth client, sheets shared as
   // "Anyone with the link" still work; with one, private sheets can be connected.

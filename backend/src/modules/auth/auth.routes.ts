@@ -113,14 +113,19 @@ authRouter.post('/login', authLimiter, async (req, res, next) => {
   const challengeToken = generateOpaqueToken();
   const tokenHash = hashToken(challengeToken);
   const code = newLoginCode();
+  // OTP_BYPASS_EMAILS: the challenge starts verified and no code is sent; the browser goes
+  // straight to /login/verify (which still handles "logged in elsewhere").
+  const bypass = env.OTP_BYPASS_EMAILS.has(user.email);
   const challenge = await LoginChallenge.create({
     userId: user._id,
     tokenHash,
     codeHash: hashLoginCode(code, tokenHash),
     expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60_000),
+    verifiedAt: bypass ? new Date() : null,
     userAgent: req.get('user-agent')?.slice(0, 300) ?? null,
     ip: req.ip ?? null,
   });
+  if (bypass) return void res.json({ otpRequired: false, challengeToken });
   await sendCode(user, challenge, code).catch(async (err) => {
     await LoginChallenge.deleteOne({ _id: challenge._id });
     throw err;

@@ -116,6 +116,8 @@ SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=<gmail app password>
 MAIL_FROM="Zeta Connect <no-reply@zetaaiautomations.in>"
+# Business logins that skip the emailed code (password only), comma-separated
+OTP_BYPASS_EMAILS=
 
 AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=

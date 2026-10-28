@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { env } from '../src/config/env.js';
 import { setMailer, type MailMessage } from '../src/lib/mailer.js';
 import { LoginChallenge } from '../src/modules/auth/loginChallenge.model.js';
 import { Session } from '../src/modules/auth/session.model.js';
@@ -23,6 +24,24 @@ async function passwordStep(email: string, ua = CHROME) {
 const verify = (body: object, ua = CHROME) => api().post('/api/auth/login/verify').set('User-Agent', ua).send(body);
 
 describe('business login with an emailed code', () => {
+  it('skips the code for OTP_BYPASS_EMAILS but still checks the password and other sessions', async () => {
+    const user = await signup({ email: 'owner@example.com' });
+    env.OTP_BYPASS_EMAILS.add('owner@example.com');
+    try {
+      await api().post('/api/auth/login').send({ email: 'OWNER@example.com', password: 'wrong-pass' }).expect(401);
+      const step = await passwordStep('Owner@Example.com');
+      expect(step).toEqual({ otpRequired: false, challengeToken: expect.any(String) });
+      expect(mail).toHaveLength(0);
+
+      // The signup session is still open: same "logged in elsewhere" choice as with a code.
+      expect((await verify({ challengeToken: step.challengeToken }).expect(409)).body.error.code).toBe('SESSION_ACTIVE');
+      const ok = await verify({ challengeToken: step.challengeToken, force: true }).expect(200);
+      expect(ok.body.user.email).toBe(user.email);
+    } finally {
+      env.OTP_BYPASS_EMAILS.delete('owner@example.com');
+    }
+  });
+
   it('emails a code after the password and only starts a session once it is entered', async () => {
     const user = await signup({ email: 'otp@example.com' });
     await Session.deleteMany({ userId: user.id }); // the signup session would count as "logged in elsewhere"

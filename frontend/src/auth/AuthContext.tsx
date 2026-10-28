@@ -7,6 +7,7 @@ import {
   setSessionExpiredHandler,
   type AuthPayload,
   type LoginChallenge,
+  type LoginStart,
   type SessionEndReason,
   type User,
   type WorkspaceSummary,
@@ -17,7 +18,7 @@ interface AuthContextValue {
   user: User | null;
   workspaces: WorkspaceSummary[];
   /** Business login, step 1: checks the password and emails a code. */
-  login: (email: string, password: string) => Promise<LoginChallenge>;
+  login: (email: string, password: string) => Promise<LoginStart>;
   /** Step 2: the emailed code; `force` closes a session open in another browser. */
   verifyLogin: (challengeToken: string, code: string | undefined, force?: boolean) => Promise<void>;
   resendCode: (challengeToken: string) => Promise<Omit<LoginChallenge, 'otpRequired' | 'challengeToken'>>;
@@ -99,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       reload,
       endedReason,
       clearEndedReason: () => setEndedReason(null),
-      login: (email, password) => api.post<LoginChallenge>('/auth/login', { email, password }),
+      login: (email, password) => api.post<LoginStart>('/auth/login', { email, password }),
       verifyLogin: async (challengeToken, code, force = false) => {
         const res = await api.post<AuthPayload>('/auth/login/verify', { challengeToken, code, force });
         setAccessToken(res.accessToken);
