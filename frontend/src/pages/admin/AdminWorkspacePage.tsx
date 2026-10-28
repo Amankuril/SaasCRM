@@ -43,8 +43,8 @@ export function AdminWorkspacePage() {
   const d = detail.data;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <Link to="/admin" className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
+    <div>
+      <Link to="/admin/businesses" className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
         <ArrowLeft className="size-4" /> All businesses
       </Link>
       {detail.isPending ? (
@@ -97,7 +97,7 @@ export function AdminWorkspacePage() {
           <Section title="Audit log (latest 100)" description="Everything that happened in this business, including support-access changes.">
             {d!.audit.length === 0 ? <p className="p-4 text-sm text-slate-500">Nothing logged yet.</p> : <LogList items={d!.audit as LogItem[]} />}
           </Section>
-          <DangerZone d={d!} onDeleted={() => { void queryClient.invalidateQueries({ queryKey: ['admin'] }); navigate('/admin'); }} />
+          <DangerZone d={d!} onDeleted={() => { void queryClient.invalidateQueries({ queryKey: ['admin'] }); navigate('/admin/businesses'); }} />
         </div>
       )}
       {planOpen && d && <SubscriptionModal ws={{ id: d.workspace.id, name: d.workspace.name, subscription: { ...d.subscription } }} onClose={() => setPlanOpen(false)} />}

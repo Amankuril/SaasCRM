@@ -5,7 +5,8 @@ import { Spinner } from './components/ui';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
-import { AdminPage } from './pages/AdminPage';
+import { AdminActivityPage, AdminBusinessesPage, AdminDashboardPage, AdminOperationsPage, AdminPlansPage, AdminSettingsPage, AdminUsersPage } from './pages/AdminPage';
+import { AdminLayout } from './layouts/AdminLayout';
 import { AdminWorkspacePage } from './pages/admin/AdminWorkspacePage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -69,8 +70,16 @@ export function App() {
       <Route path="/" element={<RequireAuth><HomeRedirect /></RequireAuth>} />
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
       <Route path="/admin/login" element={<AdminGuestOnly><AdminLoginPage /></AdminGuestOnly>} />
-      <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
-      <Route path="/admin/workspaces/:id" element={<RequireAuth><AdminWorkspacePage /></RequireAuth>} />
+      <Route path="/admin" element={<RequireAuth><AdminLayout /></RequireAuth>}>
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="businesses" element={<AdminBusinessesPage />} />
+        <Route path="workspaces/:id" element={<AdminWorkspacePage />} />
+        <Route path="users" element={<AdminUsersPage />} />
+        <Route path="plans" element={<AdminPlansPage />} />
+        <Route path="operations" element={<AdminOperationsPage />} />
+        <Route path="activity" element={<AdminActivityPage />} />
+        <Route path="settings" element={<AdminSettingsPage />} />
+      </Route>
 
       <Route path="/w/:workspaceId" element={<RequireAuth><WorkspaceLayout /></RequireAuth>}>
         <Route index element={<DashboardPage />} />

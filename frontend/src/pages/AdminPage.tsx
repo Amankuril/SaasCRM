@@ -1,15 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, ArrowLeft, Building2, History, Layers, LogOut, Settings2, Users } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router';
-import { useAuth } from '../auth/AuthContext';
+import { Link, useSearchParams } from 'react-router';
 import { Modal } from '../components/crm';
-import { Logo } from '../components/Logo';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage } from '../components/ui';
 import { api, type FeatureKey, type LimitKey, type PlanInfo, type SubscriptionStatus, type Workspace, type WorkspaceStatus } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { money } from './BillingPage';
-import { ActivityTab } from './admin/ActivityTab';
+import { ActivityTab, LogList, type LogItem } from './admin/ActivityTab';
 import { SettingsTab } from './admin/SettingsTab';
 import { UsersTab } from './admin/UsersTab';
 
@@ -52,70 +50,117 @@ interface OpsRow {
 
 export const STATUS_TONE = { setup: 'amber', active: 'green', suspended: 'red' } as const;
 export const SUB_TONE: Record<SubscriptionStatus, 'blue' | 'green' | 'amber' | 'red' | 'gray'> = { trialing: 'blue', active: 'green', past_due: 'amber', suspended: 'red', cancelled: 'gray', expired: 'red' };
-type Tab = 'tenants' | 'users' | 'plans' | 'ops' | 'activity' | 'settings';
+function useStats() {
+  return useQuery({ queryKey: ['admin', 'stats'], queryFn: () => api.get<Stats>('/admin/stats') });
+}
 
-export function AdminPage() {
-  const { user, workspaces, logout } = useAuth();
-  const [params, setParams] = useSearchParams();
-  const tab = (params.get('tab') as Tab | null) ?? 'tenants';
-  const setTab = (t: Tab) => setParams(t === 'tenants' ? {} : { tab: t }, { replace: true });
-  const stats = useQuery({ queryKey: ['admin', 'stats'], queryFn: () => api.get<Stats>('/admin/stats'), enabled: !!user?.isPlatformAdmin });
-
-  if (!user?.isPlatformAdmin) return <Navigate to="/" replace />;
-  const s = stats.data;
-
+function StatsRow() {
+  const s = useStats().data;
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-6 flex items-center justify-between">
-        <Logo />
-        {/* An admin without a business has no app to go back to ("/" leads here). */}
-        {workspaces.length > 0 ? (
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
-            <ArrowLeft className="size-4" /> Back to app
-          </Link>
-        ) : (
-          <button onClick={() => void logout('/admin/login')} className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
-            <LogOut className="size-4" /> Log out
-          </button>
-        )}
-      </div>
-      <PageHeader title="Super Admin" description="Every business, user, plan and platform switch. Everything you change here is logged." />
-
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <StatCard label="Users" value={s?.users} />
-        <StatCard label="Workspaces" value={s ? Object.values(s.workspaces).reduce((a, b) => a + b, 0) : undefined} />
-        <StatCard label="Paying" value={s ? (s.subscriptions.active ?? 0) + (s.subscriptions.past_due ?? 0) : undefined} />
-        <StatCard label="On trial" value={s?.subscriptions.trialing ?? (s ? 0 : undefined)} />
-        <StatCard label="MRR (est.)" value={s ? money(s.mrr, s.currency) : undefined} />
-      </div>
-
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
-        {(
-          [
-            ['tenants', 'Businesses', Building2],
-            ['users', 'Users', Users],
-            ['plans', 'Plans', Layers],
-            ['ops', 'Operations', Activity],
-            ['activity', 'Activity & audit', History],
-            ['settings', 'Platform settings', Settings2],
-          ] as const
-        ).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={cn('-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium', tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}
-          >
-            <Icon className="size-4" /> {label}
-          </button>
-        ))}
-      </div>
-      {tab === 'tenants' && <TenantsTab />}
-      {tab === 'users' && <UsersTab />}
-      {tab === 'plans' && <PlansTab />}
-      {tab === 'ops' && <OpsTab />}
-      {tab === 'activity' && <ActivityTab />}
-      {tab === 'settings' && <SettingsTab />}
+    <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <StatCard label="Users" value={s?.users} />
+      <StatCard label="Businesses" value={s ? Object.values(s.workspaces).reduce((a, b) => a + b, 0) : undefined} />
+      <StatCard label="Paying" value={s ? (s.subscriptions.active ?? 0) + (s.subscriptions.past_due ?? 0) : undefined} />
+      <StatCard label="On trial" value={s?.subscriptions.trialing ?? (s ? 0 : undefined)} />
+      <StatCard label="MRR (est.)" value={s ? money(s.mrr, s.currency) : undefined} />
     </div>
+  );
+}
+
+/** /admin: platform at a glance. */
+export function AdminDashboardPage() {
+  const ops = useQuery({ queryKey: ['admin', 'ops'], queryFn: () => api.get<Ops>('/admin/ops'), refetchInterval: 30_000 });
+  const activity = useQuery({ queryKey: ['admin', 'feed', 'recent'], queryFn: () => api.get<{ items: LogItem[] }>('/admin/activity?limit=8') });
+  const stats = useStats().data;
+  const o = ops.data;
+  return (
+    <>
+      <PageHeader title="Dashboard" description="Every business, user, plan and platform switch. Everything you change here is logged." />
+      <StatsRow />
+      {stats && (
+        <div className="mb-6 flex flex-wrap gap-2 text-sm">
+          {(['setup', 'active', 'suspended'] as const).map((st) => (
+            <Link key={st} to={`/admin/businesses?status=${st}`} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-slate-600 hover:border-slate-300 hover:text-slate-900">
+              <span className="capitalize">{st}</span>: <strong className="text-ink">{stats.workspaces[st] ?? 0}</strong>
+            </Link>
+          ))}
+        </div>
+      )}
+      {o && (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Metric label="Database" value={o.db} tone={o.db === 'up' ? 'text-emerald-700' : 'text-red-600'} />
+          <Metric label="Failed sends (24h)" value={o.last24h.failedMessages} tone={o.last24h.failedMessages > 0 ? 'text-amber-700' : 'text-ink'} />
+          <Metric label="Unprocessed Meta webhooks" value={o.now.webhookBacklog} tone={o.now.webhookBacklog > 0 ? 'text-amber-700' : 'text-ink'} />
+          <Metric label="WhatsApp numbers needing attention" value={o.now.brokenConnections} tone={o.now.brokenConnections > 0 ? 'text-amber-700' : 'text-ink'} />
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {o && <Attention title="Trials ending within 7 days" rows={o.billing.trialsEnding} date={(r) => r.trialEndsAt} />}
+        {o && <Attention title="Overdue payments" rows={o.billing.pastDue} date={(r) => r.graceEndsAt} />}
+      </div>
+      <Card className="mt-4">
+        <div className="flex items-center justify-between px-4 pt-4">
+          <h3 className="text-sm font-semibold text-ink">Recent admin actions</h3>
+          <Link to="/admin/activity" className="text-xs font-medium text-brand-700 hover:underline">View all</Link>
+        </div>
+        {activity.data?.items.length ? <LogList items={activity.data.items} showWorkspace /> : <p className="p-4 text-sm text-slate-500">Nothing logged yet.</p>}
+      </Card>
+    </>
+  );
+}
+
+export function AdminBusinessesPage() {
+  return (
+    <>
+      <PageHeader title="Businesses" description="Every tenant on the platform. Open one to manage its plan, members, limits and data." />
+      <StatsRow />
+      <TenantsTab />
+    </>
+  );
+}
+
+export function AdminUsersPage() {
+  return (
+    <>
+      <PageHeader title="Users" description="Every account: disable, reset passwords, sign out, grant admin." />
+      <UsersTab />
+    </>
+  );
+}
+
+export function AdminPlansPage() {
+  return (
+    <>
+      <PageHeader title="Plans" description="Prices, limits and features of every plan. Changes apply to all businesses on the plan." />
+      <PlansTab />
+    </>
+  );
+}
+
+export function AdminOperationsPage() {
+  return (
+    <>
+      <PageHeader title="Operations" description="Queues, failing sends and webhooks, and billing that needs attention." />
+      <OpsTab />
+    </>
+  );
+}
+
+export function AdminActivityPage() {
+  return (
+    <>
+      <PageHeader title="Activity & audit" description="What platform admins did, and every business's audit log." />
+      <ActivityTab />
+    </>
+  );
+}
+
+export function AdminSettingsPage() {
+  return (
+    <>
+      <PageHeader title="Platform settings" description="Announcement banner, sign-ups, maintenance mode and recovery tools." />
+      <SettingsTab />
+    </>
   );
 }
 
@@ -123,7 +168,8 @@ export function AdminPage() {
 
 function TenantsTab() {
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<'' | WorkspaceStatus>('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState<'' | WorkspaceStatus>((params.get('status') as WorkspaceStatus | null) ?? '');
   const [q, setQ] = useState('');
   const [managing, setManaging] = useState<AdminWorkspace | null>(null);
   const list = useQuery({
