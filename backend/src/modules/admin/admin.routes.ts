@@ -8,6 +8,7 @@ import { adminLog } from './admin.service.js';
 import { adminPlatformRouter } from './adminPlatform.routes.js';
 import { adminUsersRouter, escapeRegex } from './adminUsers.routes.js';
 import { adminWorkspaceRouter } from './adminWorkspace.routes.js';
+import { adminPagesRouter } from './sitePages.js';
 import { FEATURE_KEYS, LIMIT_KEYS, Plan, SUBSCRIPTION_STATUSES, Subscription, type FeatureKey, type LimitKey } from '../billing/billing.model.js';
 import { toPublicPlan, toPublicSubscription } from '../billing/billing.routes.js';
 import { adminUpdateSubscription, getSubscription } from '../billing/billing.service.js';
@@ -29,6 +30,7 @@ const listSchema = z.object({
 /** Mounted at /api/admin behind requireAuth + requirePlatformAdmin. */
 export const adminRouter = Router();
 adminRouter.use('/users', adminUsersRouter);
+adminRouter.use('/pages', adminPagesRouter);
 adminRouter.use('/workspaces/:id', adminWorkspaceRouter);
 adminRouter.use(adminPlatformRouter);
 

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users } from 'lucide-react';
-import { useState } from 'react';
+import { type LucideIcon, KeyRound, LogOut, ShieldCheck, ShieldOff, Trash2, UserCheck, UserX, Users, Wand2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
-import { Modal } from '../../components/crm';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, Select, Spinner, errorMessage } from '../../components/ui';
+import { Modal, initials } from '../../components/crm';
+import { AButton, IconButton, Panel, Segmented, useConfirm } from '../../components/admin';
+import { Alert, Badge, EmptyState, Field, Input, Spinner, errorMessage } from '../../components/ui';
+import { SearchInput } from '../AdminPage';
 import { api, type Role } from '../../lib/api';
 import { ROLE_INFO, formatDate } from '../../lib/options';
 
@@ -45,18 +47,20 @@ export function UsersTab() {
   const pages = list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1;
 
   return (
-    <Card>
-      <div className="flex flex-wrap gap-3 border-b border-slate-100 p-4">
-        <Input aria-label="Search users" placeholder="Search by email or name…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="max-w-xs" />
-        <div className="w-44">
-          <Select aria-label="Filter users" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-            <option value="">All users</option>
-            <option value="active">Active</option>
-            <option value="disabled">Disabled</option>
-            <option value="admins">Platform admins</option>
-          </Select>
-        </div>
-        {list.data && <p className="ml-auto self-center text-xs text-slate-500">{list.data.total.toLocaleString('en-IN')} user(s)</p>}
+    <Panel flush>
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3">
+        <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search by email or name…" />
+        <Segmented
+          value={status}
+          onChange={(v) => { setStatus(v); setPage(1); }}
+          options={[
+            { value: '', label: 'All' },
+            { value: 'active', label: 'Active' },
+            { value: 'disabled', label: 'Disabled' },
+            { value: 'admins', label: 'Admins' },
+          ]}
+        />
+        {list.data && <p className="ml-auto text-xs text-slate-500">{list.data.total.toLocaleString('en-IN')} user{list.data.total === 1 ? '' : 's'}</p>}
       </div>
       {list.isPending ? (
         <Spinner />
@@ -67,22 +71,27 @@ export function UsersTab() {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-slate-500">
+            <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
               <tr>
-                <th className="px-4 py-2.5 font-medium">User</th>
+                <th className="px-5 py-2.5 font-medium">User</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="hidden px-4 py-2.5 font-medium md:table-cell">Businesses</th>
                 <th className="hidden px-4 py-2.5 font-medium md:table-cell">Last login</th>
                 <th className="hidden px-4 py-2.5 font-medium lg:table-cell">Joined</th>
-                <th className="px-4 py-2.5" />
+                <th className="w-px px-5 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {list.data.users.map((u) => (
-                <tr key={u.id}>
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{u.name}</p>
-                    <p className="text-xs text-slate-500">{u.email}</p>
+                <tr key={u.id} className="hover:bg-slate-50/60">
+                  <td className="px-5 py-3">
+                    <button onClick={() => setOpen(u.id)} className="flex items-center gap-3 text-left">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">{initials(u.name)}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-slate-900 hover:underline">{u.name}</span>
+                        <span className="block truncate text-xs text-slate-500">{u.email}</span>
+                      </span>
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
@@ -97,8 +106,8 @@ export function UsersTab() {
                     {u.activeSessions > 0 && <p className="text-[11px] text-emerald-700">{u.activeSessions} live session(s)</p>}
                   </td>
                   <td className="hidden px-4 py-3 text-slate-500 lg:table-cell">{formatDate(u.createdAt)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button variant="secondary" onClick={() => setOpen(u.id)}>Manage</Button>
+                  <td className="px-5 py-3 text-right">
+                    <AButton size="sm" onClick={() => setOpen(u.id)}>Manage</AButton>
                   </td>
                 </tr>
               ))}
@@ -107,20 +116,23 @@ export function UsersTab() {
         </div>
       )}
       {pages > 1 && (
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 p-3 text-sm">
-          <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-sm">
           <span className="text-slate-500">Page {page} of {pages}</span>
-          <Button variant="secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+          <div className="flex gap-2">
+            <AButton size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</AButton>
+            <AButton size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</AButton>
+          </div>
         </div>
       )}
       {open && <UserModal id={open} onClose={() => setOpen(null)} />}
-    </Card>
+    </Panel>
   );
 }
 
 function UserModal({ id, onClose }: { id: string; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { user: me } = useAuth();
+  const confirm = useConfirm();
   const detail = useQuery({ queryKey: ['admin', 'user', id], queryFn: () => api.get<UserDetail>(`/admin/users/${id}`) });
   const [form, setForm] = useState<{ name: string; email: string } | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -148,87 +160,162 @@ function UserModal({ id, onClose }: { id: string; onClose: () => void }) {
         {err != null && <Alert>{errorMessage(err)}</Alert>}
         {notice && <Alert tone="success">{notice}</Alert>}
 
-        <section className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name" htmlFor="um-name">
-            <Input id="um-name" value={form?.name ?? u.name} onChange={(e) => setForm({ name: e.target.value, email: form?.email ?? u.email })} />
-          </Field>
-          <Field label="Email" htmlFor="um-email">
-            <Input id="um-email" type="email" value={form?.email ?? u.email} onChange={(e) => setForm({ name: form?.name ?? u.name, email: e.target.value })} />
-          </Field>
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">{initials(u.name)}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium text-slate-900">{u.email}</p>
+            <p className="text-xs text-slate-500">Joined {formatDate(u.createdAt)}{u.lastLoginAt ? ` · last login ${formatDate(u.lastLoginAt, true)}` : ''}</p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1">
+            <Badge tone={u.status === 'active' ? 'green' : 'red'}>{u.status}</Badge>
+            {u.isPlatformAdmin && <Badge tone="blue">admin</Badge>}
+            {!u.emailVerified && <Badge tone="amber">unverified</Badge>}
+          </div>
+        </div>
+
+        <Block title="Profile">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" htmlFor="um-name">
+              <Input id="um-name" value={form?.name ?? u.name} onChange={(e) => setForm({ name: e.target.value, email: form?.email ?? u.email })} />
+            </Field>
+            <Field label="Email" htmlFor="um-email">
+              <Input id="um-email" type="email" value={form?.email ?? u.email} onChange={(e) => setForm({ name: form?.name ?? u.name, email: e.target.value })} />
+            </Field>
+          </div>
           {form && (
-            <div className="flex gap-2 sm:col-span-2">
-              <Button loading={update.isPending} onClick={() => update.mutate(form)}>Save details</Button>
-              <Button variant="ghost" onClick={() => setForm(null)}>Cancel</Button>
+            <div className="mt-3 flex justify-end gap-2">
+              <AButton size="sm" variant="subtle" onClick={() => setForm(null)}>Discard</AButton>
+              <AButton size="sm" variant="primary" loading={update.isPending} onClick={() => update.mutate(form)}>Save profile</AButton>
             </div>
           )}
-        </section>
+        </Block>
 
-        <section className="flex flex-wrap gap-2">
-          {u.status === 'active' ? (
-            <Button variant="danger" disabled={self} onClick={() => window.confirm(`Disable ${u.email}? They are signed out at once and cannot log in.`) && update.mutate({ status: 'disabled' })}>Disable account</Button>
-          ) : (
-            <Button variant="secondary" onClick={() => update.mutate({ status: 'active' })}>Re-enable account</Button>
-          )}
-          <Button variant="secondary" onClick={() => update.mutate({ emailVerified: !u.emailVerified })}>{u.emailVerified ? 'Mark email unverified' : 'Mark email verified'}</Button>
-          <Button variant="secondary" disabled={self && u.isPlatformAdmin} onClick={() => window.confirm(u.isPlatformAdmin ? `Remove platform admin from ${u.email}?` : `Make ${u.email} a platform admin? They get full access to every business.`) && update.mutate({ isPlatformAdmin: !u.isPlatformAdmin })}>
-            {u.isPlatformAdmin ? 'Remove platform admin' : 'Make platform admin'}
-          </Button>
-          <Button variant="secondary" loading={logoutAll.isPending} onClick={() => logoutAll.mutate()}>Sign out everywhere</Button>
-        </section>
+        <Block title="Access">
+          <div className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
+            <Row
+              icon={u.status === 'active' ? UserCheck : UserX}
+              title={u.status === 'active' ? 'Account is active' : 'Account is disabled'}
+              text={u.status === 'active' ? 'Disabling signs them out at once and blocks login.' : 'They cannot sign in until re-enabled.'}
+              action={
+                u.status === 'active' ? (
+                  <AButton size="sm" variant="danger-outline" disabled={self} onClick={async () => (await confirm({ title: `Disable ${u.email}?`, message: 'They are signed out everywhere and cannot log in until you re-enable the account.', confirmLabel: 'Disable account', tone: 'danger' })) !== null && update.mutate({ status: 'disabled' })}>Disable</AButton>
+                ) : (
+                  <AButton size="sm" onClick={() => update.mutate({ status: 'active' })}>Re-enable</AButton>
+                )
+              }
+            />
+            <Row icon={ShieldCheck} title={u.emailVerified ? 'Email verified' : 'Email not verified'} text="Override the verification status by hand." action={<AButton size="sm" onClick={() => update.mutate({ emailVerified: !u.emailVerified })}>{u.emailVerified ? 'Mark unverified' : 'Mark verified'}</AButton>} />
+            <Row
+              icon={u.isPlatformAdmin ? ShieldCheck : ShieldOff}
+              title={u.isPlatformAdmin ? 'Platform admin' : 'Not a platform admin'}
+              text="Platform admins can open and change every business."
+              action={
+                <AButton
+                  size="sm"
+                  disabled={self && u.isPlatformAdmin}
+                  onClick={async () =>
+                    (await confirm(u.isPlatformAdmin ? { title: `Remove admin from ${u.email}?`, confirmLabel: 'Remove admin', tone: 'danger' } : { title: `Make ${u.email} a platform admin?`, message: 'They get full access to every business on the platform.', confirmLabel: 'Grant admin' })) !== null &&
+                    update.mutate({ isPlatformAdmin: !u.isPlatformAdmin })
+                  }
+                >
+                  {u.isPlatformAdmin ? 'Remove admin' : 'Grant admin'}
+                </AButton>
+              }
+            />
+          </div>
+        </Block>
 
-        <section>
-          <h3 className="mb-2 font-semibold text-ink">Password</h3>
+        <Block title="Password">
           <div className="flex flex-wrap items-end gap-2">
-            <div className="w-64">
-              <Field label="Set a new password" htmlFor="um-pw" hint="At least 8 characters. Signs them out everywhere.">
+            <div className="min-w-56 flex-1">
+              <Field label="New password" htmlFor="um-pw" hint="At least 8 characters. Signs them out everywhere.">
                 <Input id="um-pw" type="text" autoComplete="off" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
               </Field>
             </div>
-            <Button variant="secondary" disabled={newPassword.length < 8} loading={password.isPending} onClick={() => password.mutate(newPassword)}>Set password</Button>
-            <Button variant="secondary" loading={password.isPending} onClick={() => password.mutate(undefined)}>Generate temporary</Button>
+            <div className="flex gap-2 pb-6">
+              <AButton icon={KeyRound} disabled={newPassword.length < 8} loading={password.isPending} onClick={() => password.mutate(newPassword)}>Set</AButton>
+              <AButton icon={Wand2} loading={password.isPending} onClick={() => password.mutate(undefined)}>Generate</AButton>
+            </div>
           </div>
-        </section>
+        </Block>
 
-        <section>
-          <h3 className="mb-2 font-semibold text-ink">Businesses ({memberships.length})</h3>
+        <Block title={`Businesses · ${memberships.length}`}>
           {memberships.length === 0 ? (
             <p className="text-slate-500">Not a member of any business.</p>
           ) : (
-            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
               {memberships.map((m) => (
-                <li key={m.workspaceId} className="flex items-center justify-between gap-2 px-3 py-2">
-                  <Link to={`/admin/workspaces/${m.workspaceId}`} className="font-medium text-slate-800 hover:text-brand-700 hover:underline">{m.name}</Link>
-                  <span className="text-xs text-slate-500">{ROLE_INFO[m.role].label} · joined {formatDate(m.joinedAt)}</span>
+                <li key={m.workspaceId}>
+                  <Link to={`/admin/workspaces/${m.workspaceId}`} className="flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-slate-50">
+                    <span className="font-medium text-slate-800">{m.name}</span>
+                    <span className="text-xs text-slate-500">{ROLE_INFO[m.role].label} · joined {formatDate(m.joinedAt)}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Block>
 
-        <section>
-          <h3 className="mb-2 font-semibold text-ink">Live sessions ({sessions.length})</h3>
+        <Block title={`Live sessions · ${sessions.length}`} action={sessions.length > 0 && <AButton size="sm" variant="subtle" icon={LogOut} loading={logoutAll.isPending} onClick={() => logoutAll.mutate()}>Sign out everywhere</AButton>}>
           {sessions.length === 0 ? (
             <p className="text-slate-500">Not signed in anywhere.</p>
           ) : (
-            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
               {sessions.map((s) => (
-                <li key={s.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                <li key={s.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                   <div className="min-w-0">
-                    <p className="truncate text-slate-700">{s.portal === 'admin' ? 'Super Admin' : 'App'} · {s.ip ?? 'unknown IP'}</p>
+                    <p className="truncate text-slate-700">{s.portal === 'admin' ? 'Super Admin' : 'Business app'} · {s.ip ?? 'unknown IP'}</p>
                     <p className="truncate text-xs text-slate-400" title={s.userAgent ?? ''}>{s.userAgent ?? 'Unknown device'} · seen {formatDate(s.lastSeenAt, true)}</p>
                   </div>
-                  <Button variant="ghost" onClick={() => revokeOne.mutate(s.id)}>Revoke</Button>
+                  <IconButton icon={LogOut} label="Revoke session" onClick={() => revokeOne.mutate(s.id)} />
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Block>
 
-        <section className="flex items-center justify-between border-t border-slate-100 pt-4">
-          <p className="text-xs text-slate-500">Joined {formatDate(u.createdAt)}{u.lastLoginAt ? ` · last login ${formatDate(u.lastLoginAt, true)}` : ''}</p>
-          <Button variant="danger" disabled={self} loading={remove.isPending} onClick={() => window.prompt(`Type DELETE to permanently delete ${u.email}:`) === 'DELETE' && remove.mutate()}>Delete account</Button>
-        </section>
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-red-50/50 px-4 py-3 ring-1 ring-red-100">
+          <div>
+            <p className="font-medium text-red-700">Delete account</p>
+            <p className="text-xs text-slate-500">Removes the login and all memberships. Refused while they are a business's only owner.</p>
+          </div>
+          <AButton
+            size="sm"
+            variant="danger"
+            icon={Trash2}
+            disabled={self}
+            loading={remove.isPending}
+            onClick={async () => (await confirm({ title: 'Delete this account permanently?', message: 'This cannot be undone.', confirmLabel: 'Delete account', tone: 'danger', input: { label: `Type ${u.email} to confirm`, match: u.email } })) !== null && remove.mutate()}
+          >
+            Delete
+          </AButton>
+        </div>
       </div>
     </Modal>
+  );
+}
+
+function Block({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Row({ icon: Icon, title, text, action }: { icon: LucideIcon; title: string; text: string; action: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Icon className="size-4 shrink-0 text-slate-400" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-slate-800">{title}</p>
+        <p className="text-xs text-slate-500">{text}</p>
+      </div>
+      {action}
+    </div>
   );
 }

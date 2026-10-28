@@ -14,12 +14,14 @@ const PING_WAIT_MS = 400;
  * One business tab at a time. A newly opened tab asks the others whether one
  * is active; if so it offers "Use here", which hands the session over and puts
  * the other tab to sleep (with its own "Use here" to take it back).
- * The Super Admin portal is exempt.
+ * The Super Admin portal and the public pages are exempt.
  */
 export function SingleTabGuard() {
   const { status } = useAuth();
   const location = useLocation();
-  const enabled = status === 'authenticated' && !location.pathname.startsWith('/admin') && typeof BroadcastChannel !== 'undefined';
+  // Public pages (privacy, terms, support) are just reading: never pause a tab for them.
+  const exempt = location.pathname.startsWith('/admin') || ['/privacy', '/terms', '/support'].includes(location.pathname);
+  const enabled = status === 'authenticated' && !exempt && typeof BroadcastChannel !== 'undefined';
   const [state, setState] = useState<'checking' | 'active' | 'elsewhere' | 'taken'>('checking');
   const tabId = useRef(Math.random().toString(36).slice(2));
   const channel = useRef<BroadcastChannel | null>(null);

@@ -7,6 +7,8 @@ import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminActivityPage, AdminBusinessesPage, AdminDashboardPage, AdminOperationsPage, AdminPlansPage, AdminSettingsPage, AdminUsersPage } from './pages/AdminPage';
 import { AdminLayout } from './layouts/AdminLayout';
+import { AdminContentPage } from './pages/admin/AdminContentPage';
+import { PublicPage } from './pages/PublicPage';
 import { AdminWorkspacePage } from './pages/admin/AdminWorkspacePage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -79,7 +81,11 @@ export function App() {
         <Route path="operations" element={<AdminOperationsPage />} />
         <Route path="activity" element={<AdminActivityPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
+        <Route path="content/:slug" element={<AdminContentPage />} />
       </Route>
+      <Route path="/privacy" element={<PublicPage slug="privacy" />} />
+      <Route path="/terms" element={<PublicPage slug="terms" />} />
+      <Route path="/support" element={<PublicPage slug="support" />} />
 
       <Route path="/w/:workspaceId" element={<RequireAuth><WorkspaceLayout /></RequireAuth>}>
         <Route index element={<DashboardPage />} />

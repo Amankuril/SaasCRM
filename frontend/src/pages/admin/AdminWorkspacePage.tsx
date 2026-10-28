@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, LogIn } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { ArrowLeft, Copy, CreditCard, Download, LogIn, PenLine, RotateCcw, Save, Trash2, UserPlus, UserX } from 'lucide-react';
+import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
-import { Alert, Badge, Button, Card, Field, Input, Select, Spinner, errorMessage } from '../../components/ui';
+import { AButton, DetailList, IconButton, Panel, Segmented, useConfirm } from '../../components/admin';
+import { initials } from '../../components/crm';
+import { Alert, Badge, Field, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
 import { api, ROLES, type FeatureKey, type LimitKey, type Role, type SubscriptionStatus, type WorkspaceStatus } from '../../lib/api';
 import { ROLE_INFO, formatDate } from '../../lib/options';
-import { FEATURES, LIMIT_LABEL, STATUS_TONE, SUB_TONE, StatCard, SubscriptionModal } from '../AdminPage';
+import { FEATURES, FEATURE_INFO, LIMIT_LABEL, STATUS_TONE, SUB_TONE, StatCard, SubscriptionModal } from '../AdminPage';
 import { money } from '../BillingPage';
 import { LogList, type LogItem } from './ActivityTab';
 
@@ -24,6 +26,8 @@ interface Detail {
   audit: (Omit<LogItem, 'workspaceId' | 'workspaceName'> & { workspaceId?: null; workspaceName?: null })[];
 }
 
+type Tab = 'overview' | 'limits' | 'members' | 'payments' | 'audit' | 'settings';
+
 const fmt = (n: number | null | undefined) => (n === null || n === undefined ? '∞' : n.toLocaleString('en-IN'));
 
 export function AdminWorkspacePage() {
@@ -31,6 +35,7 @@ export function AdminWorkspacePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<Tab>('overview');
   const [planOpen, setPlanOpen] = useState(false);
   const detail = useQuery({ queryKey: ['admin', 'workspace', id], queryFn: () => api.get<Detail>(`/admin/workspaces/${id}`), enabled: !!user?.isPlatformAdmin });
   const support = useMutation({
@@ -44,8 +49,8 @@ export function AdminWorkspacePage() {
 
   return (
     <div>
-      <Link to="/admin/businesses" className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900">
-        <ArrowLeft className="size-4" /> All businesses
+      <Link to="/admin/businesses" className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-900">
+        <ArrowLeft className="size-4" /> Businesses
       </Link>
       {detail.isPending ? (
         <Spinner />
@@ -53,70 +58,98 @@ export function AdminWorkspacePage() {
         <Alert>{errorMessage(detail.error)}</Alert>
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold text-ink">
-                {d!.workspace.name} <Badge tone={STATUS_TONE[d!.workspace.status]}>{d!.workspace.status}</Badge>
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                {d!.workspace.slug} · id {d!.workspace.id} · created {formatDate(d!.workspace.createdAt)}
-              </p>
-              {d!.workspace.suspendedReason && <p className="mt-1 text-sm text-red-600">Suspended: {d!.workspace.suspendedReason}</p>}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-base font-semibold text-white">{initials(d!.workspace.name)}</span>
+              <div className="min-w-0">
+                <h1 className="flex flex-wrap items-center gap-2 text-[22px] font-semibold tracking-tight text-ink">
+                  {d!.workspace.name} <Badge tone={STATUS_TONE[d!.workspace.status]}>{d!.workspace.status}</Badge>
+                </h1>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-slate-500">
+                  <span>{d!.workspace.slug}</span>
+                  <span className="text-slate-300">·</span>
+                  <button className="inline-flex items-center gap-1 font-mono text-xs hover:text-slate-900" title="Copy business ID" onClick={() => void navigator.clipboard?.writeText(d!.workspace.id)}>
+                    {d!.workspace.id} <Copy className="size-3" />
+                  </button>
+                  <span className="text-slate-300">·</span>
+                  <span>Created {formatDate(d!.workspace.createdAt)}</span>
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button loading={support.isPending} onClick={() => support.mutate()}>
-                <LogIn className="size-4" /> Open as support
-              </Button>
-              <Button variant="secondary" loading={exportData.isPending} onClick={() => exportData.mutate()}>
-                <Download className="size-4" /> Export all data
-              </Button>
-              <Button variant="secondary" onClick={() => setPlanOpen(true)}>Change plan</Button>
+              <AButton icon={Download} loading={exportData.isPending} onClick={() => exportData.mutate()}>
+                Export data
+              </AButton>
+              <AButton icon={CreditCard} onClick={() => setPlanOpen(true)}>
+                Change plan
+              </AButton>
+              <AButton variant="primary" icon={LogIn} loading={support.isPending} onClick={() => support.mutate()}>
+                Open as support
+              </AButton>
             </div>
           </div>
+          {d!.workspace.suspendedReason && <Alert>Suspended: {d!.workspace.suspendedReason}</Alert>}
           {(support.error ?? exportData.error) != null && <Alert>{errorMessage(support.error ?? exportData.error)}</Alert>}
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard label="Plan" value={<span className="capitalize">{d!.plan.name}</span>} />
             <StatCard label="Contacts" value={`${fmt(d!.usage.contacts)} / ${fmt(d!.entitlements.limits.contacts)}`} />
             <StatCard label="Messages this period" value={`${fmt(d!.usage.monthlyMessages)} / ${fmt(d!.entitlements.limits.monthlyMessages)}`} />
             <StatCard label="Members" value={`${d!.members.length} / ${fmt(d!.entitlements.limits.seats)}`} />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <DetailsCard d={d!} />
-            <SubscriptionCard d={d!} />
+          <div className="overflow-x-auto">
+            <Segmented<Tab>
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'overview', label: 'Overview' },
+                { value: 'limits', label: 'Limits & usage' },
+                { value: 'members', label: `Members · ${d!.members.length}` },
+                { value: 'payments', label: 'Payments' },
+                { value: 'audit', label: 'Audit log' },
+                { value: 'settings', label: 'Settings' },
+              ]}
+            />
           </div>
-          <OverridesCard d={d!} />
-          <UsageCard d={d!} />
-          <MembersCard d={d!} />
-          <div className="grid gap-6 lg:grid-cols-2">
-            <ConnectionCard d={d!} />
-            <DataCard d={d!} />
-          </div>
-          <InvoicesCard d={d!} />
-          <Section title="Audit log (latest 100)" description="Everything that happened in this business, including support-access changes.">
-            {d!.audit.length === 0 ? <p className="p-4 text-sm text-slate-500">Nothing logged yet.</p> : <LogList items={d!.audit as LogItem[]} />}
-          </Section>
-          <DangerZone d={d!} onDeleted={() => { void queryClient.invalidateQueries({ queryKey: ['admin'] }); navigate('/admin/businesses'); }} />
+
+          {tab === 'overview' && (
+            <div className="grid gap-5 lg:grid-cols-2">
+              <SubscriptionCard d={d!} onChange={() => setPlanOpen(true)} />
+              <ConnectionCard d={d!} />
+              <DataCard d={d!} />
+            </div>
+          )}
+          {tab === 'limits' && (
+            <div className="space-y-5">
+              <OverridesCard d={d!} />
+              <UsageCard d={d!} />
+            </div>
+          )}
+          {tab === 'members' && <MembersCard d={d!} />}
+          {tab === 'payments' && <InvoicesCard d={d!} />}
+          {tab === 'audit' && (
+            <Panel flush title="Audit log" description="Latest 100 entries, including changes made on support access.">
+              {d!.audit.length === 0 ? <p className="px-5 py-4 text-sm text-slate-500">Nothing logged yet.</p> : <LogList items={d!.audit as LogItem[]} />}
+            </Panel>
+          )}
+          {tab === 'settings' && (
+            <div className="space-y-5">
+              <DetailsCard d={d!} />
+              <StatusCard d={d!} />
+              <DangerZone
+                d={d!}
+                onDeleted={() => {
+                  void queryClient.invalidateQueries({ queryKey: ['admin'] });
+                  navigate('/admin/businesses');
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
       {planOpen && d && <SubscriptionModal ws={{ id: d.workspace.id, name: d.workspace.name, subscription: { ...d.subscription } }} onClose={() => setPlanOpen(false)} />}
     </div>
-  );
-}
-
-function Section({ title, description, actions, children }: { title: string; description?: string; actions?: ReactNode; children: ReactNode }) {
-  return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
-          {description && <p className="text-xs text-slate-500">{description}</p>}
-        </div>
-        {actions}
-      </div>
-      {children}
-    </Card>
   );
 }
 
@@ -129,63 +162,95 @@ function DetailsCard({ d }: { d: Detail }) {
   const refresh = useRefresh(d.workspace.id);
   const w = d.workspace;
   const [form, setForm] = useState({ name: w.name, industry: w.industry ?? '', country: w.country, currency: w.currency, timezone: w.timezone });
-  const [status, setStatus] = useState<WorkspaceStatus>(w.status);
-  const [reason, setReason] = useState(w.suspendedReason ?? '');
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => api.patch(`/admin/workspaces/${w.id}`, body), onSuccess: () => void refresh() });
   return (
-    <Section title="Business details">
-      <div className="space-y-3 p-4 text-sm">
+    <Panel
+      title="Business details"
+      description="Edit on the customer's behalf. The change shows in their audit log."
+      actions={
+        <AButton size="sm" variant="primary" icon={Save} loading={save.isPending} onClick={() => save.mutate({ ...form, industry: form.industry.trim() || null })}>
+          Save details
+        </AButton>
+      }
+    >
+      <div className="space-y-3 text-sm">
         {save.error != null && <Alert>{errorMessage(save.error)}</Alert>}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name" htmlFor="wd-name"><Input id="wd-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Industry" htmlFor="wd-ind"><Input id="wd-ind" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} /></Field>
-          <Field label="Country (2 letters)" htmlFor="wd-c"><Input id="wd-c" maxLength={2} value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></Field>
-          <Field label="Currency (3 letters)" htmlFor="wd-cur"><Input id="wd-cur" maxLength={3} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></Field>
-          <Field label="Timezone" htmlFor="wd-tz"><Input id="wd-tz" value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} /></Field>
-        </div>
-        <div className="flex justify-end">
-          <Button variant="secondary" loading={save.isPending} onClick={() => save.mutate({ ...form, industry: form.industry.trim() || null })}>Save details</Button>
-        </div>
-        <div className="grid items-end gap-3 border-t border-slate-100 pt-3 sm:grid-cols-[10rem_1fr_auto]">
-          <Field label="Workspace status" htmlFor="wd-st">
-            <Select id="wd-st" value={status} onChange={(e) => setStatus(e.target.value as WorkspaceStatus)}>
-              <option value="setup">Setup</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended (read-only)</option>
-            </Select>
+        {save.isSuccess && <Alert tone="success">Details saved.</Alert>}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Name" htmlFor="wd-name">
+            <Input id="wd-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
-          <Field label="Reason (shown when suspended)" htmlFor="wd-rs"><Input id="wd-rs" value={reason} disabled={status !== 'suspended'} onChange={(e) => setReason(e.target.value)} /></Field>
-          <Button variant={status === 'suspended' ? 'danger' : 'secondary'} disabled={save.isPending} onClick={() => save.mutate({ status, ...(status === 'suspended' && reason.trim() ? { reason: reason.trim() } : {}) })}>Apply status</Button>
+          <Field label="Industry" htmlFor="wd-ind">
+            <Input id="wd-ind" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} />
+          </Field>
+          <Field label="Timezone" htmlFor="wd-tz">
+            <Input id="wd-tz" value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} />
+          </Field>
+          <Field label="Country (2 letters)" htmlFor="wd-c">
+            <Input id="wd-c" maxLength={2} value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+          </Field>
+          <Field label="Currency (3 letters)" htmlFor="wd-cur">
+            <Input id="wd-cur" maxLength={3} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+          </Field>
         </div>
       </div>
-    </Section>
+    </Panel>
   );
 }
 
-function SubscriptionCard({ d }: { d: Detail }) {
-  const s = d.subscription;
-  const rows: [string, ReactNode][] = [
-    ['Plan', <span className="capitalize">{d.plan.name} ({s.cycle})</span>],
-    ['Status', <Badge tone={SUB_TONE[s.status]}>{s.status.replace('_', ' ')}</Badge>],
-    ['Full access', s.access ? 'Yes' : 'No (sending paused)'],
-    ['Current period', `${formatDate(s.currentPeriodStart)} → ${formatDate(s.currentPeriodEnd)}`],
-    ['Trial ends', s.trialEndsAt ? formatDate(s.trialEndsAt, true) : '—'],
-    ['Grace ends', s.graceEndsAt ? formatDate(s.graceEndsAt, true) : '—'],
-    ['Cancels at period end', s.cancelAtPeriodEnd ? 'Yes' : 'No'],
-    ['Provider', `${s.provider}${s.providerSubscriptionId ? ` · ${s.providerSubscriptionId}` : ''}`],
-    ['Last payment', s.lastPaymentAt ? formatDate(s.lastPaymentAt, true) : '—'],
-  ];
+function StatusCard({ d }: { d: Detail }) {
+  const refresh = useRefresh(d.workspace.id);
+  const w = d.workspace;
+  const [status, setStatus] = useState<WorkspaceStatus>(w.status);
+  const [reason, setReason] = useState(w.suspendedReason ?? '');
+  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => api.patch(`/admin/workspaces/${w.id}`, body), onSuccess: () => void refresh() });
+  const changed = status !== w.status || (status === 'suspended' && reason !== (w.suspendedReason ?? ''));
   return (
-    <Section title="Subscription" description="Use “Change plan” above for comps, offline payments and extensions.">
-      <dl className="divide-y divide-slate-100 text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-3 px-4 py-2">
-            <dt className="text-slate-500">{k}</dt>
-            <dd className="text-right text-slate-800">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </Section>
+    <Panel title="Workspace status" description="Suspended businesses are read-only: they can view and export, but nothing is sent or changed.">
+      <div className="space-y-3 text-sm">
+        {save.error != null && <Alert>{errorMessage(save.error)}</Alert>}
+        <Segmented<WorkspaceStatus>
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: 'setup', label: 'Setup' },
+            { value: 'active', label: 'Active' },
+            { value: 'suspended', label: 'Suspended' },
+          ]}
+        />
+        {status === 'suspended' && (
+          <Field label="Reason (shown to the business)" htmlFor="wd-rs">
+            <Input id="wd-rs" value={reason} placeholder="e.g. Unpaid invoice ZC-0042" onChange={(e) => setReason(e.target.value)} />
+          </Field>
+        )}
+        <div className="flex justify-end">
+          <AButton size="sm" variant={status === 'suspended' ? 'danger' : 'primary'} disabled={!changed} loading={save.isPending} onClick={() => save.mutate({ status, ...(status === 'suspended' && reason.trim() ? { reason: reason.trim() } : {}) })}>
+            {status === 'suspended' ? 'Suspend business' : 'Apply status'}
+          </AButton>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function SubscriptionCard({ d, onChange }: { d: Detail; onChange: () => void }) {
+  const s = d.subscription;
+  return (
+    <Panel flush title="Subscription" actions={<AButton size="sm" variant="subtle" icon={PenLine} onClick={onChange}>Change</AButton>}>
+      <DetailList
+        rows={[
+          ['Plan', <span className="capitalize">{d.plan.name} · {s.cycle}</span>],
+          ['Status', <Badge tone={SUB_TONE[s.status]}>{s.status.replace('_', ' ')}</Badge>],
+          ['Full access', s.access ? 'Yes' : 'No, sending paused'],
+          ['Current period', `${formatDate(s.currentPeriodStart)} → ${formatDate(s.currentPeriodEnd)}`],
+          ['Trial ends', s.trialEndsAt ? formatDate(s.trialEndsAt, true) : '—'],
+          ['Grace ends', s.graceEndsAt ? formatDate(s.graceEndsAt, true) : '—'],
+          ['Cancels at period end', s.cancelAtPeriodEnd ? 'Yes' : 'No'],
+          ['Provider', `${s.provider}${s.providerSubscriptionId ? ` · ${s.providerSubscriptionId}` : ''}`],
+          ['Last payment', s.lastPaymentAt ? formatDate(s.lastPaymentAt, true) : '—'],
+        ]}
+      />
+    </Panel>
   );
 }
 
@@ -209,24 +274,42 @@ function OverridesCard({ d }: { d: Detail }) {
     onSuccess: () => void refresh(),
   });
   const invalid = Object.values(limits).some((v) => v !== 'plan' && v !== 'unlimited' && !/^\d+$/.test(v));
+  const overridden = Object.keys(d.overrides.limits).length + Object.keys(d.overrides.features).length;
 
   return (
-    <Section
-      title="Custom limits & features (bypass the plan)"
-      description="Give this one business more (or less) than its plan allows. Overrides survive plan changes until you set them back to “Plan”."
-      actions={<Button loading={save.isPending} disabled={invalid} onClick={() => save.mutate()}>Save overrides</Button>}
+    <Panel
+      flush
+      title={
+        <span className="flex items-center gap-2">
+          Custom limits & features {overridden > 0 && <Badge tone="blue">{overridden} override{overridden === 1 ? '' : 's'}</Badge>}
+        </span>
+      }
+      description="Give this one business more (or less) than its plan allows. Overrides survive plan changes until set back to “Plan”."
+      actions={
+        <AButton size="sm" variant="primary" icon={Save} loading={save.isPending} disabled={invalid} onClick={() => save.mutate()}>
+          Save overrides
+        </AButton>
+      }
     >
-      {save.error != null && <div className="px-4 pt-3"><Alert>{errorMessage(save.error)}</Alert></div>}
-      {save.isSuccess && <div className="px-4 pt-3"><Alert tone="success">Overrides saved and live.</Alert></div>}
+      {save.error != null && (
+        <div className="px-5 pt-4">
+          <Alert>{errorMessage(save.error)}</Alert>
+        </div>
+      )}
+      {save.isSuccess && (
+        <div className="px-5 pt-4">
+          <Alert tone="success">Overrides saved and live.</Alert>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-500">
+          <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
             <tr>
-              <th className="px-4 py-2 font-medium">Limit</th>
-              <th className="px-4 py-2 text-right font-medium">Used</th>
-              <th className="px-4 py-2 text-right font-medium">Plan</th>
-              <th className="px-4 py-2 font-medium">Override</th>
-              <th className="px-4 py-2 text-right font-medium">Effective</th>
+              <th className="px-5 py-2.5 font-medium">Limit</th>
+              <th className="px-4 py-2.5 text-right font-medium">Used</th>
+              <th className="px-4 py-2.5 text-right font-medium">Plan</th>
+              <th className="px-4 py-2.5 font-medium">Override</th>
+              <th className="px-5 py-2.5 text-right font-medium">Effective</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -234,10 +317,10 @@ function OverridesCard({ d }: { d: Detail }) {
               const v = limits[k];
               const mode = v === 'plan' || v === 'unlimited' ? v : 'custom';
               return (
-                <tr key={k}>
-                  <td className="px-4 py-2 text-slate-700">{LIMIT_LABEL[k]}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-slate-600">{USED_KEY[k] ? fmt(d.usage[USED_KEY[k]!]) : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-slate-500">{fmt(d.plan.limits[k])}</td>
+                <tr key={k} className={cn(mode !== 'plan' && 'bg-sky-50/40')}>
+                  <td className="px-5 py-2 text-slate-700">{LIMIT_LABEL[k]}</td>
+                  <td className="px-4 py-2 text-right text-slate-600 tabular-nums">{USED_KEY[k] ? fmt(d.usage[USED_KEY[k]!]) : '—'}</td>
+                  <td className="px-4 py-2 text-right text-slate-400 tabular-nums">{fmt(d.plan.limits[k])}</td>
                   <td className="px-4 py-2">
                     <div className="flex gap-2">
                       <div className="w-32">
@@ -250,28 +333,32 @@ function OverridesCard({ d }: { d: Detail }) {
                       {mode === 'custom' && <Input aria-label={`${LIMIT_LABEL[k]} value`} className="w-32" type="number" min={0} value={v} onChange={(e) => setLimits({ ...limits, [k]: e.target.value })} />}
                     </div>
                   </td>
-                  <td className="px-4 py-2 text-right font-medium tabular-nums text-ink">{fmt(d.entitlements.limits[k])}</td>
+                  <td className="px-5 py-2 text-right font-semibold text-ink tabular-nums">{fmt(d.entitlements.limits[k])}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-4 border-t border-slate-100 px-4 py-3 text-sm">
-        {FEATURES.map((f) => (
-          <label key={f} className="flex items-center gap-2">
-            <span className="capitalize text-slate-700">{f}</span>
-            <div className="w-36">
-              <Select aria-label={`${f} feature`} value={features[f]} onChange={(e) => setFeatures({ ...features, [f]: e.target.value as 'plan' | 'on' | 'off' })}>
-                <option value="plan">Plan ({d.plan.features[f] ? 'on' : 'off'})</option>
-                <option value="on">Force on</option>
-                <option value="off">Force off</option>
-              </Select>
-            </div>
-          </label>
-        ))}
+      <div className="grid gap-3 border-t border-slate-100 px-5 py-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {FEATURES.map((f) => {
+          const Icon = FEATURE_INFO[f].icon;
+          return (
+            <label key={f} className="flex items-center gap-3 rounded-lg px-3 py-2 ring-1 ring-slate-200">
+              <Icon className="size-4 text-slate-400" />
+              <span className="flex-1 text-slate-700">{FEATURE_INFO[f].label}</span>
+              <div className="w-32">
+                <Select aria-label={`${f} feature`} value={features[f]} onChange={(e) => setFeatures({ ...features, [f]: e.target.value as 'plan' | 'on' | 'off' })}>
+                  <option value="plan">Plan ({d.plan.features[f] ? 'on' : 'off'})</option>
+                  <option value="on">Force on</option>
+                  <option value="off">Force off</option>
+                </Select>
+              </div>
+            </label>
+          );
+        })}
       </div>
-    </Section>
+    </Panel>
   );
 }
 
@@ -283,37 +370,52 @@ const METRICS = [
 
 function UsageCard({ d }: { d: Detail }) {
   const refresh = useRefresh(d.workspace.id);
+  const confirm = useConfirm();
   const adjust = useMutation({ mutationFn: (body: { metric?: string; value: number }) => api.post(`/admin/workspaces/${d.workspace.id}/usage`, body), onSuccess: () => void refresh() });
   return (
-    <Section
+    <Panel
+      flush
       title="Metered usage this period"
       description={`Since ${formatDate(d.subscription.currentPeriodStart)}. Reset or correct counters when a customer was over-counted.`}
-      actions={<Button variant="secondary" loading={adjust.isPending} onClick={() => window.confirm('Reset all usage counters for this period to 0?') && adjust.mutate({ value: 0 })}>Reset all</Button>}
+      actions={
+        <AButton
+          size="sm"
+          icon={RotateCcw}
+          loading={adjust.isPending}
+          onClick={async () => (await confirm({ title: 'Reset all usage counters?', message: 'Messages, AI replies and API requests for this period go back to 0.', confirmLabel: 'Reset counters' })) !== null && adjust.mutate({ value: 0 })}
+        >
+          Reset all
+        </AButton>
+      }
     >
-      {adjust.error != null && <div className="px-4 pt-3"><Alert>{errorMessage(adjust.error)}</Alert></div>}
+      {adjust.error != null && (
+        <div className="px-5 pt-4">
+          <Alert>{errorMessage(adjust.error)}</Alert>
+        </div>
+      )}
       <ul className="divide-y divide-slate-100 text-sm">
         {METRICS.map(([metric, label, key]) => (
-          <li key={metric} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-            <span className="text-slate-700">{label}</span>
-            <span className="ml-auto tabular-nums font-medium text-ink">{fmt(d.usage[key])}</span>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                const v = window.prompt(`Set ${label.toLowerCase()} used this period to:`, '0');
+          <li key={metric} className="flex items-center gap-3 px-5 py-3">
+            <span className="flex-1 text-slate-700">{label}</span>
+            <span className="font-semibold text-ink tabular-nums">{fmt(d.usage[key])}</span>
+            <IconButton
+              icon={PenLine}
+              label={`Set ${label.toLowerCase()} used`}
+              onClick={async () => {
+                const v = await confirm({ title: `Set ${label.toLowerCase()} used this period`, confirmLabel: 'Set counter', input: { label: 'New value', type: 'number', initial: String(d.usage[key] ?? 0), required: true } });
                 if (v !== null && /^\d+$/.test(v.trim())) adjust.mutate({ metric, value: Number(v.trim()) });
               }}
-            >
-              Set…
-            </Button>
+            />
           </li>
         ))}
       </ul>
-    </Section>
+    </Panel>
   );
 }
 
 function MembersCard({ d }: { d: Detail }) {
   const refresh = useRefresh(d.workspace.id);
+  const confirm = useConfirm();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('agent');
   const add = useMutation({ mutationFn: () => api.post(`/admin/workspaces/${d.workspace.id}/members`, { email, role }), onSuccess: () => { setEmail(''); void refresh(); } });
@@ -321,143 +423,182 @@ function MembersCard({ d }: { d: Detail }) {
   const remove = useMutation({ mutationFn: (id: string) => api.delete(`/admin/workspaces/${d.workspace.id}/members/${id}`), onSuccess: () => void refresh() });
   const err = add.error ?? change.error ?? remove.error;
   return (
-    <Section title={`Members (${d.members.length})`} description="Change any role (make someone owner to transfer ownership), remove people, or add an existing account directly.">
-      {err != null && <div className="px-4 pt-3"><Alert>{errorMessage(err)}</Alert></div>}
+    <Panel flush title="Members" description="Change any role (make someone owner to transfer ownership), remove people, or add an existing account directly.">
+      {err != null && (
+        <div className="px-5 pt-4">
+          <Alert>{errorMessage(err)}</Alert>
+        </div>
+      )}
       <ul className="divide-y divide-slate-100 text-sm">
         {d.members.map((m) => (
-          <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+          <li key={m.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">{initials(m.name)}</span>
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-800">
+              <p className="flex items-center gap-2 font-medium text-slate-900">
                 {m.name} {m.userStatus === 'disabled' && <Badge tone="red">disabled</Badge>}
               </p>
-              <p className="text-xs text-slate-500">{m.email} · joined {formatDate(m.joinedAt)}{m.lastLoginAt ? ` · last login ${formatDate(m.lastLoginAt, true)}` : ''}</p>
+              <p className="truncate text-xs text-slate-500">
+                {m.email} · joined {formatDate(m.joinedAt)}
+                {m.lastLoginAt ? ` · last login ${formatDate(m.lastLoginAt, true)}` : ''}
+              </p>
             </div>
             <div className="w-36">
               <Select aria-label={`Role of ${m.name}`} value={m.role} disabled={change.isPending} onChange={(e) => change.mutate({ id: m.id, role: e.target.value as Role })}>
-                {ROLES.map((r) => <option key={r} value={r}>{ROLE_INFO[r].label}</option>)}
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_INFO[r].label}
+                  </option>
+                ))}
               </Select>
             </div>
-            <Button variant="ghost" onClick={() => window.confirm(`Remove ${m.email ?? m.name} from ${d.workspace.name}?`) && remove.mutate(m.id)}>Remove</Button>
+            <IconButton
+              icon={UserX}
+              label={`Remove ${m.name}`}
+              className="hover:bg-red-50 hover:text-red-600"
+              onClick={async () => (await confirm({ title: `Remove ${m.email ?? m.name}?`, message: `They lose access to ${d.workspace.name}. Their account stays.`, confirmLabel: 'Remove member', tone: 'danger' })) !== null && remove.mutate(m.id)}
+            />
           </li>
         ))}
       </ul>
-      <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 px-4 py-3">
+      <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-4">
         <div className="min-w-56 flex-1">
-          <Field label="Add existing account by email" htmlFor="wm-email"><Input id="wm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@business.com" /></Field>
+          <Field label="Add an existing account" htmlFor="wm-email">
+            <Input id="wm-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@business.com" />
+          </Field>
         </div>
         <div className="w-36">
           <Field label="Role" htmlFor="wm-role">
             <Select id="wm-role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              {ROLES.map((r) => <option key={r} value={r}>{ROLE_INFO[r].label}</option>)}
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_INFO[r].label}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>
-        <Button disabled={!email.includes('@')} loading={add.isPending} onClick={() => add.mutate()}>Add member</Button>
+        <AButton variant="primary" icon={UserPlus} disabled={!email.includes('@')} loading={add.isPending} onClick={() => add.mutate()}>
+          Add member
+        </AButton>
       </div>
-    </Section>
+    </Panel>
   );
 }
 
 function ConnectionCard({ d }: { d: Detail }) {
   const c = d.connection;
   return (
-    <Section title="WhatsApp number">
+    <Panel flush title="WhatsApp number" actions={c && <Badge tone={c.status === 'connected' ? 'green' : 'red'}>{c.status}</Badge>}>
       {!c ? (
-        <p className="p-4 text-sm text-slate-500">Not connected yet.</p>
+        <p className="px-5 py-4 text-sm text-slate-500">Not connected yet.</p>
       ) : (
-        <dl className="divide-y divide-slate-100 text-sm">
-          {(
-            [
-              ['Number', `${c.displayPhoneNumber ?? '—'}${c.verifiedName ? ` (${c.verifiedName})` : ''}`],
-              ['Status', <Badge tone={c.status === 'connected' ? 'green' : 'red'}>{c.status}</Badge>],
-              ['Quality / tier', `${c.qualityRating ?? '—'} · ${c.messagingLimitTier ?? '—'}`],
-              ['Phone number id', <span className="font-mono text-xs">{c.phoneNumberId}</span>],
-              ['WABA id', <span className="font-mono text-xs">{c.wabaId}</span>],
-              ['Connected via', `${c.connectedVia.replace('_', ' ')} · ${c.registered ? 'registered' : 'not registered'}`],
-              ['Last webhook', c.lastWebhookAt ? formatDate(c.lastWebhookAt, true) : '—'],
-              ['Last error', c.lastError ?? '—'],
-            ] as [string, ReactNode][]
-          ).map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3 px-4 py-2">
-              <dt className="text-slate-500">{k}</dt>
-              <dd className="min-w-0 break-all text-right text-slate-800">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <DetailList
+          rows={[
+            ['Number', `${c.displayPhoneNumber ?? '—'}${c.verifiedName ? ` (${c.verifiedName})` : ''}`],
+            ['Quality / tier', `${c.qualityRating ?? '—'} · ${c.messagingLimitTier ?? '—'}`],
+            ['Phone number id', <span className="font-mono text-xs">{c.phoneNumberId}</span>],
+            ['WABA id', <span className="font-mono text-xs">{c.wabaId}</span>],
+            ['Connected via', `${c.connectedVia.replace('_', ' ')} · ${c.registered ? 'registered' : 'not registered'}`],
+            ['Last webhook', c.lastWebhookAt ? formatDate(c.lastWebhookAt, true) : '—'],
+            ['Last error', c.lastError ?? '—'],
+          ]}
+        />
       )}
-    </Section>
+    </Panel>
   );
 }
 
 function DataCard({ d }: { d: Detail }) {
   const rows = Object.entries(d.counts).filter(([, n]) => n > 0);
   return (
-    <Section title="Stored data" description="Documents this business owns, per collection.">
+    <Panel flush title="Stored data" description="Documents this business owns, per collection." className="lg:col-span-2">
       {rows.length === 0 ? (
-        <p className="p-4 text-sm text-slate-500">No data yet.</p>
+        <p className="px-5 py-4 text-sm text-slate-500">No data yet.</p>
       ) : (
-        <ul className="grid grid-cols-2 gap-x-4 px-4 py-2 text-sm">
+        <ul className="grid grid-cols-2 gap-x-8 px-5 py-3 text-sm sm:grid-cols-3 lg:grid-cols-4">
           {rows.map(([k, n]) => (
-            <li key={k} className="flex justify-between gap-2 py-1">
+            <li key={k} className="flex justify-between gap-2 border-b border-slate-50 py-1.5">
               <span className="truncate text-slate-600">{k}</span>
-              <span className="tabular-nums text-slate-800">{n.toLocaleString('en-IN')}</span>
+              <span className="font-medium text-slate-900 tabular-nums">{n.toLocaleString('en-IN')}</span>
             </li>
           ))}
         </ul>
       )}
-    </Section>
+    </Panel>
   );
 }
 
 function InvoicesCard({ d }: { d: Detail }) {
   return (
-    <Section title={`Payments (${d.invoices.length})`}>
+    <Panel flush title="Payments" description={`${d.invoices.length} payment record${d.invoices.length === 1 ? '' : 's'}.`}>
       {d.invoices.length === 0 ? (
-        <p className="p-4 text-sm text-slate-500">No payments yet.</p>
+        <p className="px-5 py-4 text-sm text-slate-500">No payments yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-slate-500">
+            <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
               <tr>
-                {['Invoice', 'Plan', 'Amount', 'Status', 'Provider / payment id', 'Date'].map((h) => <th key={h} className="px-4 py-2 font-medium">{h}</th>)}
+                {['Invoice', 'Plan', 'Amount', 'Status', 'Provider / payment id', 'Date'].map((h) => (
+                  <th key={h} className="px-5 py-2.5 font-medium">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {d.invoices.map((i) => (
                 <tr key={i.id}>
-                  <td className="px-4 py-2 font-mono text-xs">{i.number}</td>
-                  <td className="px-4 py-2 capitalize">{i.planCode} · {i.cycle}</td>
-                  <td className="px-4 py-2 tabular-nums">{money(i.amount, i.currency)}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-5 py-2.5 font-mono text-xs">{i.number}</td>
+                  <td className="px-5 py-2.5 capitalize">
+                    {i.planCode} · {i.cycle}
+                  </td>
+                  <td className="px-5 py-2.5 font-medium tabular-nums">{money(i.amount, i.currency)}</td>
+                  <td className="px-5 py-2.5">
                     <Badge tone={i.status === 'paid' ? 'green' : 'red'}>{i.status}</Badge>
                     {i.failureReason && <p className="text-xs text-red-600">{i.failureReason}</p>}
                   </td>
-                  <td className="px-4 py-2 text-xs text-slate-500">{i.provider}{i.providerPaymentId ? ` · ${i.providerPaymentId}` : ''}</td>
-                  <td className="px-4 py-2 text-slate-500">{formatDate(i.paidAt ?? i.createdAt, true)}</td>
+                  <td className="px-5 py-2.5 text-xs text-slate-500">
+                    {i.provider}
+                    {i.providerPaymentId ? ` · ${i.providerPaymentId}` : ''}
+                  </td>
+                  <td className="px-5 py-2.5 text-slate-500">{formatDate(i.paidAt ?? i.createdAt, true)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </Section>
+    </Panel>
   );
 }
 
 function DangerZone({ d, onDeleted }: { d: Detail; onDeleted: () => void }) {
-  const [confirm, setConfirm] = useState('');
-  const del = useMutation({ mutationFn: () => api.delete(`/admin/workspaces/${d.workspace.id}`, { confirm }), onSuccess: onDeleted });
+  const confirm = useConfirm();
+  const del = useMutation({ mutationFn: () => api.delete(`/admin/workspaces/${d.workspace.id}`, { confirm: d.workspace.name }), onSuccess: onDeleted });
   return (
-    <Card className="border-red-200 p-4 text-sm">
-      <h2 className="font-semibold text-red-700">Delete this business permanently</h2>
-      <p className="mt-1 text-slate-600">Removes the workspace and everything it owns (contacts, chats, campaigns, flows, billing records). This cannot be undone — export the data first. The deletion stays in the admin activity log.</p>
-      {del.error != null && <div className="mt-3"><Alert>{errorMessage(del.error)}</Alert></div>}
-      <div className="mt-3 flex flex-wrap items-end gap-2">
-        <div className="min-w-64 flex-1">
-          <Field label={`Type “${d.workspace.name}” to confirm`} htmlFor="dz-confirm"><Input id="dz-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Field>
+    <section className="rounded-xl bg-white ring-1 ring-red-200">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 text-sm">
+        <div className="max-w-xl">
+          <h2 className="font-semibold text-red-700">Delete this business</h2>
+          <p className="mt-0.5 text-slate-500">Permanently removes the workspace and everything it owns: contacts, chats, campaigns, flows and billing records. Export the data first. The deletion stays in the admin activity log.</p>
+          {del.error != null && (
+            <div className="mt-3">
+              <Alert>{errorMessage(del.error)}</Alert>
+            </div>
+          )}
         </div>
-        <Button variant="danger" disabled={confirm !== d.workspace.name} loading={del.isPending} onClick={() => del.mutate()}>Delete forever</Button>
+        <AButton
+          variant="danger"
+          icon={Trash2}
+          loading={del.isPending}
+          onClick={async () =>
+            (await confirm({ title: `Delete ${d.workspace.name} forever?`, message: 'This cannot be undone.', confirmLabel: 'Delete business', tone: 'danger', input: { label: `Type “${d.workspace.name}” to confirm`, match: d.workspace.name } })) !== null && del.mutate()
+          }
+        >
+          Delete business
+        </AButton>
       </div>
-    </Card>
+    </section>
   );
 }
+

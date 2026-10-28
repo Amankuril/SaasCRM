@@ -44,3 +44,29 @@ const platformSettingsSchema = new Schema(
 
 export type PlatformSettingsDoc = HydratedDocument<InferSchemaType<typeof platformSettingsSchema>>;
 export const PlatformSettings = model('PlatformSettings', platformSettingsSchema);
+
+export const SITE_PAGE_SLUGS = ['privacy', 'terms', 'support'] as const;
+export type SitePageSlug = (typeof SITE_PAGE_SLUGS)[number];
+
+/** Public pages edited from the Super Admin panel and linked from the business login pages. */
+const sitePageSchema = new Schema(
+  {
+    slug: { type: String, enum: SITE_PAGE_SLUGS, required: true, unique: true },
+    title: { type: String, required: true, trim: true, maxlength: 120 },
+    // Lightweight Markdown: headings, paragraphs, lists, bold/italic, links.
+    content: { type: String, default: '', maxlength: 60_000 },
+    // Support page only: how businesses reach the team.
+    contact: {
+      email: { type: String, default: null },
+      phone: { type: String, default: null },
+      whatsapp: { type: String, default: null },
+      hours: { type: String, default: null },
+    },
+    published: { type: Boolean, default: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  },
+  { timestamps: true },
+);
+
+export type SitePageDoc = HydratedDocument<InferSchemaType<typeof sitePageSchema>>;
+export const SitePage = model('SitePage', sitePageSchema);

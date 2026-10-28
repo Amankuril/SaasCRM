@@ -10,6 +10,7 @@ import { requireAuth, requirePlatformAdmin } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestContext.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { publicPagesRouter } from './modules/admin/sitePages.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { billingWebhookRouter } from './modules/billing/billing.routes.js';
 import { publicApiRouter } from './modules/developer/publicApi.routes.js';
@@ -54,6 +55,7 @@ export function createApp() {
   // Public REST API (workspace API keys). Server-to-server: no cookies, no CORS.
   app.use('/api/v1', publicApiRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/pages', publicPagesRouter);
   app.use('/api/integrations', googleCallbackRouter);
   app.use('/api/invitations', publicInvitationRouter);
   app.use('/api/workspaces', requireAuth, workspacesRouter);

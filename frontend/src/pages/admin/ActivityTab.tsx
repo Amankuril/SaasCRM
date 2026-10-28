@@ -2,7 +2,9 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { History } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Alert, Badge, Button, Card, EmptyState, Input, Spinner, cn, errorMessage } from '../../components/ui';
+import { AButton, Panel, Segmented } from '../../components/admin';
+import { Alert, Badge, EmptyState, Spinner, errorMessage } from '../../components/ui';
+import { SearchInput } from '../AdminPage';
 import { api } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 
@@ -41,22 +43,18 @@ export function ActivityTab() {
   const items = feed.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-        <div className="flex rounded-lg border border-slate-200 p-0.5 text-sm">
-          {(
-            [
-              ['admin', 'Admin actions'],
-              ['audit', 'All business audit logs'],
-            ] as const
-          ).map(([id, label]) => (
-            <button key={id} onClick={() => setSource(id)} className={cn('rounded-md px-3 py-1.5 font-medium', source === id ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700')}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <Input aria-label="Filter by action" placeholder="Filter action, e.g. member" value={action} onChange={(e) => setAction(e.target.value)} className="max-w-56" />
-        {source === 'audit' && <Input aria-label="Filter by actor email" placeholder="Actor email" value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} className="max-w-56" />}
+    <Panel flush>
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3">
+        <Segmented<Source>
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: 'admin', label: 'Admin actions' },
+            { value: 'audit', label: 'Business audit logs' },
+          ]}
+        />
+        <SearchInput value={action} onChange={setAction} placeholder="Filter by action, e.g. member" />
+        {source === 'audit' && <SearchInput value={actorEmail} onChange={setActorEmail} placeholder="Filter by actor email" />}
       </div>
       {feed.isPending ? (
         <Spinner />
@@ -68,13 +66,13 @@ export function ActivityTab() {
         <>
           <LogList items={items} showWorkspace />
           {feed.hasNextPage && (
-            <div className="border-t border-slate-100 p-3 text-center">
-              <Button variant="secondary" loading={feed.isFetchingNextPage} onClick={() => void feed.fetchNextPage()}>Load more</Button>
+            <div className="border-t border-slate-100 px-5 py-3 text-center">
+              <AButton size="sm" loading={feed.isFetchingNextPage} onClick={() => void feed.fetchNextPage()}>Load older entries</AButton>
             </div>
           )}
         </>
       )}
-    </Card>
+    </Panel>
   );
 }
 
@@ -86,12 +84,12 @@ export function LogList({ items, showWorkspace = false }: { items: LogItem[]; sh
         const support = r.metadata?.supportAccess === true;
         const hasMeta = r.metadata && Object.keys(r.metadata).length > 0;
         return (
-          <li key={r.id} className="px-4 py-2.5">
+          <li key={r.id} className="px-5 py-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-mono text-xs text-slate-800">{r.action}</span>
+              <span className="font-mono text-[12px] font-medium text-slate-800">{r.action}</span>
               {(support || r.action.startsWith('admin.')) && <Badge tone="blue">{support ? 'support access' : 'super admin'}</Badge>}
               {showWorkspace && r.workspaceName && (
-                r.workspaceId ? <Link to={`/admin/workspaces/${r.workspaceId}`} className="text-xs font-medium text-brand-700 hover:underline">{r.workspaceName}</Link> : <span className="text-xs text-slate-500">{r.workspaceName}</span>
+                r.workspaceId ? <Link to={`/admin/workspaces/${r.workspaceId}`} className="text-xs font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900">{r.workspaceName}</Link> : <span className="text-xs text-slate-500">{r.workspaceName}</span>
               )}
               <span className="ml-auto text-xs text-slate-400">{formatDate(r.createdAt, true)}</span>
             </div>
@@ -99,12 +97,12 @@ export function LogList({ items, showWorkspace = false }: { items: LogItem[]; sh
               <span>{r.actor ? `${r.actor.name} <${r.actor.email}>` : 'System'}</span>
               {r.ip && <span>{r.ip}</span>}
               {hasMeta && (
-                <button className="text-brand-700 hover:underline" onClick={() => setOpen(open === r.id ? null : r.id)}>
+                <button className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900" onClick={() => setOpen(open === r.id ? null : r.id)}>
                   {open === r.id ? 'Hide details' : 'Details'}
                 </button>
               )}
             </div>
-            {open === r.id && <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-50 p-2 text-[11px] text-slate-700">{JSON.stringify(r.metadata, null, 2)}</pre>}
+            {open === r.id && <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-200">{JSON.stringify(r.metadata, null, 2)}</pre>}
           </li>
         );
       })}

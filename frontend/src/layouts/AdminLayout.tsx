@@ -1,7 +1,8 @@
-import { Activity, ArrowLeftRight, Building2, History, LayoutDashboard, Layers, LogOut, Menu, Settings2, Users, X, type LucideIcon } from 'lucide-react';
+import { Activity, ArrowLeftRight, Building2, FileText, History, LayoutDashboard, Layers, LifeBuoy, LogOut, Menu, Scale, Settings2, Users, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
+import { ConfirmProvider } from '../components/admin';
 import { initials } from '../components/crm';
 import { Logo } from '../components/Logo';
 import { cn } from '../components/ui';
@@ -25,6 +26,14 @@ const NAV: { section: string; items: NavItem[] }[] = [
   },
   { section: 'Billing', items: [{ to: 'plans', label: 'Plans', icon: Layers }] },
   {
+    section: 'Content',
+    items: [
+      { to: 'content/privacy', label: 'Privacy policy', icon: FileText },
+      { to: 'content/terms', label: 'Terms of service', icon: Scale },
+      { to: 'content/support', label: 'Support page', icon: LifeBuoy },
+    ],
+  },
+  {
     section: 'Platform',
     items: [
       { to: 'operations', label: 'Operations', icon: Activity },
@@ -41,6 +50,7 @@ export function AdminLayout() {
   if (!user?.isPlatformAdmin) return <Navigate to="/" replace />;
 
   return (
+    <ConfirmProvider>
     <div className="flex h-full">
       {mobileOpen && <div className="fixed inset-0 z-30 bg-slate-900/60 lg:hidden" onClick={() => setMobileOpen(false)} />}
       <Sidebar open={mobileOpen} onNavigate={() => setMobileOpen(false)} />
@@ -59,6 +69,7 @@ export function AdminLayout() {
         </main>
       </div>
     </div>
+    </ConfirmProvider>
   );
 }
 

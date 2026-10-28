@@ -1,6 +1,7 @@
 import { BadgeCheck, Bot, CheckCheck, Lock, Megaphone, MessagesSquare, ShieldCheck, ShieldHalf } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Logo } from '../components/Logo';
+import { LegalLinks } from '../pages/PublicPage';
 
 const FEATURES = [
   { icon: MessagesSquare, title: 'One shared team inbox', text: 'Every WhatsApp chat in one place, assigned to the right person.' },
@@ -50,6 +51,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
             <div className="mt-7">{children}</div>
           </div>
           {footer && <div className="mt-6 text-center text-sm text-slate-500">{footer}</div>}
+          <LegalLinks className="mt-6 justify-center" />
         </div>
       </main>
     </div>

@@ -139,3 +139,24 @@ describe('platform admin superpowers', () => {
     await api().patch('/api/admin/settings').set(asAdmin).send({ maintenanceMode: false, signupsEnabled: true }).expect(200);
   });
 });
+
+describe('privacy, terms and support pages', () => {
+  it('serves editable public pages and hides unpublished ones', async () => {
+    const admin = await signup();
+    await User.updateOne({ email: admin.email }, { isPlatformAdmin: true });
+    const asAdmin = { Authorization: `Bearer ${admin.token}` };
+
+    const privacy = await api().get('/api/pages/privacy').expect(200);
+    expect(privacy.body.page).toMatchObject({ slug: 'privacy', title: 'Privacy Policy', contact: null });
+    await api().get('/api/pages/nope').expect(404);
+
+    await api().put('/api/admin/pages/support').set(asAdmin).send({ content: '## Help', contact: { email: 'help@zeta.test', phone: '' } }).expect(200);
+    const support = await api().get('/api/pages/support').expect(200);
+    expect(support.body.page).toMatchObject({ content: '## Help', contact: { email: 'help@zeta.test', phone: null } });
+
+    await api().put('/api/admin/pages/terms').set(asAdmin).send({ published: false }).expect(200);
+    await api().get('/api/pages/terms').expect(404);
+    expect((await api().get('/api/admin/pages').set(asAdmin).expect(200)).body.pages).toHaveLength(3);
+    await api().put('/api/admin/pages/terms').send({ published: true }).expect(401);
+  });
+});
