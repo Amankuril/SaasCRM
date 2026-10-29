@@ -172,7 +172,7 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
 
   return (
     <>
-      <section className={cn(card, '@container flex flex-1 md:min-w-80')}>
+      <section className={cn(card, '@container flex flex-1 md:min-w-[260px]')}>
         <header className="flex items-center gap-1.5 border-b border-slate-200 px-2.5 py-2.5 @sm:gap-2 @md:gap-3 @md:px-4">
           <button type="button" onClick={onBack} className={cn(iconBtn, 'md:hidden')} aria-label="Back to chats">
             <ArrowLeft className="size-5" />
@@ -273,7 +273,7 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
           <PanelResizeHandle side="right" width={layout.contactWidth} min={300} max={520} fallback={360} onChange={layout.onContactWidth} label="Resize contact info" />
           <aside
             aria-label="Contact info"
-            className="fixed inset-y-3 right-3 z-40 flex w-[min(360px,calc(100vw-1.5rem))] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl xl:static xl:z-auto xl:w-(--contact-w) xl:min-w-[300px] xl:shrink xl:shadow-none"
+            className="fixed inset-y-3 right-3 z-40 flex w-[min(360px,calc(100vw-1.5rem))] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl xl:static xl:z-auto xl:w-(--contact-w) xl:min-w-[260px] xl:shrink xl:shadow-none"
             style={{ '--contact-w': `${layout.contactWidth ?? 360}px` } as CSSProperties}
           >
             <ContactPanel conv={conv} contact={contact} writable={writable} onUpdate={(b) => update.mutate(b)} onClose={layout.onToggleContact} />

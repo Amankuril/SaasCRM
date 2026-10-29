@@ -30,19 +30,37 @@ export function PanelResizeHandle({
   // The card's live width is the starting point until the user has set one.
   const current = () => width ?? target()?.getBoundingClientRect().width ?? fallback;
   const sign = side === 'left' ? 1 : -1;
+  /**
+   * Widest the card can get right now: its width plus whatever the other flexible cards
+   * can still give up above their minimum widths, so nothing is pushed off-screen.
+   */
+  const roomMax = () => {
+    const el = target();
+    const row = el?.parentElement;
+    if (!el || !row) return max;
+    let room = 0;
+    for (const sib of Array.from(row.children) as HTMLElement[]) {
+      if (sib === el || sib.getAttribute('role') === 'separator') continue;
+      const cs = getComputedStyle(sib);
+      if (cs.position === 'fixed' || cs.display === 'none' || (parseFloat(cs.flexShrink) === 0 && parseFloat(cs.flexGrow) === 0)) continue;
+      room += Math.max(0, sib.getBoundingClientRect().width - (parseFloat(cs.minWidth) || 0));
+    }
+    return Math.max(min, Math.min(max, el.getBoundingClientRect().width + room));
+  };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
     const startW = current();
+    const limit = roomMax();
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
     setDragging(true);
     // Keep the resize cursor and stop text selection everywhere while dragging.
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    const move = (ev: PointerEvent) => onChange(clamp(startW + sign * (ev.clientX - startX)));
+    const move = (ev: PointerEvent) => onChange(Math.min(limit, clamp(startW + sign * (ev.clientX - startX))));
     const up = () => {
       setDragging(false);
       document.body.style.cursor = '';
@@ -72,7 +90,7 @@ export function PanelResizeHandle({
       onKeyDown={(e) => {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
-          onChange(clamp(current() + sign * (e.key === 'ArrowRight' ? 16 : -16)));
+          onChange(Math.min(roomMax(), clamp(current() + sign * (e.key === 'ArrowRight' ? 16 : -16))));
         }
       }}
       // Sits in the 12px gap between the cards without changing the spacing.

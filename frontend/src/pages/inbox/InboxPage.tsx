@@ -80,7 +80,12 @@ export function InboxPage() {
     else next.delete('c');
     setParams(next, { replace: true });
   };
+  // With a chat open on smaller screens the menu starts as icons; its button still expands it.
+  const [chatNavCollapsed, setChatNavCollapsed] = useState(true);
+  const autoCompact = !!selected && !wide;
+  const navCollapsed = autoCompact ? chatNavCollapsed : collapsed;
   const toggleNav = () => {
+    if (autoCompact) return setChatNavCollapsed(!chatNavCollapsed);
     setCollapsed(!collapsed);
     try {
       localStorage.setItem(NAV_KEY, collapsed ? '0' : '1');
@@ -104,7 +109,7 @@ export function InboxPage() {
 
   return (
     <div className="flex h-full min-h-0 gap-3 bg-slate-100 p-3">
-      <InboxNav section={section} collapsed={collapsed || (!!selected && !wide)} onToggle={toggleNav} onGo={go} onCallLogs={() => setCallLogs(true)} />
+      <InboxNav section={section} collapsed={navCollapsed} onToggle={toggleNav} onGo={go} onCallLogs={() => setCallLogs(true)} />
 
       {list ? (
         <>
@@ -112,7 +117,7 @@ export function InboxPage() {
           {!(selected && listHidden) && (
             <>
               <section
-                className={cn('flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white md:shrink-0', listWidth ? 'md:w-(--list-w)' : 'md:w-80 2xl:w-96', selected && 'hidden md:flex')}
+                className={cn('flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white md:min-w-[220px] md:shrink', listWidth ? 'md:w-(--list-w)' : 'md:w-80 2xl:w-96', selected && 'hidden md:flex')}
                 style={listWidth ? ({ '--list-w': `${listWidth}px` } as CSSProperties) : undefined}
               >
                 <ChatList key={list} list={list} selected={selected} onSelect={select} />
