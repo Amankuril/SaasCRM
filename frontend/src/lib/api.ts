@@ -388,6 +388,8 @@ export interface Contact {
   source: string | null;
   attribution: { source: ChatSource; campaignId: string | null; campaignName: string | null; adTitle: string | null; at: string | null } | null;
   lastInboundAt: string | null;
+  /** Blocked from the inbox: no alerts or automations, nothing can be sent. */
+  blocked: boolean;
   createdAt: string;
 }
 
@@ -411,6 +413,11 @@ export interface ConversationSummary {
   lastMessagePreview: string | null;
   lastMessageDirection: 'inbound' | 'outbound' | null;
   serviceWindowOpen: boolean;
+  /** When the 24-hour customer service window closes. */
+  serviceWindowEndsAt: string | null;
+  /** AI agent in this chat: answers itself, only suggests, or stays out. */
+  aiMode: 'auto' | 'copilot' | 'off';
+  openedAt: string;
   contact: { id: string; phone: string; name: string; tags: string[] } | null;
   assignee: { id: string; name: string } | null;
 }
@@ -1081,4 +1088,16 @@ export interface CannedReply {
   body: string;
   useCount: number;
   updatedAt: string;
+}
+
+export interface JourneyItem {
+  at: string;
+  type: string;
+  title: string;
+  detail?: string | null;
+}
+
+export interface ContactJourney {
+  items: JourneyItem[];
+  stageHistory: { at: string; from: string | null; to: string | null; fromName: string; toName: string; by: string | null }[];
 }

@@ -51,6 +51,14 @@ const replySchema = z.discriminatedUnion('type', [
     buttonParams: buttonParamsSchema,
     extras: templateExtrasSchema.default({}),
   }),
+  // A file uploaded first through POST /messages/media.
+  z.object({
+    type: z.literal('media'),
+    mediaType: z.enum(['image', 'video', 'document', 'audio']),
+    id: z.string().min(1).max(200),
+    caption: z.string().trim().max(1024).optional(),
+    filename: z.string().trim().max(240).optional(),
+  }),
 ]);
 
 const updateSchema = z
@@ -60,6 +68,7 @@ const updateSchema = z
     priority: z.enum(['normal', 'high']),
     botPaused: z.boolean(),
     snoozedUntil: z.string().datetime().nullable(),
+    aiMode: z.enum(['auto', 'copilot', 'off']),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
@@ -407,7 +416,7 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
     if (!unchanged) await assign(req, conv, target);
   }
 
-  if ((input.status || input.priority || input.botPaused !== undefined || input.snoozedUntil !== undefined) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
+  if ((input.status || input.priority || input.botPaused !== undefined || input.snoozedUntil !== undefined || input.aiMode) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
   if (input.status && input.status !== conv.status) await setStatus(req, conv, input.status);
   if (input.snoozedUntil !== undefined) {
     if (input.snoozedUntil && new Date(input.snoozedUntil) <= new Date()) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { snoozedUntil: ['Pick a time in the future.'] });
@@ -415,6 +424,7 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
   }
   const resolvedNow = input.status === 'resolved' && conv.isModified('status');
   if (input.priority) conv.priority = input.priority;
+  if (input.aiMode) conv.aiMode = input.aiMode;
   if (input.botPaused !== undefined) {
     conv.botPaused = input.botPaused;
     if (!input.botPaused) conv.awaitingHuman = false;
@@ -514,6 +524,9 @@ async function serializeMany(workspaceId: Types.ObjectId, conversations: Convers
       lastMessageDirection: c.lastMessageDirection,
       // The 24h window decides whether free text is allowed.
       serviceWindowOpen: contact ? isInServiceWindow(contact) : false,
+      serviceWindowEndsAt: contact?.lastInboundAt ? new Date(contact.lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null,
+      aiMode: c.aiMode ?? 'auto',
+      openedAt: c.openedAt,
       contact: contact
         ? { id: contact._id.toString(), phone: contact.phoneE164, name: contact.name || contact.profileName || contact.phoneE164, tags: (contact.tags ?? []).map(String) }
         : null,

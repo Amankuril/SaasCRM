@@ -22,6 +22,7 @@ import { CUSTOM_FIELD_TYPES, CustomField, toPublicCustomField } from './customFi
 import { FollowUp, toPublicFollowUp } from './followUp.model.js';
 import { PipelineStage, STAGE_COLORS, toPublicStage } from './stage.model.js';
 import { ENTRY_STAGE, assertStage, listStages, slugifyStage, stageKeySchema } from './stage.service.js';
+import { ContactEvent } from '../contacts/contactEvent.model.js';
 
 const objectIdString = z.string().regex(/^[a-f0-9]{24}$/);
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -189,10 +190,16 @@ audienceRouter.post('/bulk', requirePermission('contacts:manage'), async (req, r
   const filter = { workspaceId, _id: { $in: input.contactIds.map((id) => new Types.ObjectId(id)) } };
   let updated = 0;
   switch (input.action) {
-    case 'set_stage':
+    case 'set_stage': {
       await assertStage(workspaceId, input.stage, 'stage');
+      // Record the stage history of the contacts that actually move.
+      const moving = await Contact.find({ ...filter, lifecycleStage: { $ne: input.stage } }).select('_id lifecycleStage').lean();
       updated = (await Contact.updateMany(filter, { lifecycleStage: input.stage })).modifiedCount;
+      if (moving.length) {
+        await ContactEvent.insertMany(moving.map((c) => ({ workspaceId: req.workspace!._id, contactId: c._id, type: 'stage_changed', from: c.lifecycleStage, to: input.stage, byUserId: req.user!._id })));
+      }
       break;
+    }
     case 'add_tags':
     case 'remove_tags': {
       const tags = await Tag.find({ workspaceId, _id: { $in: input.tagIds } }).select('_id').lean();

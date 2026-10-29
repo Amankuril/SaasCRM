@@ -89,6 +89,8 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
     if ((err as { code?: number }).code === 11000) return;
     throw err;
   }
+  // Blocked contacts: keep the message for the record, but no unread badge, reopening or automations.
+  if (contact.blocked) return;
   await recordInboundOnConversation(workspaceId, contact._id, messagePreview(event.type, event.content), event.timestamp);
   await applyConsentKeyword(workspaceId, contact._id, event);
 

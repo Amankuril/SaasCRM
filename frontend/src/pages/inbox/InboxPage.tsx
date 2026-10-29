@@ -1,11 +1,12 @@
 import { Bot, ChevronDown, Inbox, MessageSquare, PanelLeftClose, PanelLeftOpen, Phone, Users, Wrench } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { cn } from '../../components/ui';
 import { CallLogsDialog, ComingSoonPanel, InstagramIcon } from './ComingSoon';
 import { ChatList } from './ChatList';
 import { ChatTools } from './ChatTools';
 import { ConversationPanel } from './ConversationPanel';
+import { PanelResizeHandle } from './PanelResizeHandle';
 import { InboxHome } from './InboxHome';
 import { ShortcutsDialog } from './Shortcuts';
 import { NAV_LISTS, type NavList } from './navLists';
@@ -15,10 +16,34 @@ type Section = NavList | 'tools' | 'groups' | 'instagram';
 
 const NAV_KEY = 'zc.inbox.navCollapsed';
 const LIST_WIDTH_KEY = 'zc.inbox.listWidth';
+const CONTACT_WIDTH_KEY = 'zc.inbox.contactWidth';
+const CONTACT_OPEN_KEY = 'zc.inbox.contactOpen';
+const LIST_HIDDEN_KEY = 'zc.inbox.listHidden';
 /** The chat list can be dragged between these widths (px). */
 const LIST_MIN = 280;
 const LIST_MAX = 560;
-const clampWidth = (w: number) => Math.round(Math.min(LIST_MAX, Math.max(LIST_MIN, w)));
+
+/** A per-browser UI preference kept in localStorage (private windows just don't remember it). */
+function usePref<T>(key: string, parse: (raw: string | null) => T): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      return parse(localStorage.getItem(key));
+    } catch {
+      return parse(null);
+    }
+  });
+  const save = (v: T) => {
+    setValue(v);
+    try {
+      if (v === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(v));
+    } catch {
+      /* per-browser preference only */
+    }
+  };
+  return [value, save];
+}
+const widthPref = (min: number, max: number) => (raw: string | null) => (raw && Number(raw) ? Math.min(max, Math.max(min, Number(raw))) : null);
 
 export function InboxPage() {
   const [params, setParams] = useSearchParams();
@@ -32,24 +57,12 @@ export function InboxPage() {
     }
   });
   const [callLogs, setCallLogs] = useState(false);
-  // Null until the user drags: the list then keeps its default responsive width.
-  const [listWidth, setListWidth] = useState<number | null>(() => {
-    try {
-      const saved = Number(localStorage.getItem(LIST_WIDTH_KEY));
-      return saved ? clampWidth(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const saveListWidth = (w: number | null) => {
-    setListWidth(w);
-    try {
-      if (w === null) localStorage.removeItem(LIST_WIDTH_KEY);
-      else localStorage.setItem(LIST_WIDTH_KEY, String(w));
-    } catch {
-      /* per-browser preference only */
-    }
-  };
+  // Widths are null until the user drags: the cards then keep their default responsive widths.
+  const [listWidth, saveListWidth] = usePref(LIST_WIDTH_KEY, widthPref(LIST_MIN, LIST_MAX));
+  const [contactWidth, saveContactWidth] = usePref(CONTACT_WIDTH_KEY, widthPref(300, 520));
+  // Contact Info starts open where it fits beside the chat.
+  const [contactOpen, saveContactOpen] = usePref(CONTACT_OPEN_KEY, (raw) => (raw === null ? window.matchMedia('(min-width: 1280px)').matches : raw === 'true'));
+  const [listHidden, saveListHidden] = usePref(LIST_HIDDEN_KEY, (raw) => raw === 'true');
   // With a chat open, smaller screens keep the menu as icons so the conversation has room.
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1600px)').matches);
   useEffect(() => {
@@ -95,16 +108,38 @@ export function InboxPage() {
 
       {list ? (
         <>
-          <section
-            className={cn('flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white md:shrink-0', listWidth ? 'md:w-(--list-w)' : 'md:w-80 2xl:w-96', selected && 'hidden md:flex')}
-            style={listWidth ? ({ '--list-w': `${listWidth}px` } as CSSProperties) : undefined}
-          >
-            <ChatList key={list} list={list} selected={selected} onSelect={select} />
-          </section>
-          <ResizeHandle width={listWidth} onChange={saveListWidth} />
-          <section className={cn('min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white', selected ? 'flex' : 'hidden md:flex')}>
-            {selected ? <ConversationPanel key={selected} id={selected} onBack={() => select(null)} /> : <InboxHome ai={list === 'ai'} onShortcuts={() => setShortcuts(true)} />}
-          </section>
+          {/* The chat header's left button hides the list while a chat is open. */}
+          {!(selected && listHidden) && (
+            <>
+              <section
+                className={cn('flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white md:shrink-0', listWidth ? 'md:w-(--list-w)' : 'md:w-80 2xl:w-96', selected && 'hidden md:flex')}
+                style={listWidth ? ({ '--list-w': `${listWidth}px` } as CSSProperties) : undefined}
+              >
+                <ChatList key={list} list={list} selected={selected} onSelect={select} />
+              </section>
+              <PanelResizeHandle side="left" width={listWidth} min={LIST_MIN} max={LIST_MAX} fallback={320} onChange={saveListWidth} label="Resize chat list" />
+            </>
+          )}
+          {selected ? (
+            <ConversationPanel
+              key={selected}
+              id={selected}
+              onBack={() => select(null)}
+              layout={{
+                listHidden,
+                onToggleList: () => saveListHidden(!listHidden),
+                contactOpen,
+                onToggleContact: () => saveContactOpen(!contactOpen),
+                contactWidth,
+                onContactWidth: saveContactWidth,
+                onShortcuts: () => setShortcuts(true),
+              }}
+            />
+          ) : (
+            <section className="hidden min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white md:flex">
+              <InboxHome ai={list === 'ai'} onShortcuts={() => setShortcuts(true)} />
+            </section>
+          )}
         </>
       ) : section === 'tools' ? (
         <section className="min-w-0 flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white">
@@ -186,66 +221,3 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
   );
 }
 
-/**
- * Drag handle in the gap right of the chat list. Drag (or use the arrow keys) to
- * widen or narrow the list within LIST_MIN–LIST_MAX; double-click restores the default.
- */
-function ResizeHandle({ width, onChange }: { width: number | null; onChange: (w: number | null) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState(false);
-  // The list is the element just before the handle; its live width is the starting point.
-  const current = () => width ?? (ref.current?.previousElementSibling as HTMLElement | null)?.getBoundingClientRect().width ?? 320;
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = current();
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
-    setDragging(true);
-    // Keep the resize cursor and stop text selection everywhere while dragging.
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    const move = (ev: PointerEvent) => onChange(clampWidth(startW + ev.clientX - startX));
-    const up = () => {
-      setDragging(false);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
-    };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-  };
-
-  const w = Math.round(current());
-  return (
-    <div
-      ref={ref}
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize chat list"
-      aria-valuemin={LIST_MIN}
-      aria-valuemax={LIST_MAX}
-      aria-valuenow={w}
-      tabIndex={0}
-      title="Drag to resize · double-click to reset"
-      onPointerDown={onPointerDown}
-      onDoubleClick={() => onChange(null)}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-          e.preventDefault();
-          onChange(clampWidth(current() + (e.key === 'ArrowRight' ? 16 : -16)));
-        }
-      }}
-      // Sits in the 12px gap between the cards without changing the spacing.
-      className="group relative -mx-[9px] hidden w-1.5 shrink-0 cursor-col-resize touch-none items-center justify-center focus:outline-none md:flex"
-    >
-      <span className={cn('h-full w-0.5 rounded-full transition-colors', dragging ? 'bg-brand-500' : 'bg-transparent group-hover:bg-slate-300 group-focus-visible:bg-brand-500')} />
-      <span className={cn('absolute h-8 w-1.5 rounded-full transition-colors', dragging ? 'bg-brand-500' : 'bg-slate-300 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100')} />
-    </div>
-  );
-}

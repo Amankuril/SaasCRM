@@ -182,7 +182,7 @@ export async function autoReply(workspace: WorkspaceDoc, contact: ContactDoc, me
   if (!agent?.enabled || !agent.autoReply || !message.text.trim()) return false;
 
   const conv = await Conversation.findOne({ workspaceId: workspace._id, contactId: contact._id });
-  if (!conv || conv.botPaused) return false;
+  if (!conv || conv.botPaused || (conv.aiMode ?? 'auto') !== 'auto') return false;
   if (conv.aiReplyCount >= agent.maxRepliesPerConversation) {
     await AiUsage.create({ workspaceId: workspace._id, conversationId: conv._id, purpose: 'auto_reply', provider: aiProvider().name, model: agent.model, outcome: 'capped' });
     await handOff(workspace, contact, `Reached the limit of ${agent.maxRepliesPerConversation} automatic replies in this conversation.`, agent.handoffMessage);

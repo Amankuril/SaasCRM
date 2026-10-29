@@ -132,3 +132,52 @@ describe('canned replies', () => {
     expect((await api().get(base).set(auth(owner))).body.replies).toHaveLength(1);
   });
 });
+
+describe('chat contact panel', () => {
+  it('blocks a contact: no alerts or automations from them, and nothing can be sent', async () => {
+    const { owner, ws, base, a } = await setup();
+    const contactId = (await api().get(`${base}/${a}`).set(auth(owner))).body.conversation.contact.id;
+    const contacts = `/api/workspaces/${ws.id}/contacts`;
+    const res = await api().patch(`${contacts}/${contactId}`).set(auth(owner)).send({ blocked: true }).expect(200);
+    expect(res.body.contact.blocked).toBe(true);
+    await api().post(`${base}/${a}/read`).set(auth(owner)).expect(204);
+
+    await inbound('919811100001', 'Hello again?');
+    const conv = (await api().get(`${base}/${a}`).set(auth(owner))).body.conversation;
+    expect(conv.unreadCount).toBe(0);
+    expect(conv.lastMessagePreview).not.toBe('Hello again?');
+    const sent = await api().post(`${base}/${a}/messages`).set(auth(owner)).send({ type: 'text', text: 'hi' }).expect(422);
+    expect(sent.body.error.code).toBe('CONTACT_BLOCKED');
+
+    await api().patch(`${contacts}/${contactId}`).set(auth(owner)).send({ blocked: false }).expect(200);
+    const journey = (await api().get(`${contacts}/${contactId}/journey`).set(auth(owner)).expect(200)).body;
+    expect(journey.items.map((i: { type: string }) => i.type)).toEqual(expect.arrayContaining(['unblocked', 'blocked', 'first_message', 'created']));
+  });
+
+  it('keeps stage history and a chat journey with tickets, follow-ups and resolved chats', async () => {
+    const { owner, ws, base, a } = await setup();
+    const contactId = (await api().get(`${base}/${a}`).set(auth(owner))).body.conversation.contact.id;
+    const w = `/api/workspaces/${ws.id}`;
+    const stages = (await api().get(`${w}/pipeline-stages`).set(auth(owner))).body.stages as { key: string; name: string }[];
+    await api().patch(`${w}/contacts/${contactId}`).set(auth(owner)).send({ lifecycleStage: stages[1]!.key }).expect(200);
+    await api().post(`${w}/tasks`).set(auth(owner)).send({ title: 'Refund request', type: 'ticket', contactId }).expect(201);
+    await api().post(`${w}/follow-ups`).set(auth(owner)).send({ contactId, dueAt: new Date(Date.now() + 86_400_000).toISOString(), note: 'Call back' }).expect(201);
+    await api().patch(`${base}/${a}`).set(auth(owner)).send({ status: 'resolved' }).expect(200);
+
+    const journey = (await api().get(`${w}/contacts/${contactId}/journey`).set(auth(owner)).expect(200)).body;
+    expect(journey.stageHistory).toEqual([expect.objectContaining({ from: stages[0]!.key, to: stages[1]!.key, toName: stages[1]!.name, by: expect.any(String) })]);
+    const titles = journey.items.map((i: { title: string }) => i.title);
+    expect(titles).toEqual(expect.arrayContaining([`Stage: ${stages[0]!.name} → ${stages[1]!.name}`, 'Ticket #1: Refund request', 'Chat resolved']));
+    expect(titles.some((t: string) => t.startsWith('Follow-up for'))).toBe(true);
+  });
+
+  it('switches the AI agent per chat and sends uploaded files', async () => {
+    const { owner, base, a } = await setup();
+    const conv = (await api().patch(`${base}/${a}`).set(auth(owner)).send({ aiMode: 'copilot' }).expect(200)).body.conversation;
+    expect(conv).toMatchObject({ aiMode: 'copilot', serviceWindowEndsAt: expect.any(String) });
+    await api().patch(`${base}/${a}`).set(auth(owner)).send({ aiMode: 'nope' }).expect(400);
+
+    await api().post(`${base}/${a}/messages`).set(auth(owner)).send({ type: 'media', mediaType: 'document', id: 'media-123', filename: 'price-list.pdf', caption: 'Our prices' }).expect(202);
+    expect(fake.sent.at(-1)!.message).toMatchObject({ type: 'media' });
+  });
+});

@@ -25,6 +25,8 @@ const contactSchema = new Schema(
       updatedAt: { type: Date, default: null },
     },
     externalId: { type: String, trim: true, maxlength: 200, default: null },
+    // Blocked from the inbox: their messages are kept but raise no alerts or automations, and nothing is sent to them.
+    blocked: { type: Boolean, default: false },
     // Drives the 24-hour customer service window.
     lastInboundAt: { type: Date, default: null },
     lastOutboundAt: { type: Date, default: null },
@@ -67,6 +69,7 @@ export function toPublicContact(c: ContactDoc | (InferSchemaType<typeof contactS
     customFields: (c.customFields ?? {}) as Record<string, string>,
     consent: { status: c.consent?.status ?? 'unknown', source: c.consent?.source ?? null, updatedAt: c.consent?.updatedAt ?? null },
     externalId: c.externalId ?? null,
+    blocked: !!c.blocked,
     source: c.source ?? null,
     attribution: c.attribution?.source
       ? {

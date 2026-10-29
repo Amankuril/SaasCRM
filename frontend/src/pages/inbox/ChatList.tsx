@@ -143,7 +143,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
             ))}
           </div>
         ) : (
-          <div className="flex overflow-x-auto border-b border-slate-200 text-sm">
+          <div className="flex overflow-x-auto border-b border-slate-200 text-sm [scrollbar-width:none]">
             {(
               [
                 ['active', 'Active', 'Customer wrote in the last 24 hours: reply freely'],

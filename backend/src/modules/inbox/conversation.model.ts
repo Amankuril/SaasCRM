@@ -21,6 +21,8 @@ const conversationSchema = new Schema(
     botPaused: { type: Boolean, default: false },
     // Automatic AI replies since the conversation was last opened (capped per agent settings).
     aiReplyCount: { type: Number, default: 0 },
+    // AI agent in this chat: `auto` answers by itself, `copilot` only suggests replies to the agent, `off` stays out.
+    aiMode: { type: String, enum: ['auto', 'copilot', 'off'], default: 'auto' },
     // First time the AI agent answered in this chat: puts it in the inbox's "AI chats".
     aiTouchedAt: { type: Date, default: null },
     // Who handed the chat to a person (AI agent or a flow), shown as "Waiting for a person" until someone replies.

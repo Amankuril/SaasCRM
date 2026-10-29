@@ -20,6 +20,16 @@ import { ContactList } from './contactList.model.js';
 import { Tag } from './tag.model.js';
 import { csvCell } from '../../lib/csv.js';
 import { deleteContactsData } from '../audience/audience.service.js';
+import { ContactEvent } from './contactEvent.model.js';
+import { ConversationCycle } from '../analytics/analytics.model.js';
+import { Appointment } from '../appointments/appointment.model.js';
+import { FollowUp } from '../audience/followUp.model.js';
+import { listStages } from '../audience/stage.service.js';
+import { User } from '../auth/user.model.js';
+import { Campaign, CampaignRecipient } from '../campaigns/campaign.model.js';
+import { Form, FormSubmission } from '../forms/form.model.js';
+import { Message } from '../messages/message.model.js';
+import { Task } from '../tasks/task.model.js';
 
 const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
@@ -52,6 +62,7 @@ const updateSchema = z
     phone: z.string().trim().min(5).max(30),
     // Changes only the given custom fields (null clears one); `customFields` replaces them all.
     customFieldPatch: z.record(z.string().regex(/^[a-z0-9_]{1,40}$/), z.string().max(500).nullable()),
+    blocked: z.boolean(),
   })
   .partial().refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
 
@@ -169,6 +180,60 @@ contactRouter.get('/:contactId', requirePermission('workspace:read'), async (req
   });
 });
 
+/**
+ * "Chat journey": everything that happened with this contact, newest first —
+ * stage changes, chats resolved, broadcasts, forms, tickets, follow-ups and bookings.
+ */
+contactRouter.get('/:contactId/journey', requirePermission('workspace:read'), async (req, res) => {
+  const workspaceId = req.workspace!._id;
+  const contact = await findContact(workspaceId, req.params.contactId);
+  const contactId = contact._id;
+  const conv = await Conversation.findOne({ workspaceId, contactId }).select('_id').lean();
+  const [events, firstMessage, recipients, forms, tasks, followUps, appointments, cycles] = await Promise.all([
+    ContactEvent.find({ workspaceId, contactId }).sort({ createdAt: -1 }).limit(100).lean(),
+    Message.findOne({ workspaceId, contactId, direction: 'inbound' }).sort({ createdAt: 1 }).select('createdAt').lean(),
+    CampaignRecipient.find({ workspaceId, contactId, status: { $nin: ['pending', 'skipped'] } }).sort({ createdAt: -1 }).limit(50).select('campaignId status createdAt repliedAt').lean(),
+    FormSubmission.find({ workspaceId, contactId }).sort({ submittedAt: -1 }).limit(50).select('formId submittedAt valid').lean(),
+    Task.find({ workspaceId, contactId }).sort({ createdAt: -1 }).limit(50).select('number title type createdAt completedAt').lean(),
+    FollowUp.find({ workspaceId, contactId }).sort({ createdAt: -1 }).limit(50).select('dueAt note status createdAt').lean(),
+    Appointment.find({ workspaceId, contactId }).sort({ createdAt: -1 }).limit(50).select('service startAt status createdAt').lean(),
+    conv ? ConversationCycle.find({ workspaceId, conversationId: conv._id }).sort({ resolvedAt: -1 }).limit(50).select('resolvedAt assigneeId').lean() : [],
+  ]);
+  const [campaigns, formDocs, users, stages] = await Promise.all([
+    Campaign.find({ workspaceId, _id: { $in: recipients.map((r) => r.campaignId) } }).select('name').lean(),
+    Form.find({ workspaceId, _id: { $in: forms.map((f) => f.formId) } }).select('name').lean(),
+    User.find({ _id: { $in: [...events.map((e) => e.byUserId), ...cycles.map((c) => c.assigneeId)].filter(Boolean) } }).select('name').lean(),
+    listStages(workspaceId),
+  ]);
+  const name = (map: { _id: unknown; name: string }[], id: unknown) => map.find((x) => String(x._id) === String(id))?.name;
+  const stageName = (key: string | null | undefined) => stages.find((st) => st.key === key)?.name ?? key ?? '';
+
+  type Item = { at: Date; type: string; title: string; detail?: string | null };
+  const items: Item[] = [
+    { at: contact.createdAt, type: 'created', title: 'Became a contact', detail: contact.source ? `Source: ${contact.source.replace(/_/g, ' ')}` : null },
+    ...(firstMessage ? [{ at: firstMessage.createdAt, type: 'first_message', title: 'First message on WhatsApp' }] : []),
+    ...(contact.attribution?.source && contact.attribution.at
+      ? [{ at: contact.attribution.at, type: 'attribution', title: contact.attribution.source === 'ad' ? 'Came from an ad' : contact.attribution.source === 'broadcast' ? 'Replied to a broadcast' : 'Started the chat', detail: contact.attribution.adTitle ?? contact.attribution.campaignName }]
+      : []),
+    ...events.map((e) => ({
+      at: e.createdAt,
+      type: e.type,
+      title: e.type === 'stage_changed' ? `Stage: ${stageName(e.from)} → ${stageName(e.to)}` : e.type === 'blocked' ? 'Blocked' : 'Unblocked',
+      detail: e.byUserId ? `by ${name(users, e.byUserId) ?? 'a teammate'}` : null,
+    })),
+    ...recipients.map((r) => ({ at: r.createdAt, type: 'broadcast', title: `Broadcast: ${name(campaigns, r.campaignId) ?? 'campaign'}`, detail: r.repliedAt ? 'Replied' : r.status })),
+    ...forms.map((f) => ({ at: f.submittedAt, type: 'form', title: `Submitted form: ${name(formDocs, f.formId) ?? 'form'}`, detail: f.valid ? null : 'Had problems' })),
+    ...tasks.map((t) => ({ at: t.createdAt, type: 'ticket', title: `${t.type === 'ticket' ? 'Ticket' : 'Task'} #${t.number}: ${t.title}`, detail: t.completedAt ? 'Done' : 'Open' })),
+    ...followUps.map((f) => ({ at: f.createdAt, type: 'follow_up', title: `Follow-up for ${f.dueAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, detail: f.note || (f.status === 'done' ? 'Done' : null) })),
+    ...appointments.map((a) => ({ at: a.createdAt, type: 'appointment', title: `Booked: ${a.service}`, detail: a.status.replace('_', ' ') })),
+    ...cycles.map((c) => ({ at: c.resolvedAt, type: 'resolved', title: 'Chat resolved', detail: c.assigneeId ? `by ${name(users, c.assigneeId) ?? 'a teammate'}` : null })),
+  ];
+  const stageHistory = events
+    .filter((e) => e.type === 'stage_changed')
+    .map((e) => ({ at: e.createdAt, from: e.from, to: e.to, fromName: stageName(e.from), toName: stageName(e.to), by: e.byUserId ? (name(users, e.byUserId) ?? null) : null }));
+  res.json({ items: items.filter((i) => i.at).sort((a, b) => b.at.getTime() - a.at.getTime()), stageHistory });
+});
+
 contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (req, res) => {
   const input = parse(updateSchema, req.body);
   const workspaceId = req.workspace!._id;
@@ -182,9 +247,15 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
   }
   if (input.name !== undefined) contact.name = input.name || null;
   if (input.email !== undefined) contact.email = input.email;
+  const events: { type: 'stage_changed' | 'blocked' | 'unblocked'; from?: string; to?: string }[] = [];
   if (input.lifecycleStage) {
     await assertStage(workspaceId, input.lifecycleStage);
+    if (input.lifecycleStage !== contact.lifecycleStage) events.push({ type: 'stage_changed', from: contact.lifecycleStage, to: input.lifecycleStage });
     contact.lifecycleStage = input.lifecycleStage;
+  }
+  if (input.blocked !== undefined && input.blocked !== !!contact.blocked) {
+    contact.blocked = input.blocked;
+    events.push({ type: input.blocked ? 'blocked' : 'unblocked' });
   }
   let addedTags: Types.ObjectId[] = [];
   if (input.tags) {
@@ -207,6 +278,7 @@ contactRouter.patch('/:contactId', requirePermission('contacts:manage'), async (
     contact.consent = { status: input.consentStatus, source: 'manual', updatedAt: new Date() };
   }
   await contact.save();
+  if (events.length) await ContactEvent.insertMany(events.map((e) => ({ workspaceId, contactId: contact._id, byUserId: req.user!._id, ...e })));
   await onTagsAdded(workspaceId, contact._id, addedTags);
   if (optedOut) await emitEvent(workspaceId, 'contact.opted_out', async () => ({ contact: await contactPayload(workspaceId, contact._id), source: 'manual' }));
   publish(req.workspace!.id as string, { type: 'contacts.changed' });

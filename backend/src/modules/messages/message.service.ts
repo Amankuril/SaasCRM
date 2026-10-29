@@ -63,6 +63,7 @@ export async function queueOutboundMessage(
   if (contact.consent?.status === 'opted_out') {
     throw new AppError(422, 'CONTACT_OPTED_OUT', 'This contact has opted out of WhatsApp messages.');
   }
+  if (contact.blocked) throw new AppError(422, 'CONTACT_BLOCKED', 'This contact is blocked. Unblock them to send messages.');
 
   let content: Record<string, unknown>;
   if (input.type !== 'template') {
