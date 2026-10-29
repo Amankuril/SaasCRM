@@ -63,9 +63,11 @@ if changed frontend; then
   cd "$APP_DIR/frontend"
   install_deps
   npm run build
-  # rsync swaps files in place (no moment where the site is empty).
+  # rsync swaps files in place (no moment where the site is empty): new files land
+  # together at the end (--delay-updates) and old ones go only after that (--delete-after).
+  # Open tabs notice the new version.json and reload (frontend/src/components/UpdateWatcher.tsx).
   if command -v rsync >/dev/null; then
-    sudo rsync -a --delete dist/ "$WEB_ROOT"/
+    sudo rsync -a --delay-updates --delete-after dist/ "$WEB_ROOT"/
   else
     sudo rm -rf "$WEB_ROOT"/*
     sudo cp -r dist/* "$WEB_ROOT"/

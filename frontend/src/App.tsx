@@ -52,6 +52,7 @@ import { SheetCampaignsPage } from './pages/integrations/SheetCampaignsPage';
 import { SheetSetupPage } from './pages/integrations/SheetSetupPage';
 import { SheetDataPage } from './pages/integrations/SheetDataPage';
 import { SessionReplacedDialog, SingleTabGuard } from './auth/SessionGuards';
+import { UpdateWatcher } from './components/UpdateWatcher';
 
 // The flow builder pulls in React Flow; load it only when opened.
 const FlowBuilderPage = lazy(() => import('./pages/FlowBuilderPage').then((m) => ({ default: m.FlowBuilderPage })));
@@ -62,6 +63,7 @@ export function App() {
 
   return (
     <>
+    <UpdateWatcher />
     <SingleTabGuard />
     <SessionReplacedDialog />
     <Routes>

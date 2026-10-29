@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 // Same-origin API so the httpOnly refresh cookie just works.
 const proxy = {
@@ -10,8 +10,20 @@ const proxy = {
 // HTTPS tunnels for local testing (Facebook login/Embedded Signup refuses http://localhost).
 const allowedHosts = ['.ngrok-free.dev', '.ngrok-free.app', '.ngrok.app', '.ngrok.dev'];
 
+// Every build gets an id, baked into the bundle and written to dist/version.json.
+// Open tabs poll version.json and reload when it changes (src/components/UpdateWatcher.tsx).
+const buildId = String(Date.now());
+const versionFile: Plugin = {
+  name: 'zeta-version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId }) });
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), versionFile],
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId) },
   build: {
     rollupOptions: {
       output: {

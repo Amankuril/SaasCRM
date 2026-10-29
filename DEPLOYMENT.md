@@ -199,10 +199,19 @@ server {
         try_files $uri =404;
     }
 
+    # Never cache the app shell or the build id, so a deploy shows up straight away
+    location = /index.html {
+        add_header Cache-Control "no-store, must-revalidate" always;
+    }
+    location = /version.json {
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
     # React SPA
     location / {
         try_files $uri $uri/ /index.html;
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "no-store, must-revalidate" always;
     }
 
     # API (+ Meta / Razorpay webhooks under /api/webhooks)
@@ -291,7 +300,10 @@ What it does, and why it is fast:
 - `npm ci` runs only when that app's `package-lock.json` changed since its last install.
 - The backend (and its pm2 restart) or the frontend is skipped when nothing in it changed since the
   last **successful** deploy (stored in `~/.zeta-deployed-commit`, so a failed deploy is fully retried).
-- The frontend is swapped into `/var/www/zeta-app` with `rsync --delete` (no empty-site moment).
+- The frontend is swapped into `/var/www/zeta-app` with `rsync --delay-updates --delete-after` (no empty-site moment).
+- Open tabs poll `/version.json` every 30 s and on focus, and load the new build by themselves: a hidden tab
+  or the next page change reloads at once, an active page shows a "Reload" bar. This needs the
+  `index.html` / `version.json` no-store blocks from §6 in the live Nginx config.
 
 `FORCE=1 ~/deploy.sh` reinstalls and rebuilds everything.
 
