@@ -162,7 +162,10 @@ export async function handOff(workspace: WorkspaceDoc, contact: ContactDoc, reas
   }
   const conv = await Conversation.findOneAndUpdate(
     { workspaceId: workspace._id, contactId: contact._id },
-    { $set: { botPaused: true, status: 'open', resolvedAt: null }, $setOnInsert: { workspaceId: workspace._id, contactId: contact._id, openedAt: new Date() } },
+    {
+      $set: { botPaused: true, status: 'open', resolvedAt: null, snoozedUntil: null, handoffSource: 'ai', handoffAt: new Date(), awaitingHuman: true },
+      $setOnInsert: { workspaceId: workspace._id, contactId: contact._id, openedAt: new Date() },
+    },
     { upsert: true, new: true },
   );
   await ConversationNote.create({ workspaceId: workspace._id, conversationId: conv!._id, contactId: contact._id, authorLabel: 'AI assistant', body: `[AI handoff] ${reason}` });
@@ -189,7 +192,7 @@ export async function autoReply(workspace: WorkspaceDoc, contact: ContactDoc, me
   const decision = await runAgent({ workspace, agent, question: message.text, contactId: contact._id, conversationId: conv._id, excludeMessageId: message.id, purpose: 'auto_reply' });
   if (decision.outcome === 'answered') {
     await queueOutboundMessage(workspace, null, { type: 'text', to: contact.phoneE164, text: decision.answer }, `ai:${message.id}`, { aiGenerated: true });
-    await Conversation.updateOne({ _id: conv._id, workspaceId: workspace._id }, { $inc: { aiReplyCount: 1 } });
+    await Conversation.updateOne({ _id: conv._id, workspaceId: workspace._id }, { $inc: { aiReplyCount: 1 }, ...(conv.aiTouchedAt ? {} : { $set: { aiTouchedAt: new Date() } }) });
     return true;
   }
   await handOff(workspace, contact, decision.reason || 'The AI could not answer.', decision.error ? agent.fallbackMessage : agent.handoffMessage);

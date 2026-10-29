@@ -23,9 +23,19 @@ import { CONVERSATION_STATUSES, Conversation, type ConversationDoc } from './con
 import { canViewAll, findVisibleConversation, notify, visibilityFilter } from './conversation.service.js';
 import { ConversationNote } from './note.model.js';
 
+export const INBOX_VIEWS = ['all', 'mine', 'mentions', 'unassigned', 'starred', 'waiting', 'ai'] as const;
+
 const listSchema = z.object({
-  view: z.enum(['all', 'mine', 'unassigned']).default('all'),
-  status: z.enum([...CONVERSATION_STATUSES, 'all']).default('open'),
+  view: z.enum(INBOX_VIEWS).default('all'),
+  status: z.enum([...CONVERSATION_STATUSES, 'snoozed', 'all']).default('open'),
+  // Active: the customer wrote in the last 24 hours (free replies allowed). Rolling over: templates only.
+  window: z.enum(['any', 'active', 'rolling']).default('any'),
+  // AI chats: those the AI agent is handling, or handed to the team.
+  ai: z.enum(['all', 'active', 'escalated', 'resolved']).default('all'),
+  assignee: z.string().optional(),
+  priority: z.enum(['normal', 'high']).optional(),
+  unread: z.enum(['true', 'false']).optional(),
+  tag: z.string().optional(),
   q: z.string().trim().max(100).optional(),
   before: z.string().datetime().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
@@ -49,6 +59,7 @@ const updateSchema = z
     assigneeId: z.string().nullable(),
     priority: z.enum(['normal', 'high']),
     botPaused: z.boolean(),
+    snoozedUntil: z.string().datetime().nullable(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
@@ -64,35 +75,73 @@ export const conversationRouter = Router({ mergeParams: true });
 conversationRouter.use(requirePermission('workspace:read'));
 
 conversationRouter.get('/', async (req, res) => {
-  const { view, status, q, before, limit } = parse(listSchema, req.query);
+  const query = parse(listSchema, req.query);
+  const { before, limit } = query;
   const workspaceId = req.workspace!._id;
-  const membership = req.membership!;
-
-  const filter: Record<string, unknown> = { workspaceId, ...visibilityFilter(membership) };
-  if (status !== 'all') filter.status = status;
-  if (view === 'mine') filter.assigneeId = req.user!._id;
-  if (view === 'unassigned') filter.assigneeId = null;
+  const filter = await listFilter(req, query);
   if (before) filter.lastMessageAt = { $lt: new Date(before) };
-  if (q) {
-    const rx = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-    const digits = q.replace(/\D/g, '');
-    const matches = await Contact.find({
-      workspaceId,
-      $or: [{ name: rx }, { profileName: rx }, ...(digits.length >= 3 ? [{ phoneE164: { $regex: digits } }] : [])],
-    })
-      .select('_id')
-      .limit(500)
-      .lean();
-    filter.contactId = { $in: matches.map((c) => c._id) };
-  }
-
   const conversations = await Conversation.find(filter).sort({ lastMessageAt: -1, _id: -1 }).limit(limit + 1);
   const page = conversations.slice(0, limit);
   res.json({
-    conversations: await serializeMany(workspaceId, page),
+    conversations: await serializeMany(workspaceId, page, req.user!._id),
     nextBefore: conversations.length > limit ? page.at(-1)!.lastMessageAt?.toISOString() ?? null : null,
   });
 });
+
+const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const escapeRegex = (q: string) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Mongo filter for an inbox view plus the list's filters. */
+async function listFilter(req: Req, query: z.infer<typeof listSchema>): Promise<Record<string, unknown>> {
+  const workspaceId = req.workspace!._id;
+  const userId = req.user!._id;
+  const now = new Date();
+  const filter: Record<string, unknown> = { workspaceId, ...visibilityFilter(req.membership!) };
+  const and: Record<string, unknown>[] = [];
+
+  if (query.view === 'ai') {
+    filter.aiTouchedAt = { $ne: null };
+    if (query.ai === 'active') Object.assign(filter, { botPaused: false, status: { $ne: 'resolved' } });
+    if (query.ai === 'escalated') Object.assign(filter, { handoffSource: 'ai', botPaused: true, status: { $ne: 'resolved' } });
+    if (query.ai === 'resolved') filter.status = 'resolved';
+  } else {
+    if (query.status === 'snoozed') filter.snoozedUntil = { $gt: now };
+    else if (query.status !== 'all') {
+      filter.status = query.status;
+      // Snoozed chats stay out of the working lists until they wake up.
+      if (query.status !== 'resolved') and.push({ $or: [{ snoozedUntil: null }, { snoozedUntil: { $lte: now } }] });
+    }
+  }
+  if (query.view === 'mine') filter.assigneeId = userId;
+  if (query.view === 'unassigned') filter.assigneeId = null;
+  if (query.view === 'starred') filter.starredBy = userId;
+  if (query.view === 'waiting') filter.awaitingHuman = true;
+  if (query.view === 'mentions') {
+    const ids = await ConversationNote.distinct('conversationId', { workspaceId, mentions: userId });
+    filter._id = { $in: ids };
+  }
+
+  const windowStart = new Date(now.getTime() - SERVICE_WINDOW_MS);
+  if (query.window === 'active') filter.lastInboundAt = { $gte: windowStart };
+  if (query.window === 'rolling') and.push({ $or: [{ lastInboundAt: null }, { lastInboundAt: { $lt: windowStart } }] });
+  if (query.assignee) filter.assigneeId = query.assignee === 'none' ? null : objectId(query.assignee, 'Member');
+  if (query.priority) filter.priority = query.priority;
+  if (query.unread === 'true') filter.unreadCount = { $gt: 0 };
+
+  const contactConds: Record<string, unknown>[] = [];
+  if (query.tag) contactConds.push({ tags: objectId(query.tag, 'Tag') });
+  if (query.q) {
+    const rx = { $regex: escapeRegex(query.q), $options: 'i' };
+    const digits = query.q.replace(/\D/g, '');
+    contactConds.push({ $or: [{ name: rx }, { profileName: rx }, ...(digits.length >= 3 ? [{ phoneE164: { $regex: digits } }] : [])] });
+  }
+  if (contactConds.length) {
+    const matches = await Contact.find({ workspaceId, $and: contactConds }).select('_id').limit(2000).lean();
+    filter.contactId = { $in: matches.map((c) => c._id) };
+  }
+  if (and.length) filter.$and = and;
+  return filter;
+}
 
 const startSchema = z.object({
   phone: z.string().trim().min(5, 'Enter a phone number.').max(30),
@@ -146,25 +195,81 @@ conversationRouter.post('/', requirePermission('contacts:manage'), requirePermis
   }
   if (created) notify(workspaceId, doc._id);
 
-  const [serialized] = await serializeMany(workspaceId, [doc]);
+  const [serialized] = await serializeMany(workspaceId, [doc], req.user!._id);
   res.status(created ? 201 : 200).json({ conversation: serialized, created, createdContact });
 });
 
-/** Open-conversation counts for the inbox sidebar. */
+/** Counts for the inbox navigation (open chats, not snoozed). */
 conversationRouter.get('/counts', async (req, res) => {
   const workspaceId = req.workspace!._id;
-  const base = { workspaceId, status: { $in: ['open', 'pending'] }, ...visibilityFilter(req.membership!) };
-  const [all, mine, unassigned] = await Promise.all([
+  const userId = req.user!._id;
+  const now = new Date();
+  const base = { workspaceId, status: { $in: ['open', 'pending'] }, ...visibilityFilter(req.membership!), $or: [{ snoozedUntil: null }, { snoozedUntil: { $lte: now } }] };
+  const mentionIds = await ConversationNote.distinct('conversationId', { workspaceId, mentions: userId });
+  const aiBase = { workspaceId, ...visibilityFilter(req.membership!), aiTouchedAt: { $ne: null } };
+  const [all, mine, unassigned, mentions, starred, waiting, snoozed, aiAll, aiActive, aiEscalated] = await Promise.all([
     Conversation.countDocuments(base),
-    Conversation.countDocuments({ ...base, assigneeId: req.user!._id }),
+    Conversation.countDocuments({ ...base, assigneeId: userId }),
     Conversation.countDocuments({ ...base, assigneeId: null }),
+    Conversation.countDocuments({ ...base, _id: { $in: mentionIds } }),
+    Conversation.countDocuments({ workspaceId, ...visibilityFilter(req.membership!), starredBy: userId }),
+    Conversation.countDocuments({ ...base, awaitingHuman: true }),
+    Conversation.countDocuments({ workspaceId, ...visibilityFilter(req.membership!), snoozedUntil: { $gt: now } }),
+    Conversation.countDocuments(aiBase),
+    Conversation.countDocuments({ ...aiBase, botPaused: false, status: { $ne: 'resolved' } }),
+    Conversation.countDocuments({ ...aiBase, handoffSource: 'ai', botPaused: true, status: { $ne: 'resolved' } }),
   ]);
-  res.json({ all, mine, unassigned });
+  res.json({ all, mine, unassigned, mentions, starred, waiting, snoozed, ai: { all: aiAll, active: aiActive, escalated: aiEscalated } });
+});
+
+/** Teammates who can be @mentioned or assigned (any role that can reply). */
+conversationRouter.get('/team', async (req, res) => {
+  const members = await WorkspaceMember.find({ workspaceId: req.workspace!._id, role: { $ne: 'analyst' } }).lean();
+  const users = await User.find({ _id: { $in: members.map((m) => m.userId) }, status: 'active' }).select('name email').lean();
+  res.json({ team: users.map((u) => ({ id: u._id.toString(), name: u.name, email: u.email })) });
+});
+
+const bulkSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+  action: z.enum(['assign', 'resolve', 'reopen', 'star', 'unstar', 'snooze', 'unsnooze']),
+  assigneeId: z.string().nullable().optional(),
+  snoozedUntil: z.string().datetime().optional(),
+});
+
+/** Bulk actions from the chat list. Chats the user can't act on are skipped and counted. */
+conversationRouter.post('/bulk', requirePermission('messages:send'), async (req, res) => {
+  const input = parse(bulkSchema, req.body);
+  const workspaceId = req.workspace!._id;
+  const userId = req.user!._id;
+  if (input.action === 'assign' && !can(req.membership!.role as Role, 'conversations:assign')) throw forbidden('Only managers can assign conversations to others.');
+  if (input.action === 'snooze' && (!input.snoozedUntil || new Date(input.snoozedUntil) <= new Date())) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { snoozedUntil: ['Pick a time in the future.'] });
+  const target = input.action === 'assign' && input.assigneeId ? objectId(input.assigneeId, 'Member') : null;
+  if (target) await assertAssignable(workspaceId, target);
+
+  const convs = await Conversation.find({ workspaceId, _id: { $in: input.ids.map((id) => objectId(id, 'Conversation')) }, ...visibilityFilter(req.membership!) });
+  let updated = 0;
+  for (const conv of convs) {
+    if (input.action === 'star' || input.action === 'unstar') {
+      await Conversation.updateOne({ _id: conv._id, workspaceId }, input.action === 'star' ? { $addToSet: { starredBy: userId } } : { $pull: { starredBy: userId } });
+    } else if (!canReply(req, conv)) continue;
+    else if (input.action === 'assign') {
+      if ((conv.assigneeId?.toString() ?? null) !== (target?.toString() ?? null)) await assign(req, conv, target);
+    } else if (input.action === 'resolve' || input.action === 'reopen') {
+      await setStatus(req, conv, input.action === 'resolve' ? 'resolved' : 'open');
+      await conv.save();
+    } else {
+      conv.snoozedUntil = input.action === 'snooze' ? new Date(input.snoozedUntil!) : null;
+      await conv.save();
+    }
+    notify(workspaceId, conv._id);
+    updated++;
+  }
+  res.json({ updated, skipped: input.ids.length - updated });
 });
 
 conversationRouter.get('/:conversationId', async (req, res) => {
   const conv = await visible(req);
-  const [serialized] = await serializeMany(req.workspace!._id, [conv]);
+  const [serialized] = await serializeMany(req.workspace!._id, [conv], req.user!._id);
   const contact = await Contact.findOne({ _id: conv.contactId, workspaceId: req.workspace!._id });
   res.json({ conversation: serialized, contact: contact ? toPublicContact(contact) : null, canReply: canReply(req, conv) });
 });
@@ -252,15 +357,32 @@ conversationRouter.post('/:conversationId/ai-draft', requirePermission('messages
   res.json({ draft: decision });
 });
 
-conversationRouter.post('/:conversationId/notes', requirePermission('contacts:manage'), async (req, res) => {
-  const { body } = parse(z.object({ body: z.string().trim().min(1, 'Write a note.').max(4000) }), req.body);
+/** Per-user star: each teammate keeps their own "Starred" list. */
+conversationRouter.post('/:conversationId/star', async (req, res) => {
+  const { starred } = parse(z.object({ starred: z.boolean() }), req.body);
   const conv = await visible(req);
+  await Conversation.updateOne({ _id: conv._id, workspaceId: conv.workspaceId }, starred ? { $addToSet: { starredBy: req.user!._id } } : { $pull: { starredBy: req.user!._id } });
+  notify(conv.workspaceId, conv._id);
+  res.json({ starred });
+});
+
+conversationRouter.post('/:conversationId/notes', requirePermission('contacts:manage'), async (req, res) => {
+  const { body, mentions } = parse(
+    z.object({ body: z.string().trim().min(1, 'Write a note.').max(4000), mentions: z.array(z.string()).max(20).default([]) }),
+    req.body,
+  );
+  const conv = await visible(req);
+  // Only teammates of this workspace can be mentioned.
+  const mentioned = mentions.length
+    ? (await WorkspaceMember.find({ workspaceId: conv.workspaceId, userId: { $in: mentions.filter((m) => Types.ObjectId.isValid(m)) } }).select('userId').lean()).map((m) => m.userId)
+    : [];
   const note = await ConversationNote.create({
     workspaceId: conv.workspaceId,
     conversationId: conv._id,
     contactId: conv.contactId,
     authorId: req.user!._id,
     body,
+    mentions: mentioned,
   });
   notify(conv.workspaceId, conv._id, true);
   res.status(201).json({ note: { id: note.id, body: note.body, createdAt: note.createdAt } });
@@ -280,43 +402,30 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
       const releasing = target === null && conv.assigneeId?.equals(userId);
       if (!claiming && !releasing) throw forbidden('Only managers can assign conversations to others.');
     }
-    if (target) {
-      const member = await WorkspaceMember.findOne({ workspaceId: conv.workspaceId, userId: target }).lean();
-      if (!member || member.role === 'analyst') {
-        throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { assigneeId: ['Choose a team member who can reply.'] });
-      }
-    }
+    if (target) await assertAssignable(conv.workspaceId, target);
     const unchanged = target ? (conv.assigneeId?.equals(target) ?? false) : conv.assigneeId == null;
     if (!unchanged) await assign(req, conv, target);
   }
 
-  if ((input.status || input.priority || input.botPaused !== undefined) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
-  if (input.status && input.status !== conv.status) {
-    const from = conv.status;
-    conv.status = input.status;
-    if (input.status === 'resolved') {
-      conv.resolvedAt = new Date();
-      await ConversationCycle.create({ workspaceId: conv.workspaceId, conversationId: conv._id, assigneeId: conv.assigneeId, openedAt: conv.openedAt, firstReplyAt: conv.firstReplyAt, resolvedAt: conv.resolvedAt });
-      conv.botPaused = false; // automations may greet the customer again next time
-      conv.aiReplyCount = 0;
-    }
-    if (from === 'resolved') {
-      conv.openedAt = new Date();
-      conv.resolvedAt = null;
-      conv.firstReplyAt = null;
-    }
-    await audit(req, { workspaceId: conv.workspaceId, action: 'conversation.status_changed', targetType: 'conversation', targetId: conv.id, metadata: { from, to: input.status } });
+  if ((input.status || input.priority || input.botPaused !== undefined || input.snoozedUntil !== undefined) && !canReply(req, conv)) throw forbidden('This conversation is assigned to someone else.');
+  if (input.status && input.status !== conv.status) await setStatus(req, conv, input.status);
+  if (input.snoozedUntil !== undefined) {
+    if (input.snoozedUntil && new Date(input.snoozedUntil) <= new Date()) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { snoozedUntil: ['Pick a time in the future.'] });
+    conv.snoozedUntil = input.snoozedUntil ? new Date(input.snoozedUntil) : null;
   }
   const resolvedNow = input.status === 'resolved' && conv.isModified('status');
   if (input.priority) conv.priority = input.priority;
-  if (input.botPaused !== undefined) conv.botPaused = input.botPaused;
+  if (input.botPaused !== undefined) {
+    conv.botPaused = input.botPaused;
+    if (!input.botPaused) conv.awaitingHuman = false;
+  }
   await conv.save();
   notify(conv.workspaceId, conv._id);
   if (resolvedNow) {
     await emitEvent(conv.workspaceId, 'conversation.resolved', async () => ({ conversation: apiConversation(conv), contact: await contactPayload(conv.workspaceId, conv.contactId), resolved_by: req.user!.id as string }));
   }
 
-  const [serialized] = await serializeMany(req.workspace!._id, [conv]);
+  const [serialized] = await serializeMany(req.workspace!._id, [conv], req.user!._id);
   res.json({ conversation: serialized });
 });
 
@@ -329,6 +438,32 @@ function visible(req: Req) {
 function canReply(req: Req, conv: ConversationDoc): boolean {
   if (!can(req.membership!.role as Role, 'messages:send')) return false;
   return canViewAll(req.membership!) || !conv.assigneeId || conv.assigneeId.equals(req.user!._id);
+}
+
+async function assertAssignable(workspaceId: Types.ObjectId, userId: Types.ObjectId) {
+  const member = await WorkspaceMember.findOne({ workspaceId, userId }).lean();
+  if (!member || member.role === 'analyst') throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { assigneeId: ['Choose a team member who can reply.'] });
+}
+
+/** Opens, parks or resolves a chat (the caller saves it). Resolving records the cycle for reports. */
+async function setStatus(req: Req, conv: ConversationDoc, status: ConversationDoc['status']) {
+  const from = conv.status;
+  if (from === status) return;
+  conv.status = status;
+  if (status === 'resolved') {
+    conv.resolvedAt = new Date();
+    await ConversationCycle.create({ workspaceId: conv.workspaceId, conversationId: conv._id, assigneeId: conv.assigneeId, openedAt: conv.openedAt, firstReplyAt: conv.firstReplyAt, resolvedAt: conv.resolvedAt });
+    conv.botPaused = false; // automations may greet the customer again next time
+    conv.aiReplyCount = 0;
+    conv.awaitingHuman = false;
+    conv.snoozedUntil = null;
+  }
+  if (from === 'resolved') {
+    conv.openedAt = new Date();
+    conv.resolvedAt = null;
+    conv.firstReplyAt = null;
+  }
+  await audit(req, { workspaceId: conv.workspaceId, action: 'conversation.status_changed', targetType: 'conversation', targetId: conv.id, metadata: { from, to: status } });
 }
 
 async function assign(req: Req, conv: ConversationDoc, assigneeId: Types.ObjectId | null) {
@@ -352,7 +487,7 @@ async function assign(req: Req, conv: ConversationDoc, assigneeId: Types.ObjectI
   }));
 }
 
-async function serializeMany(workspaceId: Types.ObjectId, conversations: ConversationDoc[]) {
+async function serializeMany(workspaceId: Types.ObjectId, conversations: ConversationDoc[], viewerId: Types.ObjectId) {
   const [contacts, users] = await Promise.all([
     Contact.find({ workspaceId, _id: { $in: conversations.map((c) => c.contactId) } }).lean(),
     User.find({ _id: { $in: conversations.map((c) => c.assigneeId).filter(Boolean) } }).select('name').lean(),
@@ -367,6 +502,12 @@ async function serializeMany(workspaceId: Types.ObjectId, conversations: Convers
       status: c.status,
       priority: c.priority,
       botPaused: c.botPaused,
+      starred: c.starredBy.some((u) => u.equals(viewerId)),
+      snoozedUntil: c.snoozedUntil && c.snoozedUntil.getTime() > Date.now() ? c.snoozedUntil : null,
+      awaitingHuman: c.awaitingHuman,
+      handoffSource: c.handoffSource,
+      aiHandled: !!c.aiTouchedAt,
+      aiReplyCount: c.aiReplyCount,
       unreadCount: c.unreadCount,
       lastMessageAt: c.lastMessageAt,
       lastMessagePreview: c.lastMessagePreview,

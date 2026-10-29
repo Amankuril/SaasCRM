@@ -110,7 +110,11 @@ export async function queueOutboundMessage(
     });
     await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
     // A teammate's first reply since the conversation opened (bots and broadcasts don't count).
-    if (user) await Conversation.updateOne({ workspaceId: workspace._id, contactId: contact._id, firstReplyAt: null }, { firstReplyAt: new Date() });
+    if (user) {
+      await Conversation.updateOne({ workspaceId: workspace._id, contactId: contact._id, firstReplyAt: null }, { firstReplyAt: new Date() });
+      // A person answered a handed-over chat.
+      await Conversation.updateOne({ workspaceId: workspace._id, contactId: contact._id, awaitingHuman: true }, { awaitingHuman: false });
+    }
     await enqueue('whatsapp.send', { workspaceId: workspace.id as string, messageId: message.id as string }, { jobId: `send-${message.id}` });
     return { message: (await Message.findOne({ _id: message._id, workspaceId: workspace._id }))!, duplicate: false };
   } catch (err) {

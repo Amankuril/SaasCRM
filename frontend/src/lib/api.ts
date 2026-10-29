@@ -398,6 +398,14 @@ export interface ConversationSummary {
   status: ConversationStatus;
   priority: 'normal' | 'high';
   botPaused: boolean;
+  /** Starred by the current user. */
+  starred: boolean;
+  snoozedUntil: string | null;
+  /** Handed over by the AI agent or a flow; no teammate has replied yet. */
+  awaitingHuman: boolean;
+  handoffSource: 'ai' | 'flow' | null;
+  aiHandled: boolean;
+  aiReplyCount: number;
   unreadCount: number;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
@@ -1044,4 +1052,33 @@ export interface SheetSyncResult {
   waiting: number;
   invalid: number;
   sent: number;
+}
+
+// ---- Team inbox ----
+
+export type InboxView = 'all' | 'mine' | 'mentions' | 'unassigned' | 'starred' | 'waiting' | 'ai';
+
+export interface InboxCounts {
+  all: number;
+  mine: number;
+  unassigned: number;
+  mentions: number;
+  starred: number;
+  waiting: number;
+  snoozed: number;
+  ai: { all: number; active: number; escalated: number };
+}
+
+export interface TeamMate {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface CannedReply {
+  id: string;
+  shortcut: string;
+  body: string;
+  useCount: number;
+  updatedAt: string;
 }

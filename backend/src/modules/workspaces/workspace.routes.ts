@@ -29,6 +29,7 @@ import { memberRouter } from './member.routes.js';
 import { toPublicWorkspace } from './workspace.model.js';
 import { createWorkspace, listUserWorkspaces, workspaceContext } from './workspace.service.js';
 import { sheetsRouter } from '../integrations/sheets.routes.js';
+import { cannedReplyRouter } from '../inbox/cannedReply.routes.js';
 
 const workspaceFields = {
   name: z.string().trim().min(2, 'Business name must be at least 2 characters.').max(100),
@@ -106,6 +107,7 @@ scoped.use('/task-columns', taskColumnRouter);
 scoped.use('/appointments', appointmentRouter);
 scoped.use('/tags', tagRouter);
 scoped.use('/conversations', conversationRouter);
+scoped.use('/canned-replies', cannedReplyRouter);
 scoped.use('/campaigns', campaignRouter);
 scoped.use('/segments', segmentRouter);
 scoped.use('/flows', flowRouter);

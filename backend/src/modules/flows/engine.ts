@@ -400,7 +400,7 @@ async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepRes
       const conv = await Conversation.findOneAndUpdate(
         { workspaceId: ctx.workspace._id, contactId: contact._id },
         {
-          $set: { botPaused: true, status: 'open', resolvedAt: null, ...(assignee ? { assigneeId: assignee, assignedAt: new Date() } : {}) },
+          $set: { botPaused: true, status: 'open', resolvedAt: null, snoozedUntil: null, handoffSource: 'flow', handoffAt: new Date(), awaitingHuman: true, ...(assignee ? { assigneeId: assignee, assignedAt: new Date() } : {}) },
           $setOnInsert: { workspaceId: ctx.workspace._id, contactId: contact._id, openedAt: new Date() },
         },
         { upsert: true, new: true },

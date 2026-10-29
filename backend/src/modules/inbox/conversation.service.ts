@@ -23,7 +23,7 @@ export async function recordInboundOnConversation(workspaceId: Types.ObjectId, c
     { workspaceId, contactId },
     {
       $setOnInsert: { workspaceId, contactId, status: 'open', openedAt: at },
-      $set: { lastMessageAt: at, lastMessagePreview: preview, lastMessageDirection: 'inbound', lastInboundAt: at },
+      $set: { lastMessageAt: at, lastMessagePreview: preview, lastMessageDirection: 'inbound', lastInboundAt: at, snoozedUntil: null },
       $inc: { unreadCount: 1 },
     },
     { upsert: true, new: true },

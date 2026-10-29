@@ -27,7 +27,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FormBuilderPage } from './pages/forms/FormBuilderPage';
 import { FormsListPage } from './pages/forms/FormsListPage';
 import { CampaignsPage } from './pages/CampaignsPage';
-import { InboxPage } from './pages/InboxPage';
+import { InboxPage } from './pages/inbox/InboxPage';
 import { AudienceLayout } from './pages/audience/AudienceLayout';
 import { AudiencePage } from './pages/audience/AudiencePage';
 import { FollowUpsPage } from './pages/audience/FollowUpsPage';

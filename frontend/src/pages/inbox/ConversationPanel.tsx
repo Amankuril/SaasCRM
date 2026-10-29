@@ -1,193 +1,22 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Inbox, Lock, MessageSquare, Plus, RotateCcw, Search, StickyNote } from 'lucide-react';
+import { AlarmClock, AlertCircle, ArrowLeft, Check, CheckCheck, Clock, Hourglass, Lock, RotateCcw, Star, StickyNote, UserRound, X, Zap } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Link, useSearchParams } from 'react-router';
-import { ContactDetails } from '../components/ContactDetails';
-import { TemplatePreview } from '../components/TemplatePreview';
-import { ButtonValueInputs, TemplateExtrasFields, emptyExtras, extrasPreview } from '../components/TemplateSendFields';
-import { initials, Modal, relativeTime, TagChip } from '../components/crm';
-import { Alert, Badge, Button, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
-import { ApiError, api, type AgentDecision, type Contact, type ConversationStatus, type ConversationSummary, type MessageTemplate, type TemplateExtras, type TimelineItem } from '../lib/api';
-import { useMembers, useTags } from '../lib/hooks';
-import { useAuth } from '../auth/AuthContext';
-import { useWorkspace } from '../layouts/workspaceContext';
+import { Link } from 'react-router';
+import { ContactDetails } from '../../components/ContactDetails';
+import { TemplatePreview } from '../../components/TemplatePreview';
+import { ButtonValueInputs, TemplateExtrasFields, emptyExtras, extrasPreview } from '../../components/TemplateSendFields';
+import { Modal, TagChip } from '../../components/crm';
+import { Alert, Badge, Button, Field, Input, Select, Spinner, cn, errorMessage, fieldError } from '../../components/ui';
+import { ApiError, api, type AgentDecision, type Contact, type ConversationSummary, type MessageTemplate, type TemplateExtras, type TimelineItem } from '../../lib/api';
+import { useMembers, useTags } from '../../lib/hooks';
+import { useAuth } from '../../auth/AuthContext';
+import { useWorkspace } from '../../layouts/workspaceContext';
+import { Popover } from '../audience/shared';
+import { CannedRepliesDialog } from './ChatTools';
+import { fillCanned, snoozeLabel, snoozeOptions, useCannedReplies, useTeam } from './shared';
 
-type View = 'all' | 'mine' | 'unassigned';
-
-export function InboxPage() {
-  const { workspace } = useWorkspace();
-  const [params, setParams] = useSearchParams();
-  const selected = params.get('c');
-  const [view, setView] = useState<View>('all');
-  const [status, setStatus] = useState<ConversationStatus | 'all'>('open');
-  const [q, setQ] = useState('');
-
-  const select = (id: string | null) => setParams(id ? { c: id } : {}, { replace: true });
-
-  return (
-    <div className="flex h-full min-h-0">
-      <section className={cn('flex w-full flex-col border-r border-slate-200 bg-white md:w-80 md:shrink-0', selected && 'hidden md:flex')}>
-        <ConversationList view={view} setView={setView} status={status} setStatus={setStatus} q={q} setQ={setQ} selected={selected} onSelect={select} />
-      </section>
-      <section className={cn('min-w-0 flex-1 flex-col', selected ? 'flex' : 'hidden md:flex')}>
-        {selected ? (
-          <ConversationPanel key={selected} id={selected} onBack={() => select(null)} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center">
-            <EmptyState icon={<Inbox className="size-5" />} title="Select a conversation">
-              Customer messages to {workspace.name}&apos;s WhatsApp number appear here in real time.
-            </EmptyState>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function ConversationList({
-  view,
-  setView,
-  status,
-  setStatus,
-  q,
-  setQ,
-  selected,
-  onSelect,
-}: {
-  view: View;
-  setView: (v: View) => void;
-  status: ConversationStatus | 'all';
-  setStatus: (s: ConversationStatus | 'all') => void;
-  q: string;
-  setQ: (q: string) => void;
-  selected: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const { workspace, can } = useWorkspace();
-  const counts = useQuery({
-    queryKey: ['conversation-counts', workspace.id],
-    queryFn: () => api.get<Record<View, number>>(`/workspaces/${workspace.id}/conversations/counts`),
-  });
-  const list = useInfiniteQuery({
-    queryKey: ['conversations', workspace.id, { view, status, q }],
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ view, status });
-      if (q.trim()) params.set('q', q.trim());
-      if (pageParam) params.set('before', pageParam);
-      return api.get<{ conversations: ConversationSummary[]; nextBefore: string | null }>(`/workspaces/${workspace.id}/conversations?${params}`);
-    },
-    getNextPageParam: (last) => last.nextBefore,
-  });
-  const conversations = list.data?.pages.flatMap((p) => p.conversations) ?? [];
-
-  const canStart = can('contacts:manage') && can('messages:send') && workspace.status !== 'suspended';
-  const [starting, setStarting] = useState(false);
-
-  return (
-    <>
-      <div className="space-y-3 border-b border-slate-200 p-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-base font-semibold text-ink">Chats</h1>
-          {canStart && (
-            <button onClick={() => setStarting(true)} className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900" aria-label="New chat" title="New chat">
-              <Plus className="size-5" />
-            </button>
-          )}
-        </div>
-        <div className="flex rounded-lg bg-slate-100 p-0.5 text-sm">
-          {(['all', 'mine', 'unassigned'] as View[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn('flex-1 rounded-md px-2 py-1.5 font-medium capitalize', view === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
-            >
-              {v}
-              {counts.data && counts.data[v] > 0 && <span className="ml-1 text-xs text-slate-400">{counts.data[v]}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-slate-400" />
-            <Input aria-label="Search conversations" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
-          </div>
-          <div className="w-28">
-            <Select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as ConversationStatus | 'all')}>
-              <option value="open">Open</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
-              <option value="all">All</option>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {list.isPending ? (
-          <Spinner />
-        ) : list.error ? (
-          <div className="p-3">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : conversations.length === 0 ? (
-          <EmptyState icon={<MessageSquare className="size-5" />} title="No conversations here" />
-        ) : (
-          <ul>
-            {conversations.map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() => onSelect(c.id)}
-                  className={cn('flex w-full gap-3 border-b border-slate-100 px-3 py-3 text-left hover:bg-slate-50', selected === c.id && 'bg-brand-50/70 hover:bg-brand-50')}
-                >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
-                    {initials(c.contact?.name ?? '?')}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className={cn('truncate text-sm', c.unreadCount ? 'font-semibold text-slate-900' : 'font-medium text-slate-800')}>{c.contact?.name}</span>
-                      <span className="shrink-0 text-xs text-slate-400">{relativeTime(c.lastMessageAt)}</span>
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-2">
-                      <span className={cn('truncate text-sm', c.unreadCount ? 'text-slate-700' : 'text-slate-500')}>
-                        {c.lastMessageDirection === 'outbound' && <span className="text-slate-400">You: </span>}
-                        {c.lastMessagePreview}
-                      </span>
-                      {c.unreadCount > 0 && (
-                        <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{c.unreadCount}</span>
-                      )}
-                    </span>
-                    <span className="mt-1 flex items-center gap-2 text-xs text-slate-400">
-                      {c.assignee ? <span className="truncate">→ {c.assignee.name}</span> : <span className="text-amber-600">Unassigned</span>}
-                      {c.priority === 'high' && <span className="font-medium text-red-600">High</span>}
-                      {c.status !== 'open' && <span className="capitalize">{c.status}</span>}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {list.hasNextPage && (
-          <div className="p-3 text-center">
-            <Button variant="ghost" loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
-              Load more
-            </Button>
-          </div>
-        )}
-      </div>
-      {starting && (
-        <NewChatModal
-          onClose={() => setStarting(false)}
-          onStarted={(id) => {
-            setStarting(false);
-            onSelect(id);
-          }}
-        />
-      )}
-    </>
-  );
-}
+/** Header shortcuts ask the composer to switch mode and take focus. */
+const COMPOSE_EVENT = 'zc:compose';
 
 interface ConversationDetail {
   conversation: ConversationSummary;
@@ -196,7 +25,7 @@ interface ConversationDetail {
 }
 
 /** "+" in the chat list: open a chat with any number (creates the contact if new). */
-function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: (conversationId: string) => void }) {
+export function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: (conversationId: string) => void }) {
   const { workspace } = useWorkspace();
   const queryClient = useQueryClient();
   const [phone, setPhone] = useState('');
@@ -241,7 +70,7 @@ function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: 
   );
 }
 
-function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
+export function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
   const { workspace, can } = useWorkspace();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -261,6 +90,37 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
       void queryClient.invalidateQueries({ queryKey: ['conversation-counts', workspace.id] });
     },
   });
+
+  const star = useMutation({
+    mutationFn: (starred: boolean) => api.post(`/workspaces/${workspace.id}/conversations/${id}/star`, { starred }),
+    onSuccess: () => update.reset(),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['conversation', workspace.id, id] });
+      void queryClient.invalidateQueries({ queryKey: ['conversations', workspace.id] });
+      void queryClient.invalidateQueries({ queryKey: ['conversation-counts', workspace.id] });
+    },
+  });
+  const [snoozeAnchor, setSnoozeAnchor] = useState<HTMLElement | null>(null);
+  // Below very wide screens the contact panel is a drawer opened from the header.
+  const [showContact, setShowContact] = useState(false);
+
+  // Esc closes, e resolves, s stars, r / n start a reply or a note.
+  const conversation = detail.data?.conversation;
+  const writableNow = workspace.status !== 'suspended' && !!detail.data?.canReply;
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]') || e.metaKey || e.ctrlKey || e.altKey || !conversation) return;
+      if (e.key === 'Escape') onBack();
+      else if (e.key === 's') star.mutate(!conversation.starred);
+      else if (e.key === 'e' && writableNow && conversation.status !== 'resolved') update.mutate({ status: 'resolved' });
+      else if ((e.key === 'r' || e.key === 'n') && writableNow) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent(COMPOSE_EVENT, { detail: e.key === 'r' ? 'reply' : 'note' }));
+      } else return;
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [conversation, writableNow, onBack, star, update]);
 
   // Opening an unread conversation marks it read.
   const unread = detail.data?.conversation.unreadCount ?? 0;
@@ -305,6 +165,25 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
           </div>
 
+          {contact && (
+            <button type="button" onClick={() => setShowContact(true)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 2xl:hidden" aria-label="Contact details" title="Contact details">
+              <UserRound className="size-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => star.mutate(!conv.starred)}
+            className={cn('rounded-lg p-2 hover:bg-slate-100', conv.starred ? 'text-amber-400' : 'text-slate-400 hover:text-slate-600')}
+            aria-label={conv.starred ? 'Unstar' : 'Star'}
+            title={conv.starred ? 'Unstar (s)' : 'Star (s)'}
+          >
+            <Star className={cn('size-4', conv.starred && 'fill-amber-400')} />
+          </button>
+          {conv.awaitingHuman && (
+            <span className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" title={`Handed over by ${conv.handoffSource === 'ai' ? 'the AI agent' : 'a flow'}; no one has replied yet`}>
+              <Hourglass className="size-3.5" /> Waiting for a person
+            </span>
+          )}
           {conv.botPaused && (
             <span className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" title="A flow handed this chat to the team; automations are paused">
               Bot paused
@@ -350,6 +229,35 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
               >
                 <AlertCircle className="size-4" />
               </Button>
+              {conv.status !== 'resolved' &&
+                (conv.snoozedUntil ? (
+                  <Button variant="secondary" onClick={() => update.mutate({ snoozedUntil: null })} title="Bring it back now">
+                    <AlarmClock className="size-4 text-violet-600" /> {snoozeLabel(conv.snoozedUntil)}
+                  </Button>
+                ) : (
+                  <Button variant="ghost" onClick={(e) => setSnoozeAnchor(e.currentTarget)} title="Snooze: hide until later">
+                    <AlarmClock className="size-4" />
+                  </Button>
+                ))}
+              <Popover anchor={snoozeAnchor} open={!!snoozeAnchor} onClose={() => setSnoozeAnchor(null)} width={220} align="right">
+                <div className="p-1 text-sm">
+                  <p className="px-3 pt-2 pb-1 text-xs font-semibold text-slate-500">Snooze until</p>
+                  {snoozeOptions().map((o) => (
+                    <button
+                      key={o.label}
+                      type="button"
+                      className="block w-full rounded-md px-3 py-2 text-left hover:bg-slate-50"
+                      onClick={() => {
+                        setSnoozeAnchor(null);
+                        update.mutate({ snoozedUntil: o.until.toISOString() });
+                      }}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                  <p className="px-3 pt-1 pb-2 text-[11px] text-slate-400">A new customer message brings it back early.</p>
+                </div>
+              </Popover>
               {conv.status === 'resolved' ? (
                 <Button variant="secondary" onClick={() => update.mutate({ status: 'open' })}>
                   <RotateCcw className="size-4" /> Reopen
@@ -361,7 +269,7 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
                       <Clock className="size-4" /> Pending
                     </Button>
                   )}
-                  <Button onClick={() => update.mutate({ status: 'resolved' })}>
+                  <Button onClick={() => update.mutate({ status: 'resolved' })} title="Resolve (e)">
                     <Check className="size-4" /> Resolve
                   </Button>
                 </>
@@ -377,7 +285,7 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
 
         <Timeline id={id} />
         {writable ? (
-          <Composer id={id} windowOpen={conv.serviceWindowOpen} />
+          <Composer id={id} windowOpen={conv.serviceWindowOpen} contactName={conv.contact?.name} />
         ) : (
           <div className="flex items-center gap-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
             <Lock className="size-4" />
@@ -386,13 +294,25 @@ function ConversationPanel({ id, onBack }: { id: string; onBack: () => void }) {
         )}
       </div>
 
+      {contact && showContact && <div className="fixed inset-0 z-30 bg-slate-900/20 2xl:hidden" onClick={() => setShowContact(false)} />}
       {contact && (
-        <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4 xl:block" aria-label="Contact">
+        <aside
+          className={cn(
+            'w-80 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4',
+            showContact ? 'fixed inset-y-0 right-0 z-40 block shadow-2xl 2xl:static 2xl:shadow-none' : 'hidden 2xl:block',
+          )}
+          aria-label="Contact"
+        >
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-ink">Contact</h3>
-            <Link to={`/w/${workspace.id}/contacts`} className="text-xs text-brand-700 hover:underline">
-              All contacts
-            </Link>
+            <span className="flex items-center gap-2">
+              <Link to={`/w/${workspace.id}/contacts`} className="text-xs text-brand-700 hover:underline">
+                All contacts
+              </Link>
+              <button type="button" onClick={() => setShowContact(false)} className="rounded p-1 text-slate-400 hover:bg-slate-100 2xl:hidden" aria-label="Close contact details">
+                <X className="size-4" />
+              </button>
+            </span>
           </div>
           <ContactDetails contact={contact} compact />
         </aside>
@@ -511,11 +431,62 @@ function NoteBubble({ item }: { item: Extract<TimelineItem, { kind: 'note' }> })
   );
 }
 
-function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
+/** "/" (reply) or "@" (note) right before the caret opens a picker. */
+type Picker = { kind: 'canned' | 'mention'; query: string; start: number };
+
+function Composer({ id, windowOpen, contactName }: { id: string; windowOpen: boolean; contactName?: string | null }) {
   const { workspace } = useWorkspace();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'reply' | 'note'>('reply');
   const [text, setText] = useState('');
+  const box = useRef<HTMLTextAreaElement>(null);
+  const [picker, setPicker] = useState<Picker | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  const [managing, setManaging] = useState(false);
+  // Display name -> user id of teammates @mentioned in the note being written.
+  const [mentioned, setMentioned] = useState<Map<string, string>>(new Map());
+  const canned = useCannedReplies();
+  const team = useTeam();
+
+  useEffect(() => {
+    const onCompose = (e: Event) => {
+      setMode((e as CustomEvent<'reply' | 'note'>).detail);
+      setTimeout(() => box.current?.focus(), 0);
+    };
+    window.addEventListener(COMPOSE_EVENT, onCompose);
+    return () => window.removeEventListener(COMPOSE_EVENT, onCompose);
+  }, []);
+
+  const options = useMemo(() => {
+    if (!picker) return [];
+    const q = picker.query.toLowerCase();
+    if (picker.kind === 'canned') return (canned.data ?? []).filter((r) => r.shortcut.includes(q) || r.body.toLowerCase().includes(q)).slice(0, 8).map((r) => ({ id: r.id, label: `/${r.shortcut}`, detail: r.body, value: r.body }));
+    return (team.data ?? []).filter((m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)).slice(0, 8).map((m) => ({ id: m.id, label: m.name, detail: m.email, value: m.name }));
+  }, [picker, canned.data, team.data]);
+
+  const detectPicker = (value: string, caret: number) => {
+    const m = /(^|\s)([/@])([\w.-]*)$/.exec(value.slice(0, caret));
+    const kind = m?.[2] === '/' ? 'canned' : m?.[2] === '@' ? 'mention' : null;
+    if (m && kind && (kind === 'canned' ? mode === 'reply' : mode === 'note')) {
+      setPicker({ kind, query: m[3]!, start: caret - m[3]!.length - 1 });
+      setHighlight(0);
+    } else setPicker(null);
+  };
+  const choose = (o: { id: string; value: string }) => {
+    if (!picker) return;
+    const caret = box.current?.selectionStart ?? text.length;
+    const insert = picker.kind === 'canned' ? fillCanned(o.value, contactName) : `@${o.value} `;
+    const next = text.slice(0, picker.start) + insert + text.slice(caret);
+    setText(next);
+    if (picker.kind === 'canned') void api.post(`/workspaces/${workspace.id}/canned-replies/${o.id}/used`).catch(() => undefined);
+    else setMentioned(new Map(mentioned).set(o.value, o.id));
+    setPicker(null);
+    setTimeout(() => {
+      const pos = picker.start + insert.length;
+      box.current?.focus();
+      box.current?.setSelectionRange(pos, pos);
+    }, 0);
+  };
   const [templateId, setTemplateId] = useState('');
   const [headerParams, setHeaderParams] = useState<string[]>([]);
   const [bodyParams, setBodyParams] = useState<string[]>([]);
@@ -541,11 +512,12 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
   const send = useMutation({
     mutationFn: () => {
       const base = `/workspaces/${workspace.id}/conversations/${id}`;
-      if (mode === 'note') return api.post(`${base}/notes`, { body: text });
+      if (mode === 'note') return api.post(`${base}/notes`, { body: text, mentions: [...mentioned].filter(([name]) => text.includes(`@${name}`)).map(([, uid]) => uid) });
       return api.post(`${base}/messages`, useTemplate ? { type: 'template', templateId, headerParams, bodyParams, buttonParams, extras } : { type: 'text', text });
     },
     onSuccess: () => {
       setText('');
+      setMentioned(new Map());
       setSuggestion(null);
       setTemplateId('');
       void queryClient.invalidateQueries({ queryKey: ['timeline', workspace.id, id] });
@@ -558,6 +530,24 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
     if (useTemplate ? templateId : text.trim()) send.mutate();
   };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (picker && options.length) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlight((h) => (h + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        choose(options[highlight] ?? options[0]!);
+        return;
+      }
+    }
+    if (picker && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setPicker(null);
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -641,14 +631,70 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
           </Button>
         </div>
       ) : (
-        <div className="flex items-end gap-2">
+        <div className="relative flex items-end gap-2">
+          {picker && (
+            <div className="absolute right-0 bottom-full left-0 z-20 mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" role="listbox" aria-label={picker.kind === 'canned' ? 'Canned replies' : 'Teammates'}>
+              <div className="flex items-center justify-between border-b border-slate-100 px-3 py-1.5 text-xs text-slate-500">
+                <span>{picker.kind === 'canned' ? 'Canned replies' : 'Mention a teammate'} · ↑↓ to move, Enter to insert</span>
+                {picker.kind === 'canned' && (
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => (setPicker(null), setManaging(true))} className="font-medium text-brand-700 hover:underline">
+                    Manage
+                  </button>
+                )}
+              </div>
+              {options.length === 0 ? (
+                <p className="px-3 py-3 text-sm text-slate-500">{picker.kind === 'canned' ? (canned.data?.length ? 'No shortcut matches.' : 'No canned replies yet. Click Manage to add some.') : 'No teammate matches.'}</p>
+              ) : (
+                <ul className="max-h-60 overflow-y-auto py-1">
+                  {options.map((o, i) => (
+                    <li key={o.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={i === highlight}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setHighlight(i)}
+                        onClick={() => choose(o)}
+                        className={cn('flex w-full items-baseline gap-3 px-3 py-2 text-left text-sm', i === highlight && 'bg-slate-100')}
+                      >
+                        <span className={cn('shrink-0 font-medium', picker.kind === 'canned' ? 'font-mono text-amber-800' : 'text-ink')}>{o.label}</span>
+                        <span className="truncate text-slate-500">{o.detail}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {mode === 'reply' && (
+            <button
+              type="button"
+              title="Canned replies (type /)"
+              aria-label="Insert a canned reply"
+              onClick={() => {
+                const next = text && !/\s$/.test(text) ? `${text} /` : `${text}/`;
+                setText(next);
+                setPicker({ kind: 'canned', query: '', start: next.length - 1 });
+                setHighlight(0);
+                box.current?.focus();
+              }}
+              className="mb-1 rounded-lg p-2 text-amber-600 hover:bg-amber-50"
+            >
+              <Zap className="size-4" />
+            </button>
+          )}
           <textarea
+            ref={box}
             aria-label={mode === 'note' ? 'Internal note' : 'Reply'}
             rows={2}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              detectPicker(e.target.value, e.target.selectionStart);
+            }}
+            onBlur={() => setTimeout(() => setPicker(null), 150)}
             onKeyDown={onKeyDown}
-            placeholder={mode === 'note' ? 'Only your team sees this…' : 'Type a reply… (Enter to send, Shift+Enter for a new line)'}
+            placeholder={mode === 'note' ? 'Only your team sees this… type @ to mention a teammate' : 'Type a reply… / for canned replies (Enter to send, Shift+Enter for a new line)'}
             className={cn(
               'block min-h-[42px] w-full resize-y rounded-lg border px-3 py-2 text-sm shadow-sm focus:ring-2 focus:outline-none',
               mode === 'note' ? 'border-amber-300 bg-amber-50/50 focus:ring-amber-400/40' : 'border-slate-300 focus:border-brand-500 focus:ring-brand-500/40',
@@ -659,6 +705,7 @@ function Composer({ id, windowOpen }: { id: string; windowOpen: boolean }) {
           </Button>
         </div>
       )}
+      {managing && <CannedRepliesDialog onClose={() => setManaging(false)} />}
     </div>
   );
 }

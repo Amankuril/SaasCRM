@@ -110,7 +110,7 @@ describe('team inbox', () => {
     await api().post(`${base}/${a.id}/messages`).set(auth(agent2)).send({ type: 'text', text: 'hijack' }).expect(404);
 
     const counts = await api().get(`${base}/counts`).set(auth(agent1));
-    expect(counts.body).toEqual({ all: 2, mine: 1, unassigned: 1 });
+    expect(counts.body).toMatchObject({ all: 2, mine: 1, unassigned: 1 });
   });
 
   it('an agent replying to an unassigned conversation takes it; agents cannot assign others', async () => {

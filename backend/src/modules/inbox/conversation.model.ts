@@ -21,6 +21,17 @@ const conversationSchema = new Schema(
     botPaused: { type: Boolean, default: false },
     // Automatic AI replies since the conversation was last opened (capped per agent settings).
     aiReplyCount: { type: Number, default: 0 },
+    // First time the AI agent answered in this chat: puts it in the inbox's "AI chats".
+    aiTouchedAt: { type: Date, default: null },
+    // Who handed the chat to a person (AI agent or a flow), shown as "Waiting for a person" until someone replies.
+    handoffSource: { type: String, enum: ['ai', 'flow', null], default: null },
+    handoffAt: { type: Date, default: null },
+    // Handed over and no teammate has replied yet.
+    awaitingHuman: { type: Boolean, default: false },
+    // Teammates who starred the chat (each sees their own stars).
+    starredBy: { type: [Schema.Types.ObjectId], ref: 'User', default: [] },
+    // Hidden from open lists until then; a new customer message wakes it early.
+    snoozedUntil: { type: Date, default: null },
     unreadCount: { type: Number, default: 0 },
     lastMessageAt: { type: Date, default: null },
     lastMessagePreview: { type: String, default: null },
@@ -38,6 +49,8 @@ conversationSchema.plugin(tenantScoped);
 conversationSchema.index({ workspaceId: 1, contactId: 1 }, { unique: true });
 conversationSchema.index({ workspaceId: 1, status: 1, lastMessageAt: -1 });
 conversationSchema.index({ workspaceId: 1, assigneeId: 1, status: 1, lastMessageAt: -1 });
+conversationSchema.index({ workspaceId: 1, starredBy: 1, lastMessageAt: -1 });
+conversationSchema.index({ workspaceId: 1, aiTouchedAt: 1, lastMessageAt: -1 });
 
 export type ConversationDoc = HydratedDocument<InferSchemaType<typeof conversationSchema>>;
 export const Conversation = model('Conversation', conversationSchema);
