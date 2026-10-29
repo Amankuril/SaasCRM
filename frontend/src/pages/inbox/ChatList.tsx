@@ -143,7 +143,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
             ))}
           </div>
         ) : (
-          <div className="flex border-b border-slate-200 text-sm">
+          <div className="flex overflow-x-auto border-b border-slate-200 text-sm">
             {(
               [
                 ['active', 'Active', 'Customer wrote in the last 24 hours: reply freely'],
@@ -151,7 +151,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
                 ['any', 'Everything', 'All chats in this list'],
               ] as const
             ).map(([k, label, hint]) => (
-              <button key={k} type="button" title={hint} onClick={() => setTab(k)} className={cn('-mb-px border-b-2 px-4 py-2 font-medium', tab === k ? 'border-ink text-ink' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+              <button key={k} type="button" title={hint} onClick={() => setTab(k)} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2 font-medium whitespace-nowrap', tab === k ? 'border-ink text-ink' : 'border-transparent text-slate-500 hover:text-slate-700')}>
                 {label}
               </button>
             ))}
