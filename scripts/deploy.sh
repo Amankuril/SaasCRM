@@ -30,7 +30,8 @@ echo "Deploying ${before:0:7} -> ${after:0:7}"
 # changed <path>: true if <path> changed since the last successful deploy (always with FORCE=1).
 changed() {
   [ "${FORCE:-0}" = "1" ] && return 0
-  ! git diff --quiet "$before" "$after" -- "$1"
+  # -C: pathspecs are relative to the repo root, whatever directory we have cd'd into.
+  ! git -C "$APP_DIR" diff --quiet "$before" "$after" -- "$1"
 }
 
 # install_deps: npm ci only when the lockfile differs from the last install here.
