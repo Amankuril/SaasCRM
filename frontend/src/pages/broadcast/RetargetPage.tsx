@@ -34,7 +34,7 @@ export function RetargetPage() {
         templateId: source!.templateId,
         audience: { type: 'retarget', segmentId: null, filter: { tagsAny: [], excludeTags: [], stages: [], requireOptIn: false }, retarget: { campaignId: source!.id, outcomes } },
       }),
-    onSuccess: ({ campaign }) => navigate(`/w/${workspace.id}/campaigns/${campaign.id}`),
+    onSuccess: ({ campaign }) => navigate(`/w/${workspace.id}/broadcast/campaigns/new?draft=${campaign.id}`),
   });
 
   return (

@@ -38,11 +38,12 @@ export const RETARGET_INFO: Record<RetargetOutcome, { label: string; hint: strin
 };
 
 const STEPS = [
-  { id: 'business', label: 'Business Info', required: true },
-  { id: 'target', label: 'Target Customers', required: true },
-  { id: 'template', label: 'Template Customization', required: true },
-  { id: 'schedule', label: 'Schedule or Publish', required: true },
-  { id: 'team', label: 'Assign Teammates', required: false },
+  { id: 'business', label: 'Campaign details' },
+  { id: 'target', label: 'Select audience' },
+  { id: 'template', label: 'Choose template' },
+  { id: 'variables', label: 'Map variables / media' },
+  { id: 'schedule', label: 'Schedule or send now' },
+  { id: 'review', label: 'Review & launch' },
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
@@ -61,7 +62,7 @@ function fromCampaign(c: Campaign): Draft {
   };
 }
 
-/** The draft editor: "Create Campaign" in five steps with a live preview. */
+/** The draft editor: "Create Campaign" in six steps with a live preview. */
 export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
   const { workspace, can } = useWorkspace();
   const queryClient = useQueryClient();
@@ -106,7 +107,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
     mutationFn: () => api.delete(`/workspaces/${workspace.id}/campaigns/${campaign.id}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['campaigns', workspace.id] });
-      navigate(`/w/${workspace.id}/campaigns`);
+      navigate(`/w/${workspace.id}/broadcast/campaigns`);
     },
   });
 
@@ -115,14 +116,17 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
   const audienceDone =
     a.type === 'list' ? (a.filter.listsAny ?? []).length > 0 : a.type === 'retarget' ? !!a.retarget?.campaignId && (a.retarget.outcomes ?? []).length > 0 : a.type !== 'segment' || !!a.segmentId;
   const variablesDone = [...draft.headerVariables, ...draft.bodyVariables, ...draft.buttonVariables].every((v) => v.source === 'field' || v.value.trim());
+  const scheduleDone = when === 'now' || (!!scheduleLocal && new Date(zonedLocalToIso(scheduleLocal, workspace.timezone)) > new Date());
+  const ready = !!draft.name.trim() && audienceDone && !!template && variablesDone && scheduleDone;
+  // A step is ticked only while its required fields are valid.
   const done: Record<StepId, boolean> = {
     business: !!draft.name.trim(),
     target: audienceDone,
-    template: !!template && variablesDone,
-    schedule: when === 'now' || !!scheduleLocal,
-    team: draft.assigneeIds.length > 0,
+    template: !!template,
+    variables: !!template && variablesDone,
+    schedule: scheduleDone,
+    review: ready,
   };
-  const ready = done.business && done.target && done.template && done.schedule;
 
   const goTo = (id: StepId) => {
     setActive(id);
@@ -169,7 +173,46 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
         </div>
       </div>
 
-      <div ref={scroller} className="flex-1 overflow-y-auto bg-slate-50 px-4 py-6 sm:px-6">
+      {/* The step rail sits outside the scrolling form, so it never moves. */}
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 lg:block" aria-label="Campaign steps">
+          <p className="mb-4 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+            Steps · {STEPS.filter((x) => done[x.id]).length}/{STEPS.length} done
+          </p>
+          <ol>
+            {STEPS.map((s, i) => (
+              <li key={s.id} className="relative pb-8 last:pb-0">
+                {i < STEPS.length - 1 && <span className={cn('absolute top-8 left-[15px] h-[calc(100%-2rem)] w-0.5', done[s.id] ? 'bg-emerald-400' : 'bg-slate-200')} />}
+                <button type="button" onClick={() => goTo(s.id)} aria-current={active === s.id ? 'step' : undefined} className={cn('flex w-full items-start gap-3 rounded-lg text-left', active === s.id && 'font-semibold')}>
+                  <span
+                    className={cn(
+                      'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold',
+                      done[s.id] ? 'border-emerald-500 bg-emerald-500 text-white' : active === s.id ? 'border-brand-600 bg-white text-brand-700' : 'border-slate-200 bg-white text-slate-500',
+                      active === s.id && 'ring-4 ring-brand-100',
+                    )}
+                  >
+                    {done[s.id] ? <Check className="size-4" /> : i + 1}
+                  </span>
+                  <span className={cn('pt-1.5 text-sm', active === s.id ? 'text-ink' : 'text-slate-500')}>{s.label}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </aside>
+
+      <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto bg-slate-50 px-4 pb-6 sm:px-6">
+        {/* Smaller screens get the same steps as a bar pinned to the top of the form. */}
+        <ol className="sticky top-0 z-10 -mx-4 mb-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 sm:-mx-6 sm:px-6 lg:hidden">
+          {STEPS.map((s, i) => (
+            <li key={s.id}>
+              <button type="button" onClick={() => goTo(s.id)} className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap', active === s.id ? 'bg-brand-50 text-brand-800 ring-1 ring-brand-200' : 'text-slate-500')}>
+                <span className={cn('flex size-5 items-center justify-center rounded-full text-[10px]', done[s.id] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600')}>{done[s.id] ? <Check className="size-3" /> : i + 1}</span>
+                {s.label}
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="pt-0 lg:pt-6">
         {error != null && (
           <div className="mb-4">
             <Alert>{errorMessage(error)}</Alert>
@@ -185,31 +228,9 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
             </Alert>
           </div>
         )}
-        <div className="grid items-start gap-6 lg:grid-cols-[12rem_minmax(0,1fr)_minmax(0,20rem)]">
-          <ol className="relative hidden lg:sticky lg:top-0 lg:block">
-            {STEPS.map((s, i) => (
-              <li key={s.id} className="relative pb-10 last:pb-0">
-                {i < STEPS.length - 1 && <span className="absolute top-8 left-[15px] h-[calc(100%-2rem)] w-0.5 bg-slate-200" />}
-                <button type="button" onClick={() => goTo(s.id)} className="flex items-start gap-3 text-left">
-                  <span
-                    className={cn(
-                      'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold',
-                      done[s.id] ? 'border-emerald-500 bg-emerald-500 text-white' : active === s.id ? 'border-slate-700 bg-white text-ink ring-4 ring-slate-200' : 'border-slate-200 bg-white text-slate-500',
-                    )}
-                  >
-                    {done[s.id] ? <Check className="size-4" /> : i + 1}
-                  </span>
-                  <span className={cn('pt-1.5 text-sm', active === s.id ? 'font-semibold text-ink' : 'text-slate-500')}>
-                    {s.label}
-                    {s.required ? <span className="text-red-500">*</span> : <span className="text-xs font-normal"> (Optional)</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
           <div className="space-y-5">
-            <StepCard id="business" n={1} title="Business Info" required>
+            <StepCard id="business" n={1} title="Campaign details" required>
               <p className="text-sm text-slate-500">Profile name :</p>
               <p className="mb-4 font-medium text-ink">{profileName}</p>
               <label htmlFor="c-name" className="mb-1.5 block text-sm font-medium text-slate-600">
@@ -219,7 +240,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
               <p className="mt-1 text-xs text-slate-500">Only your team sees this, e.g. “Diwali Sale 2026”.</p>
             </StepCard>
 
-            <StepCard id="target" n={2} title="Target Customers" required>
+            <StepCard id="target" n={2} title="Select audience" required>
               {a.type === 'retarget' ? (
                 <RetargetPicker audience={a} disabled={!editable} onChange={(audience) => set({ audience })} />
               ) : moreAudience ? (
@@ -241,7 +262,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
               {fieldError(save.error, 'audience') && <p className="mt-2 text-xs text-red-600">{fieldError(save.error, 'audience')}</p>}
             </StepCard>
 
-            <StepCard id="template" n={3} title="Template Customization" required>
+            <StepCard id="template" n={3} title="Choose template" required>
               {templates.data?.templates.length === 0 ? (
                 <Alert tone="info">
                   No approved templates yet.{' '}
@@ -251,10 +272,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                   — WhatsApp usually approves within minutes to a day.
                 </Alert>
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <p className="mb-1.5 text-sm font-medium text-slate-600">3a. Choose template</p>
-                    <Select
+                <Select
                       aria-label="Template"
                       disabled={!editable}
                       value={draft.templateId ?? ''}
@@ -266,11 +284,16 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                           {t.name} ({t.language}, {t.category.toLowerCase()})
                         </option>
                       ))}
-                    </Select>
-                  </div>
-                  {template && (
+                </Select>
+              )}
+            </StepCard>
+
+            <StepCard id="variables" n={4} title="Map variables / media" required>
+              {!template ? (
+                <p className="text-sm text-slate-500">Choose a template in step 3 to fill in its variables and media.</p>
+              ) : (
+                <div className="space-y-4">
                     <div className="space-y-3">
-                      <p className="text-sm font-medium text-slate-600">3b. Update variables</p>
                       {draft.headerVariables.length + draft.bodyVariables.length + template.requirements.buttons.length === 0 && (
                         <p className="text-sm text-slate-500">This template has no variables.</p>
                       )}
@@ -291,7 +314,6 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                       ))}
                       <TemplateExtrasFields requirements={template.requirements} value={draft.templateExtras ?? {}} onChange={(templateExtras) => set({ templateExtras })} disabled={!editable} error={save.error} shared />
                     </div>
-                  )}
                   {(fieldError(save.error, 'bodyVariables') || fieldError(save.error, 'headerVariables') || fieldError(save.error, 'buttonVariables')) && (
                     <p className="text-xs text-red-600">{fieldError(save.error, 'bodyVariables') ?? fieldError(save.error, 'headerVariables') ?? fieldError(save.error, 'buttonVariables')}</p>
                   )}
@@ -299,7 +321,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
               )}
             </StepCard>
 
-            <StepCard id="schedule" n={4} title="Schedule or Publish" required>
+            <StepCard id="schedule" n={5} title="Schedule or send now" required>
               <div className="grid gap-3 sm:grid-cols-2">
                 {(
                   [
@@ -319,6 +341,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Input aria-label="Send at" type="datetime-local" value={scheduleLocal} onChange={(e) => setScheduleLocal(e.target.value)} className="w-60" />
                   <span className="text-xs text-slate-500">{workspace.timezone}</span>
+                  {!!scheduleLocal && !scheduleDone && <span className="w-full text-xs text-red-600">Pick a time in the future.</span>}
                 </div>
               )}
               <details className="mt-4 text-sm">
@@ -352,15 +375,37 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                   </div>
                 </div>
               </details>
+
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <p className="mb-2 text-sm font-medium text-slate-600">
+                  Assign teammates <span className="font-normal text-slate-400">(optional)</span>
+                </p>
+                <TeammatePicker selected={draft.assigneeIds} disabled={!editable} onChange={(assigneeIds) => set({ assigneeIds })} />
+                {fieldError(save.error, 'assigneeIds') && <p className="mt-2 text-xs text-red-600">{fieldError(save.error, 'assigneeIds')}</p>}
+              </div>
             </StepCard>
 
-            <StepCard id="team" n={5} title="Assign Teammates" hint="(Optional)">
-              <TeammatePicker selected={draft.assigneeIds} disabled={!editable} onChange={(assigneeIds) => set({ assigneeIds })} />
-              {fieldError(save.error, 'assigneeIds') && <p className="mt-2 text-xs text-red-600">{fieldError(save.error, 'assigneeIds')}</p>}
+            <StepCard id="review" n={6} title="Review & launch">
+              <ul className="space-y-2 text-sm">
+                {STEPS.slice(0, 5).map((x) => (
+                  <li key={x.id} className="flex items-center gap-2">
+                    <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full', done[x.id] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500')}>{done[x.id] ? <Check className="size-3" /> : <span className="size-1.5 rounded-full bg-slate-400" />}</span>
+                    <button type="button" onClick={() => goTo(x.id)} className={cn('hover:underline', done[x.id] ? 'text-slate-700' : 'font-medium text-amber-700')}>
+                      {x.label}
+                      {!done[x.id] && ' — needs attention'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {editable && (
+                <Button disabled={!ready} onClick={() => setReviewing(true)} className="mt-4" title={ready ? undefined : 'Finish the steps above first'}>
+                  <Eye className="size-4" /> Review &amp; launch
+                </Button>
+              )}
             </StepCard>
           </div>
 
-          <aside className="overflow-hidden rounded-xl border border-slate-200 bg-white lg:sticky lg:top-0">
+          <aside className="overflow-hidden rounded-xl border border-slate-200 bg-white xl:sticky xl:top-6">
             <p className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-ink">Preview</p>
             {template ? (
               <TemplatePreview components={template.components} headerParams={draft.headerVariables.map(sampleValue)} bodyParams={draft.bodyVariables.map(sampleValue)} {...extrasPreview(draft.templateExtras ?? {})} />
@@ -371,6 +416,8 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
             )}
           </aside>
         </div>
+        </div>
+      </div>
       </div>
 
       {editable && (
@@ -381,8 +428,8 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
           <Button variant="secondary" loading={save.isPending && !reviewing} onClick={() => save.mutate()}>
             Save draft
           </Button>
-          <Button disabled={!ready} onClick={() => setReviewing(true)} className="bg-slate-700 px-5 hover:bg-slate-800" title={ready ? undefined : 'Finish the required steps first'}>
-            <Eye className="size-4" /> Review &amp; Send
+          <Button disabled={!ready} onClick={() => setReviewing(true)} className="px-5" title={ready ? undefined : 'Finish the required steps first'}>
+            <Eye className="size-4" /> Review &amp; launch
           </Button>
         </div>
       )}

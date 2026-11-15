@@ -1,9 +1,7 @@
-import { useMutation } from '@tanstack/react-query';
-import { BookOpen, ChevronLeft, ChevronRight, ListChecks, Loader2, Megaphone, Radio, Repeat, Users, type LucideIcon } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, ListChecks, Megaphone, Radio, Repeat, Users, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink, Outlet, useMatch, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useMatch } from 'react-router';
 import { cn } from '../../components/ui';
-import { api, type Campaign } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 
 const COLLAPSE_KEY = 'broadcast.navCollapsed';
@@ -11,8 +9,13 @@ const COLLAPSE_KEY = 'broadcast.navCollapsed';
 /** Broadcast area: contact lists and campaigns, with a secondary nav like Templates. */
 export function BroadcastLayout() {
   const { workspace, can } = useWorkspace();
-  const navigate = useNavigate();
-  const onCampaign = useMatch('/w/:workspaceId/campaigns/:campaignId');
+  // Create Campaign and Campaign List are separate pages: each one highlights only itself.
+  const onCreate = useMatch('/w/:workspaceId/broadcast/campaigns/new');
+  const onList = useMatch('/w/:workspaceId/broadcast/campaigns');
+  const onCampaign = useMatch('/w/:workspaceId/broadcast/campaigns/:campaignId');
+  const onRetarget = useMatch('/w/:workspaceId/broadcast/retarget');
+  const onGuide = useMatch('/w/:workspaceId/broadcast/guide');
+  const onReport = !!onCampaign && !onCreate;
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === '1';
@@ -29,13 +32,9 @@ export function BroadcastLayout() {
     }
   };
 
-  const create = useMutation({
-    mutationFn: () => api.post<{ campaign: Campaign }>(`/workspaces/${workspace.id}/campaigns`, { name: 'Untitled campaign' }),
-    onSuccess: ({ campaign }) => navigate(`/w/${workspace.id}/campaigns/${campaign.id}`),
-  });
   const canCreate = can('campaigns:manage') && workspace.status !== 'suspended';
 
-  const item = (opts: { to?: string; label: string; icon: LucideIcon; end?: boolean; onClick?: () => void; soon?: boolean; active?: boolean; busy?: boolean }) => {
+  const item = (opts: { to?: string; label: string; icon: LucideIcon; end?: boolean; onClick?: () => void; soon?: boolean; active?: boolean }) => {
     const className = (active: boolean) =>
       cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -45,7 +44,7 @@ export function BroadcastLayout() {
       );
     const content = (
       <>
-        {opts.busy ? <Loader2 className="size-4 shrink-0 animate-spin" /> : <opts.icon className="size-4 shrink-0" />}
+        <opts.icon className="size-4 shrink-0" />
         {!collapsed && <span className="flex-1 text-left">{opts.label}</span>}
         {!collapsed && opts.soon && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500">Soon</span>}
       </>
@@ -58,17 +57,18 @@ export function BroadcastLayout() {
       );
     }
     return (
-      <button key={opts.label} type="button" disabled={opts.soon || opts.busy} onClick={opts.onClick} title={opts.soon ? 'Coming soon' : collapsed ? opts.label : undefined} className={className(false)}>
+      <button key={opts.label} type="button" disabled={opts.soon} onClick={opts.onClick} title={opts.soon ? 'Coming soon' : collapsed ? opts.label : undefined} className={className(false)}>
         {content}
       </button>
     );
   };
 
   const base = `/w/${workspace.id}`;
+  const crumb = onCreate ? 'Create Campaign' : onList || onReport ? 'Campaign List' : onRetarget ? 'Retarget Campaign' : onGuide ? 'User Guide' : 'Contacts List';
   const items = [
     item({ to: `${base}/broadcast`, label: 'Contacts List', icon: Users, end: true }),
-    ...(canCreate ? [item({ label: 'Create Campaign', icon: Megaphone, onClick: () => create.mutate(), busy: create.isPending })] : []),
-    item({ to: `${base}/campaigns`, label: 'Campaign List', icon: ListChecks, active: !!onCampaign }),
+    ...(canCreate ? [item({ to: `${base}/broadcast/campaigns/new`, label: 'Create Campaign', icon: Megaphone, end: true })] : []),
+    item({ to: `${base}/broadcast/campaigns`, label: 'Campaign List', icon: ListChecks, end: true, active: onReport }),
     item({ to: `${base}/broadcast/retarget`, label: 'Retarget Campaign', icon: Repeat }),
     item({ to: `${base}/broadcast/guide`, label: 'User Guide', icon: BookOpen }),
   ];
@@ -98,20 +98,30 @@ export function BroadcastLayout() {
           {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
         </button>
         <div className="space-y-1 p-3">{items}</div>
-        {create.error != null && !collapsed && <p className="px-4 text-xs text-red-600">Could not create the campaign. Try again.</p>}
       </aside>
-      {onCampaign ? (
-        // A campaign page manages its own scrolling (the builder has a sticky action bar).
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <Outlet />
-        </div>
-      ) : (
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <nav aria-label="Breadcrumb" className="flex shrink-0 items-center gap-1.5 border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-500 sm:px-6">
+          <Link to={`${base}/broadcast`} className="hover:text-ink">
+            Broadcast
+          </Link>
+          <ChevronRight className="size-3.5 text-slate-300" />
+          <span className="font-medium text-ink" aria-current="page">
+            {crumb}
+          </span>
+        </nav>
+        {onCampaign ? (
+          // A campaign page manages its own scrolling (the builder has a sticky action bar).
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Outlet />
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+              <Outlet />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

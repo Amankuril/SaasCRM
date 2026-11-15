@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, Navigate, useParams } from 'react-router';
 import { useStageOptions, TagChip } from '../components/crm';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage } from '../components/ui';
 import { api, type AudienceFilter, type Campaign, type ContactList, type Segment, type VariableSpec } from '../lib/api';
@@ -9,7 +9,6 @@ import { useTags } from '../lib/hooks';
 import { formatInZone } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
 import { CAMPAIGN_STATUS, funnel } from './CampaignsPage';
-import { CampaignBuilder } from './broadcast/CampaignBuilder';
 
 export function CampaignPage() {
   const { campaignId } = useParams();
@@ -20,7 +19,8 @@ export function CampaignPage() {
     refetchInterval: (q) => (q.state.data && isLive(q.state.data.campaign) ? 3_000 : false),
   });
 
-  if (query.data?.campaign.status === 'draft') return <CampaignBuilder key={query.data.campaign.id} campaign={query.data.campaign} />;
+  // Drafts are edited on the Create Campaign page.
+  if (query.data?.campaign.status === 'draft') return <Navigate to={`/w/${workspace.id}/broadcast/campaigns/new?draft=${query.data.campaign.id}`} replace />;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -429,8 +429,8 @@ function CampaignReport({ campaign }: { campaign: Campaign }) {
 function BackLink() {
   const { workspace } = useWorkspace();
   return (
-    <Link to={`/w/${workspace.id}/campaigns`} className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-      <ArrowLeft className="size-4" /> Broadcasts
+    <Link to={`/w/${workspace.id}/broadcast/campaigns`} className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+      <ArrowLeft className="size-4" /> Campaign List
     </Link>
   );
 }

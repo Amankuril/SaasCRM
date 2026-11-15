@@ -99,11 +99,58 @@ campaignRouter.patch('/:campaignId', requirePermission('campaigns:manage'), asyn
   res.json({ campaign: serialize(campaign) });
 });
 
+/** A campaign that is sending (or about to) has to be stopped before it can be deleted. */
+const SENDING = ['running', 'scheduled', 'paused'];
+
+async function removeCampaign(req: Parameters<typeof audit>[0], campaign: CampaignDoc) {
+  const workspaceId = req.workspace!._id;
+  await CampaignRecipient.deleteMany({ workspaceId, campaignId: campaign._id });
+  await Campaign.deleteOne({ _id: campaign._id, workspaceId });
+  await audit(req, { workspaceId, action: 'campaign.deleted', targetType: 'campaign', targetId: campaign.id, metadata: { name: campaign.name, status: campaign.status } });
+}
+
 campaignRouter.delete('/:campaignId', requirePermission('campaigns:manage'), async (req, res) => {
   const campaign = await findCampaign(req.workspace!._id, req.params.campaignId);
-  if (campaign.status !== 'draft') throw conflict('CAMPAIGN_NOT_DRAFT', 'Only drafts can be deleted. Cancel a running campaign instead.');
-  await Campaign.deleteOne({ _id: campaign._id, workspaceId: req.workspace!._id });
+  if (SENDING.includes(campaign.status)) throw conflict('CAMPAIGN_ACTIVE', 'This campaign is still sending. Cancel it first, then delete it.');
+  await removeCampaign(req, campaign);
   res.status(204).end();
+});
+
+/** Bulk delete from the campaign list. Campaigns that are still sending are skipped and reported. */
+campaignRouter.post('/bulk-delete', requirePermission('campaigns:manage'), async (req, res) => {
+  const { ids } = parse(z.object({ ids: z.array(z.string()).min(1).max(200) }), req.body);
+  const campaigns = await Campaign.find({ workspaceId: req.workspace!._id, _id: { $in: ids.map((id) => objectId(id, 'Campaign')) } });
+  const skipped: { id: string; name: string }[] = [];
+  let deleted = 0;
+  for (const campaign of campaigns) {
+    if (SENDING.includes(campaign.status)) skipped.push({ id: campaign.id as string, name: campaign.name });
+    else {
+      await removeCampaign(req, campaign);
+      deleted++;
+    }
+  }
+  res.json({ deleted, skipped });
+});
+
+/** Copies a campaign's setup into a new draft. */
+campaignRouter.post('/:campaignId/duplicate', requirePermission('campaigns:manage'), async (req, res) => {
+  const source = await findCampaign(req.workspace!._id, req.params.campaignId);
+  const copy = await Campaign.create({
+    workspaceId: req.workspace!._id,
+    createdBy: req.user!._id,
+    name: `${source.name} (copy)`.slice(0, 120),
+    templateId: source.templateId,
+    headerVariables: source.headerVariables,
+    bodyVariables: source.bodyVariables,
+    buttonVariables: source.buttonVariables,
+    templateExtras: source.templateExtras,
+    audience: source.audience,
+    assigneeIds: source.assigneeIds,
+    sendRatePerMinute: source.sendRatePerMinute,
+    quietHours: source.quietHours,
+  });
+  await audit(req, { workspaceId: req.workspace!._id, action: 'campaign.duplicated', targetType: 'campaign', targetId: copy.id, metadata: { from: source.id } });
+  res.status(201).json({ campaign: serialize(copy) });
 });
 
 campaignRouter.post('/:campaignId/preview', requirePermission('workspace:read'), async (req, res) => {

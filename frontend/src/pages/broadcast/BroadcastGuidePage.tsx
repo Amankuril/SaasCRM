@@ -153,7 +153,7 @@ export function BroadcastGuidePage() {
             />
             <p className="mt-4 text-sm text-slate-700">
               ✨ <strong>Done!</strong> Track it in{' '}
-              <Link to={`${base}/campaigns`} className="font-medium underline">
+              <Link to={`${base}/broadcast/campaigns`} className="font-medium underline">
                 Campaign List
               </Link>
               .

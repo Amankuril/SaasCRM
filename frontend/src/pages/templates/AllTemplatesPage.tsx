@@ -454,7 +454,7 @@ function ViewModal({ template: t, onClose }: { template: MessageTemplate; onClos
           {t.providerTemplateId && <Row label="WhatsApp template ID">{t.providerTemplateId}</Row>}
           {t.syncedAt && <Row label="Last synced">{formatDate(t.syncedAt, true)}</Row>}
           {t.status === 'APPROVED' && (
-            <Link to={`/w/${workspace.id}/campaigns`} className="inline-block pt-2 text-sm font-medium text-brand-700 hover:underline">
+            <Link to={`/w/${workspace.id}/broadcast/campaigns`} className="inline-block pt-2 text-sm font-medium text-brand-700 hover:underline">
               Use in a broadcast →
             </Link>
           )}
