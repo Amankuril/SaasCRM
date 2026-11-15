@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { AiAgent } from '../ai/ai.model.js';
 import { Form } from '../forms/form.model.js';
+import { GoogleAccount } from '../integrations/sheets.model.js';
 import { Tag } from '../contacts/tag.model.js';
 import { MessageTemplate } from '../templates/template.model.js';
 import { listStages } from '../audience/stage.service.js';
@@ -76,6 +77,7 @@ function hasInstantLoop(graph: Graph, byId: Map<string, GraphNode>): boolean {
   for (const e of graph.edges) {
     const source = byId.get(e.source);
     if (!source || WAITING_NODES.has(source.type)) continue; // leaving a waiting step breaks the loop
+    if (source.type === 'loop' && e.sourceHandle === 'item') continue; // bounded: runs once per item
     adj.set(e.source, [...(adj.get(e.source) ?? []), e.target]);
   }
   const state = new Map<string, 'visiting' | 'done'>();
@@ -117,6 +119,7 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
     }
     const stageKeys = [
       ...(node.type === 'update_contact' ? ((d.actions as { type?: string; stage?: string }[]) ?? []).filter((a) => a.type === 'set_stage').map((a) => a.stage) : []),
+      ...(node.type === 'set_stage' ? [d.stage as string | undefined] : []),
       ...(node.type === 'condition' ? ((d.rules as { field: string; value: string }[]) ?? []).filter((r) => r.field === 'stage').map((r) => r.value) : []),
     ];
     if (stageKeys.length) {
@@ -126,6 +129,7 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
     const tagIds = [
       ...(node.type === 'trigger' && d.event === 'tag_added' && typeof d.tagId === 'string' ? [d.tagId] : []),
       ...(node.type === 'update_contact' ? ((d.actions as { tagId?: string }[]) ?? []).map((a) => a.tagId).filter((t): t is string => !!t) : []),
+      ...(node.type === 'add_tags' && Array.isArray(d.tagIds) ? (d.tagIds as string[]) : []),
       ...(node.type === 'condition' ? ((d.rules as { field: string; value: string }[]) ?? []).filter((r) => r.field === 'tag').map((r) => r.value) : []),
     ];
     for (const tagId of tagIds) {
@@ -149,6 +153,9 @@ async function checkReferences(workspaceId: Types.ObjectId, graph: Graph, add: (
       } catch {
         add(node.id, 'The body is not valid JSON. Put {{placeholders}} inside quotes, e.g. "name": "{{contact.name}}".');
       }
+    }
+    if (node.type === 'google_sheets' && typeof d.googleAccountId === 'string' && d.googleAccountId) {
+      if (!Types.ObjectId.isValid(d.googleAccountId) || !(await GoogleAccount.exists({ _id: d.googleAccountId, workspaceId }))) add(node.id, 'The selected Google account is no longer connected.');
     }
     if (node.type === 'handoff' && typeof d.assigneeId === 'string' && d.assigneeId) {
       const member = Types.ObjectId.isValid(d.assigneeId) ? await WorkspaceMember.findOne({ workspaceId, userId: d.assigneeId }).lean() : null;

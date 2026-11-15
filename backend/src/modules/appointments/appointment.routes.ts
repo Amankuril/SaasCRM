@@ -114,7 +114,7 @@ appointmentRouter.get('/', requirePermission('workspace:read'), async (req, res)
       .skip((input.page - 1) * input.limit)
       .limit(input.limit),
     Appointment.countDocuments(filter),
-    Appointment.countDocuments({ workspaceId, status: 'scheduled', startAt: { $gte: now } }),
+    Appointment.countDocuments({ workspaceId, status: { $in: ['scheduled', 'confirmed'] }, startAt: { $gte: now } }),
     Appointment.countDocuments({ workspaceId, status: 'completed', startAt: { $gte: monthStart, $lt: nextMonth } }),
     Appointment.countDocuments({ workspaceId, status: 'cancelled' }),
   ]);

@@ -53,7 +53,17 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
       </p>
       {issues && <p className="px-3 pb-2 text-[11px] text-red-600">{issues[0]}</p>}
 
-      {outputs.length > 0 && (
+      {outputs.length > 4 ? (
+        // Many branches (list options): one row each, connected from the right edge.
+        <div className="border-t border-slate-100 py-1">
+          {outputs.map((o) => (
+            <div key={o.id} className="relative px-3 py-1 text-right">
+              <span className="block truncate text-[10px] font-medium text-slate-500">{o.label}</span>
+              <Handle type="source" id={o.id} position={Position.Right} className={cn('!size-3 !border-2 !border-white', o.id === 'no_reply' ? '!bg-slate-400' : '!bg-brand-600')} />
+            </div>
+          ))}
+        </div>
+      ) : outputs.length > 0 ? (
         <div className={cn('flex border-t border-slate-100', outputs.length === 1 && 'justify-center')}>
           {outputs.map((o) => (
             <div key={o.id} className="relative flex-1 px-1 pt-1 pb-3 text-center">
@@ -62,12 +72,12 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
                 type="source"
                 id={o.id}
                 position={Position.Bottom}
-                className={cn('!size-3 !border-2 !border-white', o.id === 'no_reply' || o.id === 'false' ? '!bg-slate-400' : '!bg-brand-600')}
+                className={cn('!size-3 !border-2 !border-white', o.id === 'no_reply' || o.id === 'false' || o.id === 'failed' ? '!bg-slate-400' : '!bg-brand-600')}
               />
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 });

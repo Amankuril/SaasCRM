@@ -1,7 +1,7 @@
 import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
 
-export const APPOINTMENT_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'] as const;
+export const APPOINTMENT_STATUSES = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'] as const;
 // ai_assistant: booked by the AI agent in chat; flow: a Flow Builder step; manual / api as named.
 export const APPOINTMENT_SOURCES = ['ai_assistant', 'flow', 'manual', 'api'] as const;
 

@@ -1,110 +1,56 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Plus, Workflow } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
-import { Alert, Badge, Button, Card, EmptyState, PageHeader, Spinner, errorMessage } from '../components/ui';
-import { api, type FlowDetail, type FlowStatus, type FlowSummary } from '../lib/api';
-import { formatDate } from '../lib/options';
-import { useWorkspace } from '../layouts/workspaceContext';
+import { BarChart3, BookOpen, CalendarCheck, Database, Megaphone, MessagesSquare, Workflow, type LucideIcon } from 'lucide-react';
+import { useSearchParams } from 'react-router';
+import { cn } from '../components/ui';
+import { AutomationsTab } from './flows/AutomationsTab';
+import { FlowAdsTab } from './flows/FlowAdsTab';
+import { FlowAppointmentsTab } from './flows/FlowAppointmentsTab';
+import { FlowDashboardTab } from './flows/FlowDashboardTab';
+import { FlowDataTab } from './flows/FlowDataTab';
+import { FlowDocsTab } from './flows/FlowDocsTab';
+import { FlowRunsTab } from './flows/FlowRunsTab';
 
-export const FLOW_STATUS: Record<FlowStatus, { label: string; tone: 'gray' | 'green' | 'amber' }> = {
-  draft: { label: 'Draft', tone: 'gray' },
-  active: { label: 'Live', tone: 'green' },
-  inactive: { label: 'Off', tone: 'amber' },
-};
+export { FLOW_STATUS } from './flows/shared';
 
-const TRIGGER_TEXT: Record<string, string> = {
-  any_message: 'Any message',
-  new_contact: 'New contact',
-  tag_added: 'Tag added',
-  form_submitted: 'Form submitted',
-  api: 'Started by API',
-};
+const TABS: { key: string; label: string; icon: LucideIcon }[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  { key: 'builder', label: 'Flow Builder', icon: Workflow },
+  { key: 'appointments', label: 'Appointments', icon: CalendarCheck },
+  { key: 'conversations', label: 'Conversations', icon: MessagesSquare },
+  { key: 'data', label: 'Collected Data', icon: Database },
+  { key: 'ads', label: 'Ads', icon: Megaphone },
+  { key: 'docs', label: 'Documentation', icon: BookOpen },
+];
 
+/** The Flow Builder module: one page, seven tabs (kept in ?tab= so links and refresh keep the tab). */
 export function FlowsPage() {
-  const { workspace, can } = useWorkspace();
-  const navigate = useNavigate();
-  const list = useQuery({ queryKey: ['flows', workspace.id], queryFn: () => api.get<{ flows: FlowSummary[] }>(`/workspaces/${workspace.id}/flows`) });
-  const create = useMutation({
-    mutationFn: () => api.post<{ flow: FlowDetail }>(`/workspaces/${workspace.id}/flows`, { name: 'Untitled flow' }),
-    onSuccess: ({ flow }) => navigate(`/w/${workspace.id}/flows/${flow.id}`),
-  });
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab')! : 'builder';
 
   return (
     <>
-      <PageHeader
-        title="Flow Builder"
-        description="Chatbots and automations that reply, ask, tag and hand off for you."
-        actions={
-          can('flows:manage') &&
-          workspace.status !== 'suspended' && (
-            <Button loading={create.isPending} onClick={() => create.mutate()}>
-              <Plus className="size-4" /> New flow
-            </Button>
-          )
-        }
-      />
-      {create.error != null && (
-        <div className="mb-4">
-          <Alert>{errorMessage(create.error)}</Alert>
-        </div>
-      )}
-      <Card>
-        {list.isPending ? (
-          <Spinner />
-        ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.flows.length === 0 ? (
-          <EmptyState icon={<Workflow className="size-5" />} title="No flows yet">
-            Start with a keyword bot: a customer sends &ldquo;review&rdquo;, the bot asks a question with buttons and acts on the answer.
-          </EmptyState>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-slate-500">
-                <tr>
-                  <th className="px-4 py-2.5 font-medium">Flow</th>
-                  <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="hidden px-4 py-2.5 font-medium md:table-cell">Trigger</th>
-                  <th className="hidden px-4 py-2.5 text-right font-medium lg:table-cell">Runs (30d)</th>
-                  <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Updated</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {list.data.flows.map((f) => {
-                  const s = f.stats30d ?? {};
-                  const runs = Object.values(s).reduce((a, b) => a + (b ?? 0), 0);
-                  return (
-                    <tr key={f.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <Link to={`/w/${workspace.id}/flows/${f.id}`} className="font-medium text-slate-800 hover:text-brand-700">
-                          {f.name}
-                        </Link>
-                        {f.status !== 'draft' && f.hasUnpublishedChanges && <p className="text-xs text-amber-600">Unpublished changes</p>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge tone={FLOW_STATUS[f.status].tone}>
-                          {FLOW_STATUS[f.status].label}
-                          {f.publishedVersion > 0 && ` · v${f.publishedVersion}`}
-                        </Badge>
-                      </td>
-                      <td className="hidden px-4 py-3 text-slate-600 md:table-cell">
-                        {f.trigger?.event === 'keyword' ? (f.trigger.keywords.length ? `“${f.trigger.keywords.join('”, “')}”` : 'Keyword (not set)') : TRIGGER_TEXT[f.trigger?.event ?? ''] ?? '—'}
-                      </td>
-                      <td className="hidden px-4 py-3 text-right text-slate-600 lg:table-cell">
-                        {runs || '—'}
-                        {s.failed ? <span className="ml-1 text-red-600">({s.failed} failed)</span> : null}
-                      </td>
-                      <td className="hidden px-4 py-3 text-slate-500 sm:table-cell">{formatDate(f.draftUpdatedAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <nav aria-label="Flow Builder sections" className="no-scrollbar -mx-1 mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-200 px-1">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setParams(t.key === 'builder' ? {} : { tab: t.key })}
+            aria-current={tab === t.key ? 'page' : undefined}
+            className={cn(
+              '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition',
+              tab === t.key ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800',
+            )}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </button>
+        ))}
+      </nav>
+      {tab === 'dashboard' && <FlowDashboardTab />}
+      {tab === 'builder' && <AutomationsTab />}
+      {tab === 'appointments' && <FlowAppointmentsTab />}
+      {tab === 'conversations' && <FlowRunsTab />}
+      {tab === 'data' && <FlowDataTab />}
+      {tab === 'ads' && <FlowAdsTab />}
+      {tab === 'docs' && <FlowDocsTab onOpenBuilder={() => setParams({})} />}
     </>
   );
 }

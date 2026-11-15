@@ -6,7 +6,7 @@ import { TemplatePreview } from '../TemplatePreview';
 import { TemplateExtrasFields, emptyExtras, extrasPreview } from '../TemplateSendFields';
 import { Button, Field, Input, Select } from '../ui';
 import { VariableRow } from '../VariableRow';
-import { NODE_META } from './meta';
+import { NODE_META, WEEKDAYS } from './meta';
 
 type Data = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -21,6 +21,7 @@ export interface EditorDeps {
   templates: MessageTemplate[];
   members: Member[] | undefined;
   forms: WaForm[];
+  googleAccounts: { id: string; email: string }[];
 }
 
 /** Right-hand panel: edits the selected step's config. */
@@ -147,6 +148,161 @@ export function NodeEditor({
             <p className="text-xs text-slate-500">Automations stay paused for this conversation until a teammate resolves it.</p>
           </>
         )}
+        {node.type === 'send_list' && <ListForm d={d} set={set} />}
+        {node.type === 'send_media' && <MediaForm d={d} set={set} />}
+        {node.type === 'send_location' && (
+          <>
+            <div className="flex gap-2">
+              <Field label="Latitude" htmlFor="loc-lat">
+                <Input id="loc-lat" type="number" step="any" value={d.latitude ?? ''} placeholder="28.6139" onChange={(e) => set({ latitude: e.target.value === '' ? null : Number(e.target.value) })} />
+              </Field>
+              <Field label="Longitude" htmlFor="loc-lng">
+                <Input id="loc-lng" type="number" step="any" value={d.longitude ?? ''} placeholder="77.2090" onChange={(e) => set({ longitude: e.target.value === '' ? null : Number(e.target.value) })} />
+              </Field>
+            </div>
+            <Field label="Place name (optional)" htmlFor="loc-n">
+              <Input id="loc-n" maxLength={100} value={d.name ?? ''} onChange={(e) => set({ name: e.target.value })} />
+            </Field>
+            <Field label="Address (optional)" htmlFor="loc-a">
+              <Input id="loc-a" maxLength={300} value={d.address ?? ''} onChange={(e) => set({ address: e.target.value })} />
+            </Field>
+            <p className="text-xs text-slate-500">In Google Maps, right-click the place to copy its latitude and longitude.</p>
+          </>
+        )}
+        {node.type === 'send_contacts' && <ContactsForm d={d} set={set} />}
+        {node.type === 'send_catalog' && (
+          <>
+            <MessageText label="Message" value={d.text} onChange={(text) => set({ text })} />
+            <Field label="Footer (optional)" htmlFor="cat-f">
+              <Input id="cat-f" maxLength={60} value={d.footer ?? ''} onChange={(e) => set({ footer: e.target.value })} />
+            </Field>
+            <Field label="Thumbnail product ID (optional)" htmlFor="cat-p" hint="The product's retailer ID. Empty uses the first catalogue item.">
+              <Input id="cat-p" maxLength={100} value={d.thumbnailProductId ?? ''} onChange={(e) => set({ thumbnailProductId: e.target.value })} />
+            </Field>
+            <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Needs a catalogue connected to your WhatsApp number in Meta Commerce Manager.</p>
+          </>
+        )}
+        {node.type === 'rating' && (
+          <>
+            <MessageText label="Question" value={d.question} onChange={(question) => set({ question })} />
+            <Field label="Save the rating as" htmlFor="rt-s" hint={`Available later as {{vars.${d.saveAs || 'rating'}}} (1 to 5).`}>
+              <Input id="rt-s" value={d.saveAs ?? 'rating'} onChange={(e) => set({ saveAs: slug(e.target.value) })} />
+            </Field>
+            <Timeout d={d} set={set} />
+          </>
+        )}
+        {node.type === 'ask_address' && (
+          <>
+            <MessageText label="Message" value={d.text} onChange={(text) => set({ text })} />
+            <Field label="Country" htmlFor="ad-c" hint="WhatsApp's address form is available for India and Singapore numbers.">
+              <Select id="ad-c" value={d.country ?? 'IN'} onChange={(e) => set({ country: e.target.value })}>
+                <option value="IN">India</option>
+                <option value="SG">Singapore</option>
+              </Select>
+            </Field>
+            <Timeout d={d} set={set} />
+            <p className="text-xs text-slate-500">The full address is saved as {'{{vars.address}}'}. A typed address is accepted too.</p>
+          </>
+        )}
+        {node.type === 'wait_reply' && (
+          <>
+            <Field label="Wait for a reply for" htmlFor="wr-a">
+              <AmountUnit id="wr-a" d={d} set={set} />
+            </Field>
+            <p className="text-xs text-slate-500">
+              Put this after a message. If the customer replies in time the flow follows &ldquo;Replied&rdquo;; otherwise &ldquo;No reply&rdquo;, where you can send a reminder. Chain several for a follow-up sequence.
+            </p>
+          </>
+        )}
+        {node.type === 'time_check' && (
+          <>
+            <DayPicker label="Working days" value={d.days ?? []} onChange={(days) => set({ days })} />
+            <div className="flex gap-2">
+              <Field label="From" htmlFor="tc-f">
+                <Input id="tc-f" type="time" value={d.from ?? '09:00'} onChange={(e) => set({ from: e.target.value })} />
+              </Field>
+              <Field label="To" htmlFor="tc-t">
+                <Input id="tc-t" type="time" value={d.to ?? '18:00'} onChange={(e) => set({ to: e.target.value })} />
+              </Field>
+            </div>
+            <p className="text-xs text-slate-500">Uses your workspace timezone. An end time before the start time runs overnight.</p>
+          </>
+        )}
+        {node.type === 'add_tags' && (
+          <div className="space-y-1.5">
+            <p className="font-medium text-slate-700">Tags to add</p>
+            {deps.tags.length === 0 && <p className="text-xs text-slate-500">Create tags on the Contacts page first.</p>}
+            <div className="flex flex-wrap gap-1.5">
+              {deps.tags.map((t) => {
+                const on = (d.tagIds ?? []).includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => set({ tagIds: on ? d.tagIds.filter((x: string) => x !== t.id) : [...(d.tagIds ?? []), t.id] })}
+                    className={on ? 'rounded-full bg-brand-600 px-2.5 py-1 text-xs font-medium text-white' : 'rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200'}
+                  >
+                    {t.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {node.type === 'set_stage' && <StageForm d={d} set={set} />}
+        {node.type === 'set_field' && (
+          <>
+            <Field label="Field" htmlFor="sf-k">
+              <div className="flex gap-2">
+                <Select id="sf-k" value={d.field === 'name' || d.field === 'email' ? d.field : 'custom'} onChange={(e) => set({ field: e.target.value === 'custom' ? 'custom.field' : e.target.value })}>
+                  <option value="name">Name</option>
+                  <option value="email">Email</option>
+                  <option value="custom">Custom field</option>
+                </Select>
+                {String(d.field ?? '').startsWith('custom.') && <Input aria-label="Field key" value={String(d.field).slice(7)} onChange={(e) => set({ field: `custom.${slug(e.target.value)}` })} />}
+              </div>
+            </Field>
+            <Field label="Value" htmlFor="sf-v" hint="Text or a placeholder such as {{last_reply}} or {{vars.rating}}.">
+              <Input id="sf-v" maxLength={500} value={d.value ?? ''} onChange={(e) => set({ value: e.target.value })} />
+            </Field>
+          </>
+        )}
+        {node.type === 'loop' && (
+          <>
+            <Field label="Items" htmlFor="lp-i" hint="Separate with commas or new lines (up to 20). Placeholders work, e.g. {{vars.products}}.">
+              <textarea id="lp-i" rows={4} className={textarea} value={d.items ?? ''} onChange={(e) => set({ items: e.target.value })} />
+            </Field>
+            <p className="text-xs text-slate-500">
+              Connect &ldquo;Each item&rdquo; to the steps to repeat and connect the last of them back to this step. Use {'{{vars.item}}'} and {'{{vars.item_index}}'} inside. &ldquo;Done&rdquo; runs after the last item.
+            </p>
+          </>
+        )}
+        {node.type === 'book_appointment' && <BookingForm d={d} set={set} />}
+        {node.type === 'create_ticket' && (
+          <>
+            <Field label="Ticket title" htmlFor="tk-t">
+              <Input id="tk-t" maxLength={200} value={d.title ?? ''} onChange={(e) => set({ title: e.target.value })} />
+            </Field>
+            <MessageText label="Description" value={d.description ?? ''} onChange={(description) => set({ description })} />
+            <Field label="Priority" htmlFor="tk-p">
+              <Select id="tk-p" value={d.priority ?? 'medium'} onChange={(e) => set({ priority: e.target.value })}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </Select>
+            </Field>
+            <p className="text-xs text-slate-500">The ticket appears on the Tasks board, linked to the contact. Its number is {'{{vars.ticket_number}}'}.</p>
+          </>
+        )}
+        {node.type === 'resolve_chat' && (
+          <>
+            <MessageText label="Closing message (optional)" value={d.message ?? ''} onChange={(message) => set({ message })} />
+            <p className="text-xs text-slate-500">Marks the conversation resolved in the Team Inbox and ends the flow.</p>
+          </>
+        )}
+        {node.type === 'google_sheets' && <SheetsForm d={d} set={set} accounts={deps.googleAccounts} />}
         {node.type === 'exit' && (
           <Field label="Goal name (optional)" htmlFor="ex-g" hint="Counted as a conversion in the runs list, e.g. booked_appointment.">
             <Input id="ex-g" maxLength={80} value={d.goal ?? ''} onChange={(e) => set({ goal: e.target.value })} />
@@ -161,6 +317,231 @@ export function NodeEditor({
         </div>
       )}
     </div>
+  );
+}
+
+const slug = (v: string) => v.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 40);
+
+function AmountUnit({ id, d, set }: { id?: string; d: Data; set: (p: Data) => void }) {
+  return (
+    <div className="flex gap-2">
+      <Input id={id} aria-label="Amount" type="number" min={1} value={d.amount ?? 1} onChange={(e) => set({ amount: Math.max(1, Number(e.target.value) || 1) })} />
+      <Select aria-label="Unit" value={d.unit ?? 'hours'} onChange={(e) => set({ unit: e.target.value })}>
+        <option value="minutes">minutes</option>
+        <option value="hours">hours</option>
+        <option value="days">days</option>
+      </Select>
+    </div>
+  );
+}
+
+function DayPicker({ label, value, onChange }: { label: string; value: number[]; onChange: (days: number[]) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="font-medium text-slate-700">{label}</p>
+      <div className="flex gap-1">
+        {WEEKDAYS.map((day, i) => {
+          const on = value.includes(i);
+          return (
+            <button
+              key={day}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((x) => x !== i) : [...value, i].sort())}
+              className={on ? 'flex-1 rounded-md bg-brand-600 py-1 text-xs font-medium text-white' : 'flex-1 rounded-md bg-slate-100 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200'}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ListForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const rows: { id: string; title: string; description?: string }[] = d.rows ?? [];
+  const update = (id: string, patch: Data) => set({ rows: rows.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  return (
+    <>
+      <Field label="Header (optional)" htmlFor="ls-h">
+        <Input id="ls-h" maxLength={60} value={d.header ?? ''} onChange={(e) => set({ header: e.target.value })} />
+      </Field>
+      <MessageText label="Message" value={d.text} onChange={(text) => set({ text })} />
+      <Field label="Footer (optional)" htmlFor="ls-f">
+        <Input id="ls-f" maxLength={60} value={d.footer ?? ''} onChange={(e) => set({ footer: e.target.value })} />
+      </Field>
+      <Field label="Menu button text" htmlFor="ls-b" hint="Up to 20 characters.">
+        <Input id="ls-b" maxLength={20} value={d.buttonText ?? ''} onChange={(e) => set({ buttonText: e.target.value })} />
+      </Field>
+      <div className="space-y-2">
+        <p className="font-medium text-slate-700">Options (each one gets its own path)</p>
+        {rows.map((r, i) => (
+          <RuleBox key={r.id} onRemove={rows.length > 1 ? () => set({ rows: rows.filter((x) => x.id !== r.id) }) : undefined}>
+            <Input aria-label={`Option ${i + 1} title`} maxLength={24} placeholder="Title" value={r.title} onChange={(e) => update(r.id, { title: e.target.value })} />
+            <Input aria-label={`Option ${i + 1} description`} maxLength={72} placeholder="Description (optional)" value={r.description ?? ''} onChange={(e) => update(r.id, { description: e.target.value })} />
+          </RuleBox>
+        ))}
+        {rows.length < 10 && (
+          <button type="button" onClick={() => set({ rows: [...rows, { id: uid(), title: '' }] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+            <Plus className="size-3" /> Add option
+          </button>
+        )}
+      </div>
+      <Timeout d={d} set={set} />
+    </>
+  );
+}
+
+function MediaForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const items: { mediaType: string; link: string; caption: string }[] = d.items ?? [];
+  const update = (i: number, patch: Data) => set({ items: items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  return (
+    <>
+      {items.map((item, i) => (
+        <RuleBox key={i} onRemove={items.length > 1 ? () => set({ items: items.filter((_, j) => j !== i) }) : undefined}>
+          <Select aria-label="Media type" value={item.mediaType} onChange={(e) => update(i, { mediaType: e.target.value })}>
+            <option value="image">Image</option>
+            <option value="video">Video</option>
+            <option value="document">Document</option>
+          </Select>
+          <Input aria-label="Media link" type="url" placeholder="https://…/photo.jpg" value={item.link} onChange={(e) => update(i, { link: e.target.value })} />
+          <Input aria-label="Caption" placeholder="Caption (optional)" maxLength={1024} value={item.caption ?? ''} onChange={(e) => update(i, { caption: e.target.value })} />
+        </RuleBox>
+      ))}
+      {items.length < 10 && (
+        <button type="button" onClick={() => set({ items: [...items, { mediaType: 'image', link: 'https://', caption: '' }] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+          <Plus className="size-3" /> Add item
+        </button>
+      )}
+      <p className="text-xs text-slate-500">Items are sent one after another, in this order. Links must be public https:// files.</p>
+    </>
+  );
+}
+
+function ContactsForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const contacts: { name: string; phone: string; organization?: string }[] = d.contacts ?? [];
+  const update = (i: number, patch: Data) => set({ contacts: contacts.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  return (
+    <>
+      {contacts.map((c, i) => (
+        <RuleBox key={i} onRemove={contacts.length > 1 ? () => set({ contacts: contacts.filter((_, j) => j !== i) }) : undefined}>
+          <Input aria-label="Name" placeholder="Name" maxLength={80} value={c.name} onChange={(e) => update(i, { name: e.target.value })} />
+          <Input aria-label="Phone" type="tel" placeholder="+91 98765 43210" value={c.phone} onChange={(e) => update(i, { phone: e.target.value })} />
+          <Input aria-label="Company" placeholder="Company (optional)" maxLength={80} value={c.organization ?? ''} onChange={(e) => update(i, { organization: e.target.value })} />
+        </RuleBox>
+      ))}
+      {contacts.length < 5 && (
+        <button type="button" onClick={() => set({ contacts: [...contacts, { name: '', phone: '', organization: '' }] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+          <Plus className="size-3" /> Add contact
+        </button>
+      )}
+    </>
+  );
+}
+
+function StageForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const STAGES = useStageOptions();
+  return (
+    <Field label="Lifecycle stage" htmlFor="st-s">
+      <Select id="st-s" value={d.stage ?? ''} onChange={(e) => set({ stage: e.target.value })}>
+        {STAGES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
+function BookingForm({ d, set }: { d: Data; set: (p: Data) => void }) {
+  const slots: string[] = d.slots ?? [];
+  return (
+    <>
+      <Field label="Service" htmlFor="bk-s">
+        <Input id="bk-s" maxLength={120} value={d.service ?? ''} onChange={(e) => set({ service: e.target.value })} />
+      </Field>
+      <MessageText label="Message asking for a date" value={d.datePrompt} onChange={(datePrompt) => set({ datePrompt })} />
+      <Field label="Message asking for a time" htmlFor="bk-t">
+        <Input id="bk-t" maxLength={1024} value={d.timePrompt ?? ''} onChange={(e) => set({ timePrompt: e.target.value })} />
+      </Field>
+      <DayPicker label="Days you take appointments" value={d.workingDays ?? []} onChange={(workingDays) => set({ workingDays })} />
+      <div className="flex gap-2">
+        <Field label="Days offered" htmlFor="bk-d" hint="1 to 10">
+          <Input id="bk-d" type="number" min={1} max={10} value={d.daysAhead ?? 7} onChange={(e) => set({ daysAhead: Math.max(1, Math.min(10, Number(e.target.value) || 7)) })} />
+        </Field>
+        <Field label="Length (minutes)" htmlFor="bk-l">
+          <Input id="bk-l" type="number" min={5} value={d.durationMinutes ?? 30} onChange={(e) => set({ durationMinutes: Math.max(5, Number(e.target.value) || 30) })} />
+        </Field>
+      </div>
+      <div className="space-y-2">
+        <p className="font-medium text-slate-700">Time slots</p>
+        <div className="flex flex-wrap gap-1.5">
+          {slots.map((slot, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-md border border-slate-200 py-0.5 pr-1 pl-1.5">
+              <input aria-label={`Slot ${i + 1}`} type="time" className="bg-transparent text-xs focus:outline-none" value={slot} onChange={(e) => set({ slots: slots.map((x, j) => (j === i ? e.target.value : x)) })} />
+              <button type="button" onClick={() => set({ slots: slots.filter((_, j) => j !== i) })} className="text-slate-400 hover:text-red-600" aria-label="Remove slot">
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+        {slots.length < 10 && (
+          <button type="button" onClick={() => set({ slots: [...slots, '09:00'] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+            <Plus className="size-3" /> Add slot
+          </button>
+        )}
+        <p className="text-xs text-slate-500">Slots already booked on the chosen day are hidden. Times use your workspace timezone.</p>
+      </div>
+      <MessageText label="Confirmation message (optional)" value={d.confirmation ?? ''} onChange={(confirmation) => set({ confirmation })} />
+      <Timeout d={d} set={set} />
+      <p className="text-xs text-slate-500">The booking shows up under Appointments as &ldquo;Booked&rdquo;.</p>
+    </>
+  );
+}
+
+function SheetsForm({ d, set, accounts }: { d: Data; set: (p: Data) => void; accounts: { id: string; email: string }[] }) {
+  const values: string[] = d.values ?? [];
+  return (
+    <>
+      <Field label="Google account" htmlFor="gs-a" hint={accounts.length ? undefined : 'Connect a Google account under Integrations → Google Sheets first.'}>
+        <Select id="gs-a" value={d.googleAccountId ?? ''} onChange={(e) => set({ googleAccountId: e.target.value })}>
+          <option value="">Choose an account</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.email}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Sheet link" htmlFor="gs-u">
+        <Input id="gs-u" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" value={d.sheetUrl ?? ''} onChange={(e) => set({ sheetUrl: e.target.value })} />
+      </Field>
+      <Field label="Tab name" htmlFor="gs-t">
+        <Input id="gs-t" maxLength={100} value={d.tab ?? 'Sheet1'} onChange={(e) => set({ tab: e.target.value })} />
+      </Field>
+      <div className="space-y-2">
+        <p className="font-medium text-slate-700">Row values (one per column)</p>
+        {values.map((v, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-4 shrink-0 text-xs font-medium text-slate-400">{String.fromCharCode(65 + i)}</span>
+            <Input aria-label={`Column ${String.fromCharCode(65 + i)}`} value={v} placeholder="{{vars.answer}}" onChange={(e) => set({ values: values.map((x, j) => (j === i ? e.target.value : x)) })} />
+            {values.length > 1 && (
+              <button type="button" onClick={() => set({ values: values.filter((_, j) => j !== i) })} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove column">
+                <Trash2 className="size-4" />
+              </button>
+            )}
+          </div>
+        ))}
+        {values.length < 26 && (
+          <button type="button" onClick={() => set({ values: [...values, ''] })} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
+            <Plus className="size-3" /> Add column
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-slate-500">The row is added below the last one. The Google account needs edit access to the sheet.</p>
+    </>
   );
 }
 

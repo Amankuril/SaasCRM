@@ -20,10 +20,16 @@ import { queueOutboundMessage, type SendInput } from '../messages/message.servic
 import { Workspace, type WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
 import { Flow, FlowExecution, FlowVersion, type ExecutionDoc, type FlowVersionDoc } from './flow.model.js';
-import { nextNodeId, type Graph, type GraphNode, type NodeConfig } from './graph.js';
+import { Appointment } from '../appointments/appointment.model.js';
+import { SheetAccessError, appendRow, parseSheetUrl } from '../integrations/googleSheets.js';
+import { authFor } from '../integrations/sheets.service.js';
+import { Counter, Task } from '../tasks/task.model.js';
+import { listColumns } from '../tasks/task.routes.js';
+import { publish } from '../../realtime/bus.js';
+import { LOOP_MAX_ITEMS, nextNodeId, type Graph, type GraphNode, type NodeConfig } from './graph.js';
 
 /** Loop guards: a single wake-up runs at most this many steps, a whole run at most MAX_TOTAL. */
-const MAX_STEPS_PER_RUN = 50;
+const MAX_STEPS_PER_RUN = 150;
 const MAX_STEPS_TOTAL = 500;
 const LOCK_MS = 60_000;
 const LOG_LIMIT = 100;
@@ -176,11 +182,174 @@ export async function deliverReply(
     }
     setVar(locked, 'last_reply', text);
     await saveAnswer(locked, cfg.saveTo, text.trim());
+    // Answers saved on the contact are also kept on the run, so they show under Collected Data.
+    if (!cfg.saveTo.startsWith('var.')) setVar(locked, cfg.saveTo.split('.').pop()!, text.trim());
     return continueAfterReply(locked, version, node.id, 'answered', 'answer saved');
   }
 
+  if (node.type === 'send_list') {
+    const cfg = node.data as NodeConfig<'send_list'>;
+    const replyId = message.content.replyId as string | undefined;
+    const row = cfg.rows.find((r) => r.id === replyId) ?? cfg.rows.find((r) => r.title.toLowerCase() === text.toLowerCase());
+    if (!row) {
+      await release(locked);
+      return true;
+    }
+    setVar(locked, 'last_reply', row.title);
+    return continueAfterReply(locked, version, node.id, `row:${row.id}`, `chose "${row.title}"`);
+  }
+
+  if (node.type === 'rating') {
+    const cfg = node.data as NodeConfig<'rating'>;
+    const score = /^[1-5]$/.test(String(message.content.replyId ?? '')) ? String(message.content.replyId) : (/^\s*([1-5])\b/.exec(text)?.[1] ?? null);
+    if (!score) {
+      await release(locked);
+      return true;
+    }
+    setVar(locked, 'last_reply', score);
+    setVar(locked, cfg.saveAs || 'rating', score);
+    return continueAfterReply(locked, version, node.id, 'answered', `rated ${score}/5`);
+  }
+
+  if (node.type === 'ask_address') {
+    const address = addressFromReply(message, text);
+    if (!address) {
+      await release(locked);
+      return true;
+    }
+    for (const [key, value] of Object.entries(address.parts)) setVar(locked, `address_${key}`, value);
+    setVar(locked, 'address', address.full);
+    setVar(locked, 'last_reply', address.full);
+    return continueAfterReply(locked, version, node.id, 'answered', 'address saved');
+  }
+
+  if (node.type === 'wait_reply') {
+    setVar(locked, 'last_reply', text);
+    return continueAfterReply(locked, version, node.id, 'replied', 'customer replied');
+  }
+
+  if (node.type === 'book_appointment') return bookingReply(locked, version, node, String(message.content.replyId ?? ''), text);
+
   await release(locked);
   return false;
+}
+
+/** The address form answer (India / Singapore), or a typed address as a fallback. */
+function addressFromReply(message: { type: string; content: Record<string, unknown> }, text: string): { full: string; parts: Record<string, string> } | null {
+  if (message.type === 'interactive' && message.content.interactiveType === 'nfm_reply') {
+    try {
+      const parsed = JSON.parse(String(message.content.response ?? '{}')) as { values?: Record<string, unknown> } & Record<string, unknown>;
+      const values = (parsed.values ?? parsed) as Record<string, unknown>;
+      const parts: Record<string, string> = {};
+      for (const [k, v] of Object.entries(values)) if (/^[a-z0-9_]{1,40}$/.test(k) && k !== 'flow_token' && v != null && v !== '') parts[k] = String(v).slice(0, 500);
+      const order = ['name', 'phone_number', 'house_number', 'floor_number', 'tower_number', 'building_name', 'address', 'landmark_area', 'city', 'state', 'in_pin_code', 'sg_post_code'];
+      const full = order.map((k) => parts[k]).filter(Boolean).join(', ') || Object.values(parts).join(', ');
+      return full ? { full, parts } : null;
+    } catch {
+      return null;
+    }
+  }
+  return text ? { full: text.slice(0, 1000), parts: {} } : null;
+}
+
+// ---- Book Appt. ----
+
+/** Wall-clock time in a timezone. */
+function localParts(at: Date, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' }).formatToParts(at).map((p) => [p.type, p.value]),
+  ) as Record<string, string>;
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+    weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday!),
+  };
+}
+
+/** "2026-11-20" + "15:30" in a timezone -> the UTC instant. */
+function zonedToUtc(date: string, time: string, timeZone: string): Date {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const [hh, mm] = time.split(':').map(Number) as [number, number];
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const local = localParts(new Date(guess), timeZone);
+  const [ly, lm, ld] = local.date.split('-').map(Number) as [number, number, number];
+  const offset = Date.UTC(ly, lm - 1, ld, Math.floor(local.minutes / 60), local.minutes % 60) - guess;
+  return new Date(guess - offset);
+}
+
+const clock12 = (time: string) => {
+  const [h, m] = time.split(':').map(Number) as [number, number];
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+};
+
+/** The next working days (from tomorrow) a customer can pick, as list rows. */
+function appointmentDays(cfg: NodeConfig<'book_appointment'>, timeZone: string) {
+  const rows: { id: string; title: string }[] = [];
+  const working = cfg.workingDays?.length ? cfg.workingDays : [1, 2, 3, 4, 5, 6];
+  for (let i = 1; rows.length < (cfg.daysAhead ?? 7) && i <= 60; i++) {
+    const at = new Date(Date.now() + i * 86_400_000);
+    const local = localParts(at, timeZone);
+    if (!working.includes(local.weekday)) continue;
+    rows.push({ id: `d:${local.date}`, title: new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short', day: 'numeric', month: 'short' }).format(at) });
+  }
+  return rows;
+}
+
+async function bookingReply(exec: ExecutionDoc, version: FlowVersionDoc, node: GraphNode, replyId: string, text: string): Promise<boolean> {
+  const cfg = node.data as NodeConfig<'book_appointment'>;
+  const workspaceId = exec.workspaceId as unknown as Types.ObjectId;
+  const workspace = await Workspace.findById(workspaceId);
+  const contact = await Contact.findOne({ _id: exec.contactId, workspaceId });
+  if (!workspace || !contact) {
+    await release(exec);
+    return true;
+  }
+  const timeZone = workspace.timezone || 'UTC';
+  const ctx = { contact, exec };
+  const vars = (exec.vars ?? {}) as Record<string, string>;
+  const days = appointmentDays(cfg, timeZone);
+  const dateKey = `_appt_date_${node.id}`;
+
+  const day = days.find((d) => d.id === replyId) ?? days.find((d) => d.title.toLowerCase() === text.toLowerCase());
+  if (day) {
+    const date = day.id.slice(2);
+    const taken = new Set(
+      (
+        await Appointment.find({ workspaceId, status: { $in: ['scheduled', 'confirmed'] }, startAt: { $gte: zonedToUtc(date, '00:00', timeZone), $lte: zonedToUtc(date, '23:59', timeZone) } })
+          .select('startAt')
+          .lean()
+      ).map((a) => a.startAt.getTime()),
+    );
+    const free = cfg.slots.filter((slot) => !taken.has(zonedToUtc(date, slot, timeZone).getTime()));
+    if (!free.length) {
+      await send(workspace, contact, exec, { type: 'list', text: `Sorry, ${day.title} is fully booked. Please pick another date.`, buttonText: 'Choose date', rows: days.filter((d) => d.id !== day.id) }, `${node.id}:dates:${Date.now()}`).catch(() => undefined);
+      await release(exec);
+      return true;
+    }
+    setVar(exec, dateKey, date);
+    await send(workspace, contact, exec, { type: 'list', text: render(cfg.timePrompt, ctx), footer: day.title, buttonText: 'Choose time', rows: free.map((slot) => ({ id: `t:${slot}`, title: clock12(slot) })) }, `${node.id}:times:${Date.now()}`).catch(() => undefined);
+    await release(exec);
+    return true;
+  }
+
+  const date = vars[dateKey];
+  const slot = cfg.slots.find((s) => `t:${s}` === replyId) ?? cfg.slots.find((s) => clock12(s).toLowerCase() === text.toLowerCase());
+  if (!date || !slot) {
+    // Something else: keep waiting, a human can pick it up in the inbox.
+    await release(exec);
+    return true;
+  }
+  const startAt = zonedToUtc(date, slot, timeZone);
+  const service = render(cfg.service, ctx).slice(0, 120) || 'Appointment';
+  await Appointment.create({ workspaceId, contactId: contact._id, service, startAt, durationMinutes: cfg.durationMinutes ?? 30, status: 'scheduled', source: 'flow', notes: 'Booked in a flow.' });
+  const dayLabel = new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(startAt);
+  setVar(exec, 'appointment_date', dayLabel);
+  setVar(exec, 'appointment_time', clock12(slot));
+  setVar(exec, 'appointment_service', service);
+  exec.vars = Object.fromEntries(Object.entries((exec.vars ?? {}) as Record<string, string>).filter(([k]) => k !== dateKey));
+  publish(workspace.id as string, { type: 'appointments.changed' });
+  if (cfg.confirmation) await send(workspace, contact, exec, { type: 'text', text: render(cfg.confirmation, ctx) }, `${node.id}:confirmed`).catch(() => undefined);
+  return continueAfterReply(exec, version, node.id, 'booked', `${dayLabel}, ${clock12(slot)}`);
 }
 
 async function continueAfterReply(exec: ExecutionDoc, version: FlowVersionDoc, nodeId: string, handle: string, detail: string) {
@@ -351,19 +520,13 @@ async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepRes
       const cfg = node.data as NodeConfig<'update_contact'>;
       const addedTags: Types.ObjectId[] = [];
       for (const action of cfg.actions) {
-        if (action.type === 'add_tag' && !contact.tags.some((t) => t.equals(action.tagId))) {
-          contact.tags.push(new Types.ObjectId(action.tagId));
-          addedTags.push(new Types.ObjectId(action.tagId));
-        }
+        if (action.type === 'add_tag') addedTags.push(...addTags(contact, [action.tagId]));
         if (action.type === 'remove_tag') contact.tags = contact.tags.filter((t) => !t.equals(action.tagId)) as typeof contact.tags;
         if (action.type === 'set_stage') contact.lifecycleStage = action.stage;
         if (action.type === 'set_field') applyField(contact, action.field, render(action.value, ctx));
       }
       await contact.save();
-      if (addedTags.length && ctx.depth < 3) {
-        const { onTagsAdded } = await import('./triggers.js');
-        await onTagsAdded(ctx.workspace._id, contact._id, addedTags, ctx.depth + 1);
-      }
+      await tagsAdded(ctx, addedTags);
       return { kind: 'next', handle: 'next', detail: `${cfg.actions.length} change(s)` };
     }
 
@@ -416,12 +579,205 @@ async function executeNode(rawNode: GraphNode, ctx: RunContext): Promise<StepRes
       const cfg = node.data as NodeConfig<'exit'>;
       return { kind: 'end', status: 'completed', reason: 'exit', goal: cfg.goal || undefined, detail: cfg.goal ? `goal: ${cfg.goal}` : undefined };
     }
+
+    case 'send_list': {
+      const cfg = node.data as NodeConfig<'send_list'>;
+      await send(
+        ctx.workspace,
+        contact,
+        exec,
+        { type: 'list', text: render(cfg.text, ctx), header: cfg.header ? render(cfg.header, ctx) : undefined, footer: cfg.footer, buttonText: cfg.buttonText, rows: cfg.rows },
+        node.id,
+      );
+      return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: 'waiting for a choice' };
+    }
+
+    case 'send_media': {
+      const cfg = node.data as NodeConfig<'send_media'>;
+      for (const [i, item] of cfg.items.entries()) {
+        await send(ctx.workspace, contact, exec, { type: 'media', mediaType: item.mediaType, link: item.link, ...(item.caption ? { caption: render(item.caption, ctx) } : {}) }, `${node.id}:m${i}`);
+      }
+      return { kind: 'next', handle: 'next', detail: `${cfg.items.length} item(s)` };
+    }
+
+    case 'send_location': {
+      const cfg = node.data as NodeConfig<'send_location'>;
+      await send(ctx.workspace, contact, exec, { type: 'location', latitude: cfg.latitude, longitude: cfg.longitude, name: cfg.name || undefined, address: cfg.address || undefined }, node.id);
+      return { kind: 'next', handle: 'next' };
+    }
+
+    case 'send_contacts': {
+      const cfg = node.data as NodeConfig<'send_contacts'>;
+      await send(ctx.workspace, contact, exec, { type: 'contacts', contacts: cfg.contacts.map((c) => ({ name: c.name, phone: c.phone.replace(/[^\d+]/g, ''), organization: c.organization || undefined })) }, node.id);
+      return { kind: 'next', handle: 'next', detail: `${cfg.contacts.length} contact(s)` };
+    }
+
+    case 'send_catalog': {
+      const cfg = node.data as NodeConfig<'send_catalog'>;
+      await send(ctx.workspace, contact, exec, { type: 'catalog', text: render(cfg.text, ctx), footer: cfg.footer || undefined, thumbnailProductId: cfg.thumbnailProductId || undefined }, node.id);
+      return { kind: 'next', handle: 'next' };
+    }
+
+    case 'rating': {
+      const cfg = node.data as NodeConfig<'rating'>;
+      const rows = [
+        { id: '5', title: '⭐⭐⭐⭐⭐', description: 'Excellent' },
+        { id: '4', title: '⭐⭐⭐⭐', description: 'Good' },
+        { id: '3', title: '⭐⭐⭐', description: 'Okay' },
+        { id: '2', title: '⭐⭐', description: 'Poor' },
+        { id: '1', title: '⭐', description: 'Very poor' },
+      ];
+      await send(ctx.workspace, contact, exec, { type: 'list', text: render(cfg.question, ctx), buttonText: 'Rate us', rows }, node.id);
+      return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: 'waiting for a rating' };
+    }
+
+    case 'ask_address': {
+      const cfg = node.data as NodeConfig<'ask_address'>;
+      await send(ctx.workspace, contact, exec, { type: 'address_request', text: render(cfg.text, ctx), country: cfg.country ?? 'IN' }, node.id);
+      return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: 'waiting for an address' };
+    }
+
+    case 'wait_reply': {
+      const cfg = node.data as NodeConfig<'wait_reply'>;
+      const unitMs = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 }[cfg.unit];
+      return { kind: 'wait', wait: 'reply', ms: cfg.amount * unitMs, detail: `waiting ${cfg.amount} ${cfg.unit} for a reply` };
+    }
+
+    case 'time_check': {
+      const cfg = node.data as NodeConfig<'time_check'>;
+      const now = localParts(new Date(), ctx.workspace.timezone || 'UTC');
+      const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+      const [from, to] = [toMinutes(cfg.from), toMinutes(cfg.to)];
+      // An overnight window (e.g. 21:00–06:00) wraps past midnight.
+      const inWindow = from < to ? now.minutes >= from && now.minutes < to : now.minutes >= from || now.minutes < to;
+      const open = cfg.days.includes(now.weekday) && inWindow;
+      return { kind: 'next', handle: open ? 'true' : 'false', detail: open ? 'within hours' : 'outside hours' };
+    }
+
+    case 'add_tags': {
+      const cfg = node.data as NodeConfig<'add_tags'>;
+      const added = addTags(contact, cfg.tagIds);
+      await contact.save();
+      await tagsAdded(ctx, added);
+      return { kind: 'next', handle: 'next', detail: `${added.length} tag(s) added` };
+    }
+
+    case 'set_stage': {
+      const cfg = node.data as NodeConfig<'set_stage'>;
+      contact.lifecycleStage = cfg.stage;
+      await contact.save();
+      return { kind: 'next', handle: 'next', detail: cfg.stage };
+    }
+
+    case 'set_field': {
+      const cfg = node.data as NodeConfig<'set_field'>;
+      const value = render(cfg.value, ctx);
+      applyField(contact, cfg.field, value);
+      await contact.save();
+      // Kept on the run too, so it shows under Collected Data.
+      setVar(exec, cfg.field.split('.').pop()!, value);
+      return { kind: 'next', handle: 'next', detail: cfg.field };
+    }
+
+    case 'loop': {
+      const cfg = node.data as NodeConfig<'loop'>;
+      const items = render(cfg.items, ctx)
+        .split(/[\n,]/)
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, LOOP_MAX_ITEMS);
+      const key = `_loop_${node.id}`;
+      const index = Number(((exec.vars ?? {}) as Record<string, string>)[key] ?? 0);
+      if (index >= items.length) {
+        setVar(exec, key, '0');
+        return { kind: 'next', handle: 'done', detail: `${items.length} item(s)` };
+      }
+      setVar(exec, key, String(index + 1));
+      setVar(exec, 'item', items[index]!);
+      setVar(exec, 'item_index', String(index + 1));
+      return { kind: 'next', handle: 'item', detail: `${index + 1}/${items.length}: ${items[index]}` };
+    }
+
+    case 'book_appointment': {
+      const cfg = node.data as NodeConfig<'book_appointment'>;
+      const days = appointmentDays(cfg, ctx.workspace.timezone || 'UTC');
+      await send(ctx.workspace, contact, exec, { type: 'list', text: render(cfg.datePrompt, ctx), buttonText: 'Choose date', rows: days }, node.id);
+      return { kind: 'wait', wait: 'reply', ms: cfg.timeoutMinutes * 60_000, detail: 'waiting for a date and time' };
+    }
+
+    case 'create_ticket': {
+      const cfg = node.data as NodeConfig<'create_ticket'>;
+      const workspaceId = ctx.workspace._id;
+      const column = (await listColumns(workspaceId))[0];
+      if (!column) throw new AppError(409, 'NO_TASK_COLUMN', 'The ticket board has no columns.');
+      const counter = await Counter.findOneAndUpdate({ workspaceId, name: 'task' }, { $inc: { seq: 1 } }, { upsert: true, new: true });
+      const last = await Task.findOne({ workspaceId, status: column.key }).sort({ position: -1 }).select('position').lean();
+      await Task.create({
+        workspaceId,
+        type: 'ticket',
+        number: counter.seq,
+        title: render(cfg.title, ctx).slice(0, 200) || 'Ticket from flow',
+        description: render(cfg.description ?? '', ctx).slice(0, 5000),
+        priority: cfg.priority ?? 'medium',
+        status: column.key,
+        contactId: contact._id,
+        position: (last?.position ?? 0) + 1,
+      });
+      setVar(exec, 'ticket_number', String(counter.seq));
+      publish(ctx.workspace.id as string, { type: 'tasks.changed' });
+      return { kind: 'next', handle: 'next', detail: `ticket #${counter.seq}` };
+    }
+
+    case 'resolve_chat': {
+      const cfg = node.data as NodeConfig<'resolve_chat'>;
+      if (cfg.message) await send(ctx.workspace, contact, exec, { type: 'text', text: render(cfg.message, ctx) }, node.id).catch(() => undefined);
+      const conv = await Conversation.findOneAndUpdate(
+        { workspaceId: ctx.workspace._id, contactId: contact._id },
+        { $set: { status: 'resolved', resolvedAt: new Date(), snoozedUntil: null, awaitingHuman: false, unreadCount: 0 } },
+        { new: true },
+      );
+      if (conv) notify(ctx.workspace._id, conv._id, true);
+      return { kind: 'end', status: 'completed', reason: 'resolved', detail: 'chat resolved' };
+    }
+
+    case 'google_sheets': {
+      const cfg = node.data as NodeConfig<'google_sheets'>;
+      const sheet = parseSheetUrl(cfg.sheetUrl);
+      if (!sheet) return { kind: 'next', handle: 'failed', detail: 'Invalid sheet link.' };
+      try {
+        const auth = await authFor({ workspaceId: ctx.workspace._id, access: 'google', googleAccountId: new Types.ObjectId(cfg.googleAccountId) } as Parameters<typeof authFor>[0]);
+        if (auth.mode !== 'google') return { kind: 'next', handle: 'failed', detail: 'No Google account.' };
+        await appendRow(sheet.spreadsheetId, cfg.tab || 'Sheet1', cfg.values.map((v) => render(v, ctx)), auth.accessToken);
+        return { kind: 'next', handle: 'success', detail: 'row added' };
+      } catch (err) {
+        if (!(err instanceof SheetAccessError)) logger.warn({ err, executionId: exec.id }, 'Flow Google Sheets step failed');
+        return { kind: 'next', handle: 'failed', detail: err instanceof SheetAccessError ? err.message : 'Could not add the row.' };
+      }
+    }
   }
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Adds tags the contact doesn't have yet (caller saves) and returns the new ones. */
+function addTags(contact: ContactDoc, tagIds: string[]): Types.ObjectId[] {
+  const added: Types.ObjectId[] = [];
+  for (const tagId of tagIds) {
+    if (!Types.ObjectId.isValid(tagId) || contact.tags.some((t) => t.equals(tagId))) continue;
+    contact.tags.push(new Types.ObjectId(tagId));
+    added.push(new Types.ObjectId(tagId));
+  }
+  return added;
+}
+
+/** A tag added by a flow may start "tag added" flows (bounded chain). */
+async function tagsAdded(ctx: RunContext, added: Types.ObjectId[]) {
+  if (!added.length || ctx.depth >= 3) return;
+  const { onTagsAdded } = await import('./triggers.js');
+  await onTagsAdded(ctx.workspace._id, ctx.contact._id, added, ctx.depth + 1);
+}
 
 async function send(
   workspace: WorkspaceDoc,

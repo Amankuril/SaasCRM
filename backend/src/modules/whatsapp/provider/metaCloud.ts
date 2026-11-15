@@ -2,6 +2,7 @@ import { env } from '../../../config/env.js';
 import {
   ProviderError,
   type OutboundMessage,
+  type AccountHealth,
   type PhoneNumberInfo,
   type ProviderCredentials,
   type ProviderErrorKind,
@@ -41,6 +42,51 @@ export class MetaCloudProvider implements WhatsAppProvider {
       verifiedName: data.verified_name,
       qualityRating: data.quality_rating ?? null,
       messagingLimitTier: data.messaging_limit_tier ?? null,
+    };
+  }
+
+  async getAccountHealth(creds: ProviderCredentials): Promise<AccountHealth> {
+    interface Health {
+      can_send_message?: string;
+      entities?: { entity_type?: string; can_send_message?: string; errors?: { error_description?: string; possible_solution?: string }[]; additional_info?: string[] }[];
+    }
+    const phone = await this.graph<{
+      display_phone_number: string;
+      verified_name: string;
+      quality_rating?: string;
+      messaging_limit_tier?: string;
+      name_status?: string;
+      status?: string;
+      health_status?: Health;
+    }>(creds, 'GET', `/${creds.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,messaging_limit_tier,name_status,status,health_status`);
+    // The business account and profile are extras: a token without access to them still gets the number's health.
+    const [waba, profile] = await Promise.all([
+      this.graph<{ name?: string; business_verification_status?: string; account_review_status?: string }>(creds, 'GET', `/${creds.wabaId}?fields=name,business_verification_status,account_review_status`).catch(() => null),
+      this.graph<{ data?: { profile_picture_url?: string }[] }>(creds, 'GET', `/${creds.phoneNumberId}/whatsapp_business_profile?fields=profile_picture_url`).catch(() => null),
+    ]);
+    const ENTITY: Record<string, string> = { PHONE_NUMBER: 'Phone number', WABA: 'WhatsApp Business Account', BUSINESS: 'Business', APP: 'App', MESSAGE_TEMPLATE: 'Template' };
+    const issues = (phone.health_status?.entities ?? []).flatMap((e) =>
+      e.can_send_message === 'AVAILABLE'
+        ? []
+        : (e.errors?.length ? e.errors : [{ error_description: e.additional_info?.join(' ') || `Sending is ${String(e.can_send_message ?? 'limited').toLowerCase()}.` }]).map((err) => ({
+            entity: ENTITY[e.entity_type ?? ''] ?? e.entity_type ?? 'Account',
+            message: err.error_description ?? 'Restricted by Meta.',
+            solution: ('possible_solution' in err ? err.possible_solution : null) ?? null,
+          })),
+    );
+    return {
+      displayPhoneNumber: phone.display_phone_number,
+      verifiedName: phone.verified_name,
+      qualityRating: phone.quality_rating ?? null,
+      messagingLimitTier: phone.messaging_limit_tier ?? null,
+      wabaName: waba?.name ?? null,
+      businessVerification: waba?.business_verification_status ?? null,
+      accountReview: waba?.account_review_status ?? null,
+      nameStatus: phone.name_status ?? null,
+      phoneStatus: phone.status ?? null,
+      canSendMessage: phone.health_status?.can_send_message ?? null,
+      issues,
+      profilePictureUrl: profile?.data?.[0]?.profile_picture_url ?? null,
     };
   }
 
@@ -105,6 +151,37 @@ export class MetaCloudProvider implements WhatsAppProvider {
                 ...base,
                 type: 'interactive',
                 interactive: { type: 'address_message', body: { text: message.body }, action: { name: 'address_message', parameters: { country: message.country } } },
+              }
+          : message.type === 'list'
+            ? {
+                ...base,
+                type: 'interactive',
+                interactive: {
+                  type: 'list',
+                  ...interactiveParts(message),
+                  action: { button: message.buttonText, sections: [{ title: message.buttonText, rows: message.rows.map((r) => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}) })) }] },
+                },
+              }
+          : message.type === 'contacts'
+            ? {
+                ...base,
+                type: 'contacts',
+                contacts: message.contacts.map((c) => ({
+                  name: { formatted_name: c.name, first_name: c.name.split(/\s+/)[0] },
+                  phones: [{ phone: c.phone, type: 'CELL', wa_id: c.phone.replace(/\D/g, '') }],
+                  ...(c.organization ? { org: { company: c.organization } } : {}),
+                })),
+              }
+          : message.type === 'catalog'
+            ? {
+                ...base,
+                type: 'interactive',
+                interactive: {
+                  type: 'catalog_message',
+                  body: { text: message.body },
+                  ...(message.footer ? { footer: { text: message.footer } } : {}),
+                  action: { name: 'catalog_message', ...(message.thumbnailProductId ? { parameters: { thumbnail_product_retailer_id: message.thumbnailProductId } } : {}) },
+                },
               }
           : message.type === 'cta_url'
             ? {
@@ -318,6 +395,10 @@ export class MetaCloudProvider implements WhatsAppProvider {
 
   async registerPhone(creds: ProviderCredentials, pin: string): Promise<void> {
     await this.graph(creds, 'POST', `/${creds.phoneNumberId}/register`, { messaging_product: 'whatsapp', pin });
+  }
+
+  async markRead(creds: ProviderCredentials, providerMessageId: string): Promise<void> {
+    await this.graph(creds, 'POST', `/${creds.phoneNumberId}/messages`, { messaging_product: 'whatsapp', status: 'read', message_id: providerMessageId });
   }
 
   private async graph<T = unknown>(creds: ProviderCredentials, method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {

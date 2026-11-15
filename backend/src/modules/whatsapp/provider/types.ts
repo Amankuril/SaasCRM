@@ -17,6 +17,24 @@ export interface PhoneNumberInfo {
   messagingLimitTier: string | null;
 }
 
+/** Live account status for the dashboard (WABA, number health, restrictions). */
+export interface AccountHealth extends PhoneNumberInfo {
+  wabaName: string | null;
+  /** verified | pending | not_verified | rejected … (lowercase, as Meta reports it). */
+  businessVerification: string | null;
+  /** APPROVED | PENDING | REJECTED */
+  accountReview: string | null;
+  /** Display name review: APPROVED | PENDING_REVIEW | DECLINED | AVAILABLE_WITHOUT_REVIEW | NONE … */
+  nameStatus: string | null;
+  /** The number itself: CONNECTED | PENDING | DISCONNECTED | FLAGGED | RESTRICTED | BANNED … */
+  phoneStatus: string | null;
+  /** AVAILABLE | LIMITED | BLOCKED */
+  canSendMessage: string | null;
+  /** Meta warnings and restrictions, in plain words. */
+  issues: { entity: string; message: string; solution: string | null }[];
+  profilePictureUrl: string | null;
+}
+
 export interface TemplateMediaParam {
   type: 'image' | 'video' | 'document';
   /** A public https URL, or the id of media uploaded to WhatsApp. */
@@ -79,7 +97,13 @@ export type OutboundMessage =
   | { type: 'media'; to: string; mediaType: 'image' | 'video' | 'document' | 'audio'; link?: string; id?: string; caption?: string; filename?: string }
   | ({ type: 'location'; to: string } & TemplateLocationParam)
   // Asks the customer to fill in a delivery address form (India / Singapore numbers).
-  | { type: 'address_request'; to: string; body: string; country: 'IN' | 'SG' };
+  | { type: 'address_request'; to: string; body: string; country: 'IN' | 'SG' }
+  // A menu of up to 10 options; the pick comes back as an inbound "interactive" message with the row id.
+  | ({ type: 'list'; to: string; buttonText: string; rows: { id: string; title: string; description?: string }[] } & InteractiveParts)
+  // Contact cards the customer can save.
+  | { type: 'contacts'; to: string; contacts: { name: string; phone: string; organization?: string }[] }
+  // Opens the catalogue connected to the WhatsApp Business account.
+  | { type: 'catalog'; to: string; body: string; footer?: string; thumbnailProductId?: string };
 
 export interface PublishedFlow {
   providerFlowId: string;
@@ -167,6 +191,8 @@ export interface TemplateDraft {
 export interface WhatsAppProvider {
   readonly name: string;
   getPhoneNumber(creds: ProviderCredentials): Promise<PhoneNumberInfo>;
+  /** Number + business account health in one go (dashboard). */
+  getAccountHealth(creds: ProviderCredentials): Promise<AccountHealth>;
   /** Subscribes our app to the business account so its webhooks reach us. */
   subscribeApp(creds: ProviderCredentials): Promise<void>;
   sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }>;
@@ -193,6 +219,8 @@ export interface WhatsAppProvider {
   exchangeSignupCode(code: string): Promise<string>;
   /** Registers the number for Cloud API messaging and sets its two-step verification PIN. */
   registerPhone(creds: ProviderCredentials, pin: string): Promise<void>;
+  /** Sends a read receipt (blue ticks) for an inbound message. */
+  markRead?(creds: ProviderCredentials, providerMessageId: string): Promise<void>;
 }
 
 /**

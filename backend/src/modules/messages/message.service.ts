@@ -28,7 +28,10 @@ export type SendInput =
   | { to: string; type: 'flow'; text: string; flowId: string; flowToken: string; ctaText: string; screen: string; formId: string; formName: string }
   | { to: string; type: 'media'; mediaType: 'image' | 'video' | 'document' | 'audio'; link?: string; id?: string; caption?: string; filename?: string }
   | { to: string; type: 'location'; latitude: number; longitude: number; name?: string; address?: string }
-  | { to: string; type: 'address_request'; text: string; country: 'IN' | 'SG' };
+  | { to: string; type: 'address_request'; text: string; country: 'IN' | 'SG' }
+  | { to: string; type: 'list'; text: string; header?: string; footer?: string; buttonText: string; rows: { id: string; title: string; description?: string }[] }
+  | { to: string; type: 'contacts'; contacts: { name: string; phone: string; organization?: string }[] }
+  | { to: string; type: 'catalog'; text: string; footer?: string; thumbnailProductId?: string };
 
 export interface SendOptions {
   flowExecutionId?: Types.ObjectId;
@@ -85,7 +88,10 @@ export async function queueOutboundMessage(
     } else if (input.type === 'location') {
       const { to: _to, type: _type, ...location } = input;
       content = { ...location, text: `📍 ${input.name || 'Location'}` };
-    } else content = { text: input.text, country: input.country };
+    } else if (input.type === 'list') content = { text: input.text, header: input.header, footer: input.footer, buttonText: input.buttonText, rows: input.rows };
+    else if (input.type === 'contacts') content = { contacts: input.contacts, text: `👤 ${input.contacts.map((c) => c.name).join(', ')}` };
+    else if (input.type === 'catalog') content = { text: input.text, footer: input.footer, thumbnailProductId: input.thumbnailProductId };
+    else content = { text: input.text, country: input.country };
   } else {
     const template = Types.ObjectId.isValid(input.templateId)
       ? await MessageTemplate.findOne({ _id: input.templateId, workspaceId: workspace._id })
@@ -262,6 +268,12 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
               }
           : message.type === 'address_request'
             ? { type: 'address_request', to: contact.phoneE164, body: String(content.text), country: content.country === 'SG' ? 'SG' : 'IN' }
+          : message.type === 'list'
+            ? { type: 'list', to: contact.phoneE164, ...interactive, buttonText: String(content.buttonText), rows: content.rows as { id: string; title: string; description?: string }[] }
+          : message.type === 'contacts'
+            ? { type: 'contacts', to: contact.phoneE164, contacts: content.contacts as { name: string; phone: string; organization?: string }[] }
+          : message.type === 'catalog'
+            ? { type: 'catalog', to: contact.phoneE164, body: String(content.text), ...(content.footer ? { footer: String(content.footer) } : {}), ...(content.thumbnailProductId ? { thumbnailProductId: String(content.thumbnailProductId) } : {}) }
           : message.type === 'flow'
             ? {
                 type: 'flow',

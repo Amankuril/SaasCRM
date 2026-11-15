@@ -146,6 +146,26 @@ export const apiClient = {
   },
 };
 
+/** Adds one row under the last row of a tab. Needs an account connected with edit access. */
+export async function appendRow(spreadsheetId: string, tabTitle: string, values: string[], accessToken: string): Promise<void> {
+  const range = encodeURIComponent(`'${tabTitle.replace(/'/g, "''")}'`);
+  let res: Response;
+  try {
+    res = await fetch(`${API}/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [values] }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new SheetAccessError('UNAVAILABLE', 'Google Sheets could not be reached.');
+  }
+  if (res.status === 401) throw new SheetAccessError('GOOGLE_AUTH', 'Google access has expired. Reconnect your Google account.');
+  if (res.status === 403) throw new SheetAccessError('NOT_SHARED', 'The Google account cannot edit this sheet. Reconnect it to allow adding rows, or give it edit access.');
+  if (res.status === 404 || res.status === 400) throw new SheetAccessError('NOT_FOUND', 'The sheet or tab was not found.');
+  if (!res.ok) throw new SheetAccessError('UNAVAILABLE', `Google Sheets answered ${res.status}.`);
+}
+
 const defaultClient: SheetsClient = {
   info: (id, auth) => (auth.mode === 'google' ? apiClient.info(id, auth.accessToken) : linkClient.info(id)),
   rows: (id, tab, auth) => (auth.mode === 'google' ? apiClient.rows(id, tab, auth.accessToken) : linkClient.rows(id, tab)),
@@ -162,7 +182,8 @@ export function setSheetsClient(c: SheetsClient | undefined) {
 
 export const googleOAuthConfigured = () => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 export const GOOGLE_REDIRECT_PATH = '/api/integrations/google/callback';
-const SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/spreadsheets.readonly'];
+// Flows add rows (the "Google Sheets" step), so accounts are connected with edit access.
+const SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/spreadsheets'];
 
 export interface OAuthState {
   workspaceId: string;

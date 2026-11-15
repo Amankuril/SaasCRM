@@ -121,6 +121,20 @@ function emitLater(delayMs: number, events: NormalizedEvent[]) {
 export class SandboxProvider implements WhatsAppProvider {
   readonly name = 'sandbox';
 
+  async getAccountHealth(creds: ProviderCredentials) {
+    return {
+      ...(await this.getPhoneNumber(creds)),
+      wabaName: 'Sandbox Business',
+      businessVerification: 'verified',
+      accountReview: 'APPROVED',
+      nameStatus: 'APPROVED',
+      phoneStatus: 'CONNECTED',
+      canSendMessage: 'AVAILABLE',
+      issues: [],
+      profilePictureUrl: null,
+    };
+  }
+
   async getPhoneNumber(creds: ProviderCredentials) {
     if (creds.accessToken === 'invalid') throw new ProviderError('Invalid OAuth access token.', 'auth', '190', 401);
     const digits = creds.phoneNumberId.replace(/\D/g, '').padStart(10, '0').slice(-10);
@@ -252,6 +266,8 @@ export class SandboxProvider implements WhatsAppProvider {
   }
 
   async registerPhone(): Promise<void> {}
+
+  async markRead(): Promise<void> {}
 
   private templates(wabaId: string): ProviderTemplate[] {
     let list = templatesByWaba.get(wabaId);

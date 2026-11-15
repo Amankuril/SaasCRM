@@ -13,6 +13,7 @@ import { Popover, avatarTone, initials } from './shared';
 const SOURCE_LABEL: Record<AppointmentSource, string> = { ai_assistant: 'AI assistant', flow: 'Flow', manual: 'Added by team', api: 'API' };
 const STATUS: Record<AppointmentStatus, { label: string; tone: string }> = {
   scheduled: { label: 'Scheduled', tone: 'bg-sky-50 text-sky-700 ring-sky-200' },
+  confirmed: { label: 'Confirmed', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   completed: { label: 'Done', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   cancelled: { label: 'Cancelled', tone: 'bg-red-50 text-red-700 ring-red-200' },
   no_show: { label: 'No-show', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
@@ -274,7 +275,7 @@ function RowActions({ appointment: a, editable, onEdit, onStatus, onDelete }: { 
   );
 }
 
-function MonthCalendar({ month, onMonth, items, onOpen, onDay }: { month: Date; onMonth: (d: Date) => void; items: Appointment[]; onOpen: (a: Appointment) => void; onDay?: (d: Date) => void }) {
+export function MonthCalendar({ month, onMonth, items, onOpen, onDay }: { month: Date; onMonth: (d: Date) => void; items: Appointment[]; onOpen: (a: Appointment) => void; onDay?: (d: Date) => void }) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const offset = (first.getDay() + 6) % 7; // weeks start on Monday
   const days = Array.from({ length: 42 }, (_, i) => new Date(month.getFullYear(), month.getMonth(), 1 - offset + i));

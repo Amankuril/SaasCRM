@@ -22,6 +22,10 @@ export class FakeProvider implements WhatsAppProvider {
   private sendQueue: SendBehaviour[] = [];
   private counter = 0;
 
+  async getAccountHealth() {
+    return { ...(await this.getPhoneNumber()), wabaName: 'Fake WABA', businessVerification: 'verified', accountReview: 'APPROVED', nameStatus: 'APPROVED', phoneStatus: 'CONNECTED', canSendMessage: 'AVAILABLE', issues: [], profilePictureUrl: null };
+  }
+
   async getPhoneNumber() {
     if (this.getPhoneError) throw this.getPhoneError;
     return { displayPhoneNumber: '+91 98765 43210', verifiedName: 'Sharma Dental', qualityRating: 'GREEN', messagingLimitTier: 'TIER_1K' };

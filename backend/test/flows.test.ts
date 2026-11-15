@@ -312,3 +312,86 @@ describe('running a flow', () => {
     expect(res.body.executions[0].error).toMatch(/24 hours/);
   });
 });
+
+describe('new step types', () => {
+  it('runs a list menu into booking, a loop, a ticket and resolves the chat', async () => {
+    const { Appointment } = await import('../src/modules/appointments/appointment.model.js');
+    const { Task } = await import('../src/modules/tasks/task.model.js');
+    const ctx = await setup();
+    const id = await createFlow(ctx, {
+      nodes: [
+        n('t', 'trigger', { event: 'keyword', keywords: ['menu'], match: 'exact' }),
+        n('menu', 'send_list', { text: 'How can we help?', buttonText: 'Options', rows: [{ id: 'book', title: 'Book a visit' }, { id: 'rate', title: 'Rate us' }], timeoutMinutes: 60 }),
+        n('appt', 'book_appointment', { service: 'Checkup', durationMinutes: 30, datePrompt: 'Which day?', timePrompt: 'Which time?', confirmation: 'Booked for {{vars.appointment_time}}.', daysAhead: 3, workingDays: [0, 1, 2, 3, 4, 5, 6], slots: ['10:00', '15:30'], timeoutMinutes: 60 }),
+        n('field', 'set_field', { field: 'custom.slot', value: '{{vars.appointment_time}}' }),
+        n('loop', 'loop', { items: 'X-ray, Cleaning' }),
+        n('each', 'send_text', { text: '{{vars.item_index}}. {{vars.item}}' }),
+        n('ticket', 'create_ticket', { title: 'Prepare for {{contact.name}}', description: 'Slot {{vars.appointment_time}}', priority: 'high' }),
+        n('resolve', 'resolve_chat', { message: 'See you soon!' }),
+        n('stars', 'rating', { question: 'How did we do?', saveAs: 'rating', timeoutMinutes: 60 }),
+        n('thanks', 'send_text', { text: 'Thanks for the {{vars.rating}} stars' }),
+      ],
+      edges: [
+        e('t', 'menu'),
+        e('menu', 'appt', 'row:book'),
+        e('menu', 'stars', 'row:rate'),
+        e('appt', 'field', 'booked'),
+        e('field', 'loop'),
+        e('loop', 'each', 'item'),
+        e('each', 'loop'),
+        e('loop', 'ticket', 'done'),
+        e('ticket', 'resolve'),
+        e('stars', 'thanks', 'answered'),
+      ],
+    });
+    expect((await publish(ctx, id)).status).toBe(200);
+
+    await say('menu');
+    expect(fake.sent.at(-1)!.message).toMatchObject({ type: 'list', buttonText: 'Options' });
+    await tap('book', 'Book a visit');
+    const dates = fake.sent.at(-1)!.message as { type: string; rows: { id: string; title: string }[] };
+    expect(dates.type).toBe('list');
+    expect(dates.rows).toHaveLength(3);
+    await tap(dates.rows[0]!.id, dates.rows[0]!.title);
+    const times = fake.sent.at(-1)!.message as { rows: { id: string; title: string }[] };
+    expect(times.rows.map((r) => r.id)).toEqual(['t:10:00', 't:15:30']);
+    await tap('t:15:30', '3:30 PM');
+
+    const appt = await Appointment.findOne({}).setOptions({ skipTenantScope: true });
+    expect(appt).toMatchObject({ service: 'Checkup', status: 'scheduled', source: 'flow', durationMinutes: 30 });
+    // 15:30 in the workspace timezone (Asia/Kolkata) is 10:00 UTC.
+    expect(appt!.startAt.toISOString().slice(0, 16)).toBe(`${dates.rows[0]!.id.slice(2)}T10:00`);
+
+    const texts = fake.sent.filter((s) => s.message.type === 'text').map((s) => (s.message as { text: string }).text);
+    expect(texts).toEqual(['Booked for 3:30 PM.', '1. X-ray', '2. Cleaning', 'See you soon!']);
+    expect(((await Contact.findOne({}).setOptions({ skipTenantScope: true }))!.customFields as Record<string, string>).slot).toBe('3:30 PM');
+    expect(await Task.findOne({}).setOptions({ skipTenantScope: true })).toMatchObject({ type: 'ticket', title: 'Prepare for Customer', priority: 'high' });
+    expect(await Conversation.findOne({}).setOptions({ skipTenantScope: true })).toMatchObject({ status: 'resolved' });
+    const [run] = await executions();
+    expect(run).toMatchObject({ status: 'completed', exitReason: 'resolved' });
+
+    // The booked slot is no longer offered to the next customer on that day.
+    await say('menu', '919822223333');
+    await tap('book', 'Book a visit', '919822223333');
+    await tap(dates.rows[0]!.id, dates.rows[0]!.title, '919822223333');
+    expect((fake.sent.at(-1)!.message as { rows: { id: string }[] }).rows.map((r) => r.id)).toEqual(['t:10:00']);
+  });
+
+  it('saves a star rating typed or picked from the list', async () => {
+    const ctx = await setup();
+    const id = await createFlow(ctx, {
+      nodes: [
+        n('t', 'trigger', { event: 'keyword', keywords: ['rate'], match: 'exact' }),
+        n('stars', 'rating', { question: 'How did we do?', saveAs: 'rating', timeoutMinutes: 60 }),
+        n('thanks', 'send_text', { text: 'Thanks for the {{vars.rating}} stars' }),
+      ],
+      edges: [e('t', 'stars'), e('stars', 'thanks', 'answered')],
+    });
+    expect((await publish(ctx, id)).status).toBe(200);
+    await say('rate');
+    await say('great service'); // not a rating: keeps waiting
+    expect(sentTypes()).toEqual(['list']);
+    await say('4');
+    expect((fake.sent.at(-1)!.message as { text: string }).text).toBe('Thanks for the 4 stars');
+  });
+});

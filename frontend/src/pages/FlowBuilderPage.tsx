@@ -14,11 +14,11 @@ import {
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, CircleCheck, FlaskConical, Play, Power, Save, Settings2, Upload } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react';
+import { ArrowLeft, CircleCheck, Eye, FlaskConical, Play, Power, Redo2, RotateCcw, Save, Settings2, Undo2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Link, useParams } from 'react-router';
 import { Modal } from '../components/crm';
-import { NODE_META, PALETTE_GROUPS } from '../components/flow/meta';
+import { NODE_META, PALETTE_GROUPS, nodeOutputs, nodeSummary, paletteItems } from '../components/flow/meta';
 import { NodeEditor } from '../components/flow/NodeEditor';
 import { BuilderContext, StepNode } from '../components/flow/StepNode';
 import { Alert, Badge, Button, EmptyState, Field, Input, Spinner, cn, errorMessage } from '../components/ui';
@@ -78,7 +78,7 @@ function Builder({ flow }: { flow: FlowDetail }) {
   const [issues, setIssues] = useState<FlowIssue[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [tab, setTab] = useState<'build' | 'runs'>('build');
-  const [modal, setModal] = useState<'test' | 'settings' | null>(null);
+  const [modal, setModal] = useState<'test' | 'settings' | 'preview' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const tags = useTags(workspace.id);
@@ -92,6 +92,11 @@ function Builder({ flow }: { flow: FlowDetail }) {
     queryKey: ['forms', workspace.id],
     queryFn: () => api.get<{ forms: WaForm[] }>(`/workspaces/${workspace.id}/forms`),
     select: (d) => d.forms,
+  });
+  const google = useQuery({
+    queryKey: ['google-accounts', workspace.id],
+    queryFn: () => api.get<{ google: { accounts: { id: string; email: string }[] } }>(`/workspaces/${workspace.id}/integrations/google-sheets`),
+    select: (d) => d.google.accounts,
   });
   const runs = useQuery({
     queryKey: ['flow-runs', workspace.id, flow.id],
@@ -107,19 +112,82 @@ function Builder({ flow }: { flow: FlowDetail }) {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
+  // Counts edits, so a save that finishes after a newer edit doesn't mark the draft as saved.
+  const changeSeq = useRef(0);
+  const failedSeq = useRef(-1);
   const markDirty = () => {
+    changeSeq.current += 1;
     setDirty(true);
     setNotice(null);
   };
 
+  // ---- Undo / redo ----
+  const history = useRef<{ past: Snap[]; future: Snap[]; lastKey: string; lastAt: number }>({ past: [], future: [], lastKey: '', lastAt: 0 });
+  const [, bumpHistory] = useState(0);
+  /** Call before a change. Edits with the same key within a second (typing) share one undo step. */
+  const snapshot = (key = '') => {
+    const h = history.current;
+    const now = Date.now();
+    if (key && key === h.lastKey && now - h.lastAt < 1000) {
+      h.lastAt = now;
+      return;
+    }
+    h.past.push({ nodes, edges });
+    if (h.past.length > 60) h.past.shift();
+    h.future = [];
+    h.lastKey = key;
+    h.lastAt = now;
+    bumpHistory((n) => n + 1);
+  };
+  const travel = (dir: 'undo' | 'redo') => {
+    const h = history.current;
+    const snap = (dir === 'undo' ? h.past : h.future).pop();
+    if (!snap) return;
+    (dir === 'undo' ? h.future : h.past).push({ nodes, edges });
+    h.lastKey = '';
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+    if (selected && !snap.nodes.some((n) => n.id === selected)) setSelected(null);
+    markDirty();
+    bumpHistory((n) => n + 1);
+  };
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y), outside text fields.
+  useEffect(() => {
+    if (!editable || tab !== 'build') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || (e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      e.preventDefault();
+      travel(k === 'y' || e.shiftKey ? 'redo' : 'undo');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const save = useMutation({
-    mutationFn: () => api.patch<{ flow: FlowDetail }>(`/workspaces/${workspace.id}/flows/${flow.id}`, { name, draftGraph: fromRf(nodes, edges) }),
-    onSuccess: ({ flow: f }) => {
-      setDirty(false);
+    mutationFn: async () => {
+      const at = changeSeq.current;
+      const r = await api.patch<{ flow: FlowDetail }>(`/workspaces/${workspace.id}/flows/${flow.id}`, { name, draftGraph: fromRf(nodes, edges) });
+      return { ...r, at };
+    },
+    onError: () => {
+      failedSeq.current = changeSeq.current;
+    },
+    onSuccess: ({ flow: f, at }) => {
+      if (at === changeSeq.current) setDirty(false);
       queryClient.setQueryData(['flow', workspace.id, flow.id], { flow: { ...f, draftGraph: flow.draftGraph } });
       void queryClient.invalidateQueries({ queryKey: ['flows', workspace.id] });
     },
   });
+  // Auto-save: the draft is stored shortly after the last edit (the live version only changes on Publish).
+  useEffect(() => {
+    if (!dirty || !editable || save.isPending || failedSeq.current === changeSeq.current) return;
+    const timer = setTimeout(() => save.mutate(), 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, editable, nodes, edges, name, save.isPending]);
+
   const validate = useMutation({
     mutationFn: async () => {
       await save.mutateAsync();
@@ -176,20 +244,19 @@ function Builder({ flow }: { flow: FlowDetail }) {
     [issueMap, tags.data, templates.data, forms.data, activeNodes],
   );
 
-  const onConnect = useCallback(
-    (c: Connection) => {
-      if (!editable || c.source === c.target) return;
-      // One connection per output: replace whatever that output pointed to.
-      setEdges((eds) => addEdge({ ...c, id: `${c.source}-${c.sourceHandle}-${c.target}` }, eds.filter((e) => !(e.source === c.source && e.sourceHandle === c.sourceHandle))));
-      markDirty();
-    },
-    [editable, setEdges],
-  );
+  const onConnect = (c: Connection) => {
+    if (!editable || c.source === c.target) return;
+    snapshot();
+    // One connection per output: replace whatever that output pointed to.
+    setEdges((eds) => addEdge({ ...c, id: `${c.source}-${c.sourceHandle}-${c.target}` }, eds.filter((e) => !(e.source === c.source && e.sourceHandle === c.sourceHandle))));
+    markDirty();
+  };
 
   const addNode = (type: FlowNodeType, position?: { x: number; y: number }) => {
     const id = `${type}_${Math.random().toString(36).slice(2, 7)}`;
     const anchor = nodes.find((n) => n.id === selected) ?? nodes.at(-1);
     const pos = position ?? (anchor ? { x: anchor.position.x, y: anchor.position.y + 180 } : { x: 0, y: 0 });
+    snapshot();
     setNodes((ns) => [...ns, { id, type, position: pos, data: NODE_META[type].defaults() }]);
     setSelected(id);
     markDirty();
@@ -228,7 +295,11 @@ function Builder({ flow }: { flow: FlowDetail }) {
             {status.label}
             {current.publishedVersion > 0 && ` · v${current.publishedVersion}`}
           </Badge>
-          {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+          {editable && (
+            <span className={cn('text-xs', save.isError && dirty ? 'text-red-600' : 'text-slate-400')} aria-live="polite">
+              {save.isPending ? 'Saving…' : dirty ? (save.isError ? 'Not saved' : 'Unsaved changes') : current.hasUnpublishedChanges ? 'Draft saved' : 'All changes saved'}
+            </span>
+          )}
 
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <div className="mr-2 flex rounded-lg bg-slate-100 p-0.5 text-sm">
@@ -238,8 +309,17 @@ function Builder({ flow }: { flow: FlowDetail }) {
                 </button>
               ))}
             </div>
+            <Button variant="secondary" onClick={() => setModal('preview')} title="Walk through the draft without sending anything">
+              <Eye className="size-4" /> Preview
+            </Button>
             {editable && (
               <>
+                <Button variant="ghost" disabled={!history.current.past.length} onClick={() => travel('undo')} title="Undo (Ctrl+Z)" aria-label="Undo">
+                  <Undo2 className="size-4" />
+                </Button>
+                <Button variant="ghost" disabled={!history.current.future.length} onClick={() => travel('redo')} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+                  <Redo2 className="size-4" />
+                </Button>
                 <Button variant="ghost" onClick={() => setModal('settings')} title="Flow settings">
                   <Settings2 className="size-4" />
                 </Button>
@@ -307,9 +387,7 @@ function Builder({ flow }: { flow: FlowDetail }) {
                   <div key={group} className="mb-4">
                     <p className="mb-1.5 text-xs font-medium tracking-wide text-slate-400 uppercase">{group}</p>
                     <div className="space-y-1.5">
-                      {(Object.keys(NODE_META) as FlowNodeType[])
-                        .filter((t) => NODE_META[t].group === group)
-                        .map((t) => {
+                      {paletteItems(group).map((t) => {
                           const m = NODE_META[t];
                           return (
                             <button
@@ -326,7 +404,7 @@ function Builder({ flow }: { flow: FlowDetail }) {
                               <span className="font-medium text-slate-700">{m.label}</span>
                             </button>
                           );
-                        })}
+                      })}
                     </div>
                   </div>
                 ))}
@@ -340,14 +418,17 @@ function Builder({ flow }: { flow: FlowDetail }) {
                 edges={edges}
                 nodeTypes={nodeTypes}
                 onNodesChange={(changes) => {
+                  if (changes.some((c) => c.type === 'remove')) snapshot();
                   onNodesChange(changes);
                   if (changes.some((c) => c.type === 'position' || c.type === 'remove')) markDirty();
                 }}
                 onEdgesChange={(changes) => {
+                  if (changes.some((c) => c.type === 'remove')) snapshot('remove');
                   onEdgesChange(changes);
                   if (changes.some((c) => c.type === 'remove')) markDirty();
                 }}
                 onConnect={onConnect}
+                onNodeDragStart={() => snapshot()}
                 onNodeClick={(_, n) => setSelected(n.id)}
                 onPaneClick={() => setSelected(null)}
                 nodesDraggable={editable}
@@ -368,18 +449,18 @@ function Builder({ flow }: { flow: FlowDetail }) {
                 <NodeEditor
                   key={selectedNode.id}
                   node={{ id: selectedNode.id, type: selectedNode.type as FlowNodeType, position: selectedNode.position, data: selectedNode.data as Record<string, unknown> }}
-                  deps={{ tags: tags.data ?? [], templates: templates.data ?? [], members: members.data, forms: forms.data ?? [] }}
+                  deps={{ tags: tags.data ?? [], templates: templates.data ?? [], members: members.data, forms: forms.data ?? [], googleAccounts: google.data ?? [] }}
                   disabled={!editable}
                   onChange={(data) => {
+                    snapshot(`edit:${selectedNode.id}`);
                     setNodes((ns) => ns.map((n) => (n.id === selectedNode.id ? { ...n, data } : n)));
-                    // Buttons removed: drop connections from outputs that no longer exist.
-                    if (selectedNode.type === 'send_buttons') {
-                      const ids = new Set(((data.buttons as { id: string }[]) ?? []).map((b) => `btn:${b.id}`).concat('no_reply'));
-                      setEdges((es) => es.filter((e) => e.source !== selectedNode.id || ids.has(e.sourceHandle ?? '')));
-                    }
+                    // Buttons or options removed: drop connections from outputs that no longer exist.
+                    const ids = new Set(nodeOutputs({ type: selectedNode.type as FlowNodeType, data }).map((o) => o.id));
+                    setEdges((es) => (es.some((e) => e.source === selectedNode.id && !ids.has(e.sourceHandle ?? 'next')) ? es.filter((e) => e.source !== selectedNode.id || ids.has(e.sourceHandle ?? 'next')) : es));
                     markDirty();
                   }}
                   onDelete={() => {
+                    snapshot();
                     setNodes((ns) => ns.filter((n) => n.id !== selectedNode.id));
                     setEdges((es) => es.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
                     setSelected(null);
@@ -394,8 +475,85 @@ function Builder({ flow }: { flow: FlowDetail }) {
       </div>
 
       {modal === 'test' && <TestModal flowId={flow.id} onClose={() => setModal(null)} onStarted={() => { setModal(null); setTab('runs'); void runs.refetch(); }} />}
+      {modal === 'preview' && <PreviewModal graph={fromRf(nodes, edges)} names={{ tag: ctx.tagName, template: ctx.templateName, form: ctx.formName }} onClose={() => setModal(null)} />}
       {modal === 'settings' && <SettingsModal flow={current} onClose={() => setModal(null)} />}
     </BuilderContext.Provider>
+  );
+}
+
+type Snap = { nodes: Node[]; edges: Edge[] };
+
+// ---- Preview: walk the draft like a customer would, without sending anything ----
+
+type PreviewLine = { from: 'bot' | 'you' | 'note'; text: string };
+type PreviewState = { lines: PreviewLine[]; pending: { nodeId: string; options: { id: string; label: string }[] } | null };
+type Names = Parameters<typeof nodeSummary>[1];
+
+/** Steps the customer doesn't see: shown as small notes between the messages. */
+const SILENT = new Set<FlowNodeType>(['trigger', 'condition', 'delay', 'time_check', 'add_tags', 'set_stage', 'set_field', 'loop', 'create_ticket', 'update_contact', 'http_request', 'google_sheets', 'wait_reply', 'exit', 'handoff', 'ai_answer', 'resolve_chat']);
+
+function walk(graph: FlowGraph, fromId: string | undefined, names: Names, lines: PreviewLine[]): PreviewState {
+  let id = fromId;
+  for (let steps = 0; id && steps < 60; steps++) {
+    const node = graph.nodes.find((n) => n.id === id);
+    if (!node) break;
+    const meta = NODE_META[node.type];
+    const summary = nodeSummary(node, names);
+    lines.push(SILENT.has(node.type) ? { from: 'note', text: `${meta.label}: ${summary}` } : { from: 'bot', text: summary });
+    const outputs = nodeOutputs(node);
+    if (!outputs.length) return { lines: [...lines, { from: 'note', text: 'The flow ends here.' }], pending: null };
+    if (outputs.length > 1) return { lines, pending: { nodeId: node.id, options: outputs } };
+    id = graph.edges.find((e) => e.source === node.id && e.sourceHandle === outputs[0]!.id)?.target;
+  }
+  return { lines: [...lines, { from: 'note', text: id ? 'Preview stopped after 60 steps.' : 'Nothing is connected next: the flow ends here.' }], pending: null };
+}
+
+function PreviewModal({ graph, names, onClose }: { graph: FlowGraph; names: Names; onClose: () => void }) {
+  const start = () => walk(graph, graph.nodes.find((n) => n.type === 'trigger')?.id, names, []);
+  const [state, setState] = useState<PreviewState>(start);
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Newer browsers return a promise from scrollIntoView: an effect must not return it.
+    void end.current?.scrollIntoView({ block: 'end' });
+  }, [state]);
+  const choose = (option: { id: string; label: string }) => {
+    if (!state.pending) return;
+    const target = graph.edges.find((e) => e.source === state.pending!.nodeId && e.sourceHandle === option.id)?.target;
+    setState(walk(graph, target, names, [...state.lines, { from: 'you', text: option.label }]));
+  };
+  return (
+    <Modal title="Preview flow" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-xs text-slate-500">A walk-through of the draft. Nothing is sent; pick a path wherever the flow branches.</p>
+        <div className="h-80 space-y-2 overflow-y-auto rounded-xl bg-[#efeae2] p-3 text-sm">
+          {state.lines.map((l, i) =>
+            l.from === 'note' ? (
+              <p key={i} className="mx-auto w-fit max-w-full rounded-md bg-white/70 px-2 py-0.5 text-center text-[11px] text-slate-500">
+                {l.text}
+              </p>
+            ) : (
+              <p key={i} className={cn('w-fit max-w-[80%] rounded-lg px-3 py-1.5 whitespace-pre-wrap shadow-sm', l.from === 'bot' ? 'bg-white text-slate-800' : 'ml-auto bg-[#d9fdd3] text-slate-800')}>
+                {l.text}
+              </p>
+            ),
+          )}
+          <div ref={end} />
+        </div>
+        {state.pending ? (
+          <div className="flex flex-wrap gap-1.5">
+            {state.pending.options.map((o) => (
+              <Button key={o.id} variant="secondary" className="py-1 text-xs" onClick={() => choose(o)}>
+                {o.label}
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <Button variant="secondary" onClick={() => setState(start())}>
+            <RotateCcw className="size-4" /> Start again
+          </Button>
+        )}
+      </div>
+    </Modal>
   );
 }
 

@@ -10,6 +10,7 @@ import { Contact } from '../contacts/contact.model.js';
 import { normalizePhone } from '../contacts/contact.service.js';
 import { exitExecutions, startExecution } from './engine.js';
 import { EXECUTION_STATUSES, Flow, FlowExecution, FlowVersion, type FlowDoc } from './flow.model.js';
+import { flowInsightsRouter } from './flow.insights.js';
 import { validateFlow } from './flow.validate.js';
 import { DEFAULT_GRAPH, graphSchema, nodeConfigSchemas, type Graph } from './graph.js';
 
@@ -49,6 +50,25 @@ flowRouter.get('/', requirePermission('workspace:read'), async (req, res) => {
 flowRouter.post('/', requirePermission('flows:manage'), async (req, res) => {
   const { name } = parse(z.object({ name: z.string().trim().min(1).max(120).default('Untitled flow') }), req.body);
   const flow = await Flow.create({ workspaceId: req.workspace!._id, name, draftGraph: DEFAULT_GRAPH, createdBy: req.user!._id });
+  res.status(201).json({ flow: detail(flow) });
+});
+
+// Dashboard, Conversations, Collected Data and Ads tabs (before /:flowId so "insights" is not read as an id).
+flowRouter.use('/insights', flowInsightsRouter);
+
+/** Copies a flow's draft into a new draft flow. */
+flowRouter.post('/:flowId/duplicate', requirePermission('flows:manage'), async (req, res) => {
+  const workspaceId = req.workspace!._id;
+  const source = await findFlow(workspaceId, req.params.flowId);
+  const flow = await Flow.create({
+    workspaceId,
+    name: `${source.name} (copy)`.slice(0, 120),
+    description: source.description,
+    draftGraph: source.draftGraph,
+    settings: source.settings,
+    createdBy: req.user!._id,
+  });
+  await audit(req, { workspaceId, action: 'flow.duplicated', targetType: 'flow', targetId: flow.id, metadata: { name: flow.name, from: source.id } });
   res.status(201).json({ flow: detail(flow) });
 });
 
@@ -192,6 +212,7 @@ function summary(f: FlowDoc) {
     trigger: trigger ? { event: trigger.event ?? null, keywords: trigger.keywords ?? [] } : null,
     hasUnpublishedChanges: !f.publishedAt || f.draftUpdatedAt.getTime() > f.publishedAt.getTime(),
     draftUpdatedAt: f.draftUpdatedAt,
+    createdAt: f.createdAt,
     updatedAt: f.updatedAt,
   };
 }
