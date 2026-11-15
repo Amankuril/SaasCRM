@@ -31,6 +31,7 @@ import { Modal, initials } from '../components/crm';
 import { Alert, Badge, EmptyState, Field, Input, Select, Spinner, cn, errorMessage } from '../components/ui';
 import { api, type FeatureKey, type LimitKey, type PlanInfo, type SubscriptionStatus, type Workspace, type WorkspaceStatus } from '../lib/api';
 import { formatDate } from '../lib/options';
+import { NewPlanButton } from './admin/AdminRevenuePage';
 import { money } from './BillingPage';
 import { ActivityTab, LogList, type LogItem } from './admin/ActivityTab';
 import { SettingsTab } from './admin/SettingsTab';
@@ -480,6 +481,9 @@ function PlansTab() {
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
+        <span className="order-last ml-auto">
+          <NewPlanButton plans={list} />
+        </span>
         <span>
           <strong className="font-semibold text-ink tabular-nums">{list.length}</strong> plans
         </span>
@@ -495,7 +499,7 @@ function PlansTab() {
           <PlanCard key={p.code} plan={p} popular={p.code === popular} share={total ? p.subscribers / total : 0} onEdit={() => setEditing(p)} />
         ))}
       </div>
-      <p className="mt-5 text-xs text-slate-500">Create the matching plans in the Razorpay dashboard and paste their plan ids into each plan. A plan can only be bought for a billing cycle that has an id.</p>
+      <p className="mt-5 text-xs text-slate-500">Razorpay plans are created automatically the first time a plan is bought, and again after a price change. Paste a plan id only if you want to use one you made in the Razorpay dashboard.</p>
       {editing && <PlanModal plan={editing} onClose={() => setEditing(null)} />}
     </>
   );

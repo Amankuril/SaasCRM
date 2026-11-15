@@ -6,6 +6,7 @@ import { notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { adminLog } from './admin.service.js';
 import { adminPlatformRouter } from './adminPlatform.routes.js';
+import { adminRevenueRouter } from './adminRevenue.routes.js';
 import { adminUsersRouter, escapeRegex } from './adminUsers.routes.js';
 import { adminWorkspaceRouter } from './adminWorkspace.routes.js';
 import { adminPagesRouter } from './sitePages.js';
@@ -33,6 +34,7 @@ adminRouter.use('/users', adminUsersRouter);
 adminRouter.use('/pages', adminPagesRouter);
 adminRouter.use('/workspaces/:id', adminWorkspaceRouter);
 adminRouter.use(adminPlatformRouter);
+adminRouter.use(adminRevenueRouter);
 
 adminRouter.get('/stats', async (_req, res) => {
   const [users, byStatus] = await Promise.all([
@@ -165,7 +167,11 @@ adminRouter.patch('/plans/:code', async (req, res) => {
   plan.set(rest);
   for (const [k, v] of Object.entries(limits ?? {})) plan.set(`limits.${k}`, v);
   for (const [k, v] of Object.entries(features ?? {})) plan.set(`features.${k}`, v);
-  for (const [k, v] of Object.entries(providerPlanIds ?? {})) plan.set(`providerPlanIds.${k}`, v || null);
+  for (const [k, v] of Object.entries(providerPlanIds ?? {})) {
+    if ((plan.get(`providerPlanIds.${k}`) ?? null) === (v || null)) continue;
+    plan.set(`providerPlanIds.${k}`, v || null);
+    plan.set(`providerPlanAmounts.${k}`, null);
+  }
   await plan.save();
   await adminLog(req, { action: 'admin.plan_updated', targetType: 'plan', targetId: plan.code, metadata: { before, change: input } });
   res.json({ plan: toPublicPlan(plan) });

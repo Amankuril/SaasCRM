@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
+  Bell,
   Blocks,
   Bot,
+  ChevronDown,
   ChevronsUpDown,
   ClipboardList,
   Code2,
@@ -19,17 +21,18 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  UserRound,
   Workflow,
   X,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { Logo } from '../components/Logo';
 import { Alert, Spinner, cn } from '../components/ui';
-import { ApiError, api, type Permission, type WorkspaceContextPayload } from '../lib/api';
+import { ApiError, api, type AppNotification, type ConnectionPayload, type InboxCounts, type Permission, type WorkspaceContextPayload } from '../lib/api';
 import { ROLE_INFO } from '../lib/options';
 import { useRealtime } from '../lib/realtime';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -99,9 +102,8 @@ export function WorkspaceLayout() {
   const formBuilderRoute = useMatch('/w/:workspaceId/forms/:formId');
   const templatesRoute = useMatch('/w/:workspaceId/templates/*');
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
-  const campaignsRoute = useMatch('/w/:workspaceId/campaigns/*');
   const audienceRoute = useMatch('/w/:workspaceId/audience/*');
-  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || campaignsRoute || audienceRoute;
+  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute;
   useRealtime(workspaceId!);
 
   const query = useQuery({
@@ -132,12 +134,7 @@ export function WorkspaceLayout() {
         <Sidebar open={mobileOpen} onNavigate={() => setMobileOpen(false)} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-            <button className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" onClick={() => setMobileOpen(true)} aria-label="Open menu">
-              <Menu className="size-5" />
-            </button>
-            <span className="truncate text-sm font-semibold text-ink">{value!.workspace.name}</span>
-          </header>
+          <TopBar onMenu={() => setMobileOpen(true)} />
 
           <main className={cn('flex-1', fullBleed ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-y-auto')}>
             <SupportBanner />
@@ -219,7 +216,7 @@ function PlanBanner() {
 }
 
 function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { workspace, membership } = useWorkspace();
   const can = (p?: Permission) => !p || membership.permissions.includes(p);
   const { pathname } = useLocation();
@@ -266,8 +263,10 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                         onClick={onNavigate}
                         className={({ isActive }) =>
                           cn(
-                            'flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium',
-                            isActive || alsoActive(item) ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-100',
+                            'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
+                            isActive || alsoActive(item)
+                              ? "bg-brand-50 text-brand-700 before:absolute before:inset-y-1.5 before:-left-3 before:w-1 before:rounded-r-full before:bg-brand-600 before:content-['']"
+                              : 'text-slate-600 hover:bg-slate-100 hover:text-ink',
                           )
                         }
                       >
@@ -294,19 +293,189 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
         )}
       </nav>
 
-      <div className="flex items-center gap-3 border-t border-slate-200 p-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-          {initials(user?.name ?? '')}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-slate-800">{user?.name}</p>
-          <p className="truncate text-xs text-slate-500">{ROLE_INFO[membership.role].label}</p>
-        </div>
-        <button onClick={() => void logout()} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700" aria-label="Log out" title="Log out">
-          <LogOut className="size-4" />
-        </button>
-      </div>
     </aside>
+  );
+}
+
+/** Closes a dropdown on Escape. */
+function useEscape(open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, close]);
+}
+
+/** App-wide header: business name, WhatsApp number status, notifications and the profile menu. */
+function TopBar({ onMenu }: { onMenu: () => void }) {
+  const { workspace, can } = useWorkspace();
+  const whatsapp = useQuery({
+    queryKey: ['whatsapp', workspace.id],
+    queryFn: () => api.get<ConnectionPayload>(`/workspaces/${workspace.id}/whatsapp/connection`),
+    staleTime: 60_000,
+  });
+  const conn = whatsapp.data?.connection;
+  const state = whatsapp.isPending ? 'loading' : !conn ? 'none' : conn.status === 'error' ? 'error' : 'ok';
+  const STATE = {
+    loading: { dot: 'bg-slate-300', text: 'Checking WhatsApp…', className: 'border-slate-200 text-slate-500' },
+    none: { dot: 'bg-amber-500', text: can('provider:manage') ? 'Connect WhatsApp' : 'WhatsApp not connected', className: 'border-amber-200 bg-amber-50 text-amber-800' },
+    error: { dot: 'bg-red-500', text: 'WhatsApp disconnected', className: 'border-red-200 bg-red-50 text-red-700' },
+    ok: { dot: 'bg-emerald-500', text: conn?.displayPhoneNumber ?? 'WhatsApp connected', className: 'border-slate-200 text-slate-700 hover:bg-slate-50' },
+  }[state];
+
+  return (
+    <header className="z-20 flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:gap-3 sm:px-5">
+      <button className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={onMenu} aria-label="Open menu">
+        <Menu className="size-5" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-ink">{workspace.name}</p>
+        {conn?.verifiedName && conn.verifiedName !== workspace.name && <p className="hidden truncate text-xs text-slate-500 sm:block">WhatsApp name: {conn.verifiedName}</p>}
+      </div>
+
+      <Link
+        to={`/w/${workspace.id}/whatsapp`}
+        className={cn('inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium', STATE.className)}
+        title={state === 'ok' ? `WhatsApp number connected${conn?.qualityRating ? ` · quality ${conn.qualityRating.toLowerCase()}` : ''}` : (conn?.lastError ?? STATE.text)}
+      >
+        <span className={cn('size-2 rounded-full', STATE.dot, state === 'ok' && 'ring-2 ring-emerald-100')} />
+        <MessageCircle className="size-3.5 sm:hidden" />
+        <span className="hidden sm:inline">{STATE.text}</span>
+      </Link>
+
+      <NotificationBell />
+      <ProfileMenu />
+    </header>
+  );
+}
+
+const SEEN_KEY = 'zc.notifications.seen';
+const NOTE_DOT = { red: 'bg-red-500', amber: 'bg-amber-500', blue: 'bg-sky-500' } as const;
+
+function NotificationBell() {
+  const { workspace } = useWorkspace();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  useEscape(open, () => setOpen(false));
+  const query = useQuery({
+    queryKey: ['notifications', workspace.id],
+    queryFn: () => api.get<{ notifications: AppNotification[] }>(`/workspaces/${workspace.id}/dashboard/notifications`),
+    select: (d) => d.notifications,
+    refetchInterval: 60_000,
+  });
+  // Which alerts this browser has already opened the bell for.
+  const [seen, setSeen] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`${SEEN_KEY}.${workspace.id}`) ?? '[]') as string[];
+    } catch {
+      return [];
+    }
+  });
+  const items = query.data ?? [];
+  const unseen = items.filter((n) => !seen.includes(n.id)).length;
+  const toggle = () => {
+    setOpen(!open);
+    if (open || !unseen) return;
+    const ids = items.map((n) => n.id);
+    setSeen(ids);
+    try {
+      localStorage.setItem(`${SEEN_KEY}.${workspace.id}`, JSON.stringify(ids));
+    } catch {
+      /* per-browser preference only */
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={toggle} className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={unseen ? `Notifications, ${unseen} new` : 'Notifications'} aria-expanded={open}>
+        <Bell className="size-5" />
+        {unseen > 0 && <span className="absolute top-1 right-1 flex min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] leading-4 font-semibold text-white">{unseen}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-40 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <p className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-ink">Notifications</p>
+            {query.isPending ? (
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Loading…</p>
+            ) : query.error ? (
+              <p className="px-4 py-6 text-center text-sm text-red-600">Could not load notifications.</p>
+            ) : items.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <Bell className="mx-auto size-6 text-slate-300" />
+                <p className="mt-2 text-sm font-medium text-slate-700">You&apos;re all caught up</p>
+                <p className="text-xs text-slate-500">Alerts about your number, plan, chats and broadcasts show up here.</p>
+              </div>
+            ) : (
+              <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                {items.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      className="flex w-full gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                      onClick={() => {
+                        setOpen(false);
+                        navigate(`/w/${workspace.id}${n.path ? `/${n.path}` : ''}`);
+                      }}
+                    >
+                      <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', NOTE_DOT[n.tone])} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-slate-800">{n.title}</span>
+                        <span className="block text-xs text-slate-500">{n.detail}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProfileMenu() {
+  const { user, logout } = useAuth();
+  const { workspace, membership } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  useEscape(open, () => setOpen(false));
+  const item = 'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50';
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-full p-1 hover:bg-slate-100 sm:pr-2" aria-label="Profile menu" aria-expanded={open}>
+        <span className="flex size-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">{initials(user?.name ?? '')}</span>
+        <span className="hidden max-w-32 truncate text-sm font-medium text-slate-700 md:block">{user?.name}</span>
+        <ChevronDown className="hidden size-4 text-slate-400 md:block" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl" onClick={() => setOpen(false)}>
+            <div className="border-b border-slate-100 px-4 py-3">
+              <p className="truncate text-sm font-semibold text-ink">{user?.name}</p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+              <p className="mt-1 text-xs text-slate-500">{ROLE_INFO[membership.role].label}</p>
+            </div>
+            <Link to={`/w/${workspace.id}/settings`} className={item}>
+              <UserRound className="size-4 text-slate-400" /> Profile &amp; settings
+            </Link>
+            <Link to={`/w/${workspace.id}/billing`} className={item}>
+              <CreditCard className="size-4 text-slate-400" /> Billing &amp; usage
+            </Link>
+            {user?.isPlatformAdmin && (
+              <Link to="/admin" className={item}>
+                <ShieldCheck className="size-4 text-slate-400" /> Super Admin
+              </Link>
+            )}
+            <div className="my-1 border-t border-slate-100" />
+            <button onClick={() => void logout()} className={cn(item, 'text-red-600 hover:bg-red-50')}>
+              <LogOut className="size-4" /> Log out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -363,9 +532,10 @@ function InboxBadge() {
   const { workspace } = useWorkspace();
   const counts = useQuery({
     queryKey: ['conversation-counts', workspace.id],
-    queryFn: () => api.get<{ all: number; mine: number; unassigned: number }>(`/workspaces/${workspace.id}/conversations/counts`),
+    queryFn: () => api.get<InboxCounts>(`/workspaces/${workspace.id}/conversations/counts`),
   });
-  const n = counts.data ? counts.data.mine + counts.data.unassigned : 0;
+  // Chats with unread messages: drops the moment a chat is opened.
+  const n = counts.data?.unread.chats ?? 0;
   return n > 0 ? <span className="ml-auto rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{n}</span> : null;
 }
 

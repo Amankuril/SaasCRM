@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CreditCard, ExternalLink, Receipt, X } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { useToast } from '../components/feedback';
 import { useSearchParams } from 'react-router';
 import { Modal } from '../components/crm';
 import { Alert, Badge, Button, Card, EmptyState, PageHeader, Spinner, cn, errorMessage } from '../components/ui';
@@ -29,6 +31,44 @@ const LIMITS: { key: Exclude<LimitKey, 'apiRequestsPerMinute'>; label: string; r
   { key: 'aiRepliesPerMonth', label: 'AI replies this period', rule: 'Each AI answer attempt for customers (auto-reply, flows, inbox suggestions). Test chats are free.' },
 ];
 
+interface RazorpayResult {
+  razorpay_payment_id: string;
+  razorpay_subscription_id: string;
+  razorpay_signature: string;
+}
+interface RazorpayOptions {
+  key: string;
+  subscription_id: string;
+  name: string;
+  description: string;
+  prefill?: { email?: string; name?: string };
+  theme?: { color: string };
+  handler: (result: RazorpayResult) => void;
+  modal?: { ondismiss?: () => void };
+}
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => { open: () => void; on: (event: 'payment.failed', cb: (r: { error?: { description?: string } }) => void) => void };
+  }
+}
+
+let razorpayScript: Promise<void> | undefined;
+/** Loads Razorpay Checkout once, on first use. */
+function loadRazorpay(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  razorpayScript ??= new Promise<void>((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    el.onload = () => resolve();
+    el.onerror = () => {
+      razorpayScript = undefined;
+      reject(new Error('Could not load the payment page. Check your connection and try again.'));
+    };
+    document.head.appendChild(el);
+  });
+  return razorpayScript;
+}
+
 const FEATURE_LABEL: Record<string, string> = { campaigns: 'Broadcasts', flows: 'Flow builder', forms: 'WhatsApp Forms', ai: 'AI agent', api: 'API & webhooks' };
 const fmt = (n: number | null) => (n === null ? 'Unlimited' : n.toLocaleString('en-IN'));
 
@@ -43,13 +83,49 @@ export function BillingPage() {
     void queryClient.invalidateQueries({ queryKey: ['workspace', workspace.id] });
   };
   const manage = can('billing:manage') && workspace.status !== 'suspended';
+  const toast = useToast();
+  const { user } = useAuth();
+
+  const confirm = useMutation({
+    mutationFn: (result: RazorpayResult) => api.post(`/workspaces/${workspace.id}/billing/razorpay/confirm`, result),
+    onSuccess: () => {
+      refresh();
+      toast.success('Payment received. Your plan is active.');
+    },
+    onError: refresh,
+  });
+
+  /** Opens Razorpay Checkout for a subscription created by /checkout. */
+  const openRazorpay = async (subscriptionId: string, planName: string, fallbackUrl: string) => {
+    const key = query.data?.razorpayKeyId;
+    // No public key (or the script is blocked): fall back to Razorpay's hosted page.
+    if (!key) return window.location.assign(fallbackUrl);
+    try {
+      await loadRazorpay();
+    } catch {
+      return window.location.assign(fallbackUrl);
+    }
+    const rzp = new window.Razorpay!({
+      key,
+      subscription_id: subscriptionId,
+      name: 'Zeta Connect',
+      description: `${planName} plan`,
+      prefill: { email: user?.email, name: user?.name },
+      theme: { color: '#059669' },
+      handler: (result) => confirm.mutate(result),
+      modal: { ondismiss: refresh },
+    });
+    rzp.on('payment.failed', (r) => toast.error(r.error?.description ?? 'The payment did not go through.'));
+    rzp.open();
+  };
 
   const checkout = useMutation({
-    mutationFn: (plan: PlanInfo) => api.post<{ checkoutUrl: string; provider: string }>(`/workspaces/${workspace.id}/billing/checkout`, { planCode: plan.code, cycle }),
-    onSuccess: ({ checkoutUrl, provider }) => {
+    mutationFn: (plan: PlanInfo) =>
+      api.post<{ checkoutUrl: string; providerSubscriptionId: string; provider: string }>(`/workspaces/${workspace.id}/billing/checkout`, { planCode: plan.code, cycle }).then((r) => ({ ...r, planName: plan.name })),
+    onSuccess: ({ checkoutUrl, providerSubscriptionId, provider, planName }) => {
       refresh();
-      // Razorpay's hosted page; the sandbox "page" is this screen with ?checkout=.
-      if (provider === 'razorpay') window.location.assign(checkoutUrl);
+      // Razorpay Checkout opens on this page; the sandbox "page" is this screen with ?checkout=.
+      if (provider === 'razorpay') void openRazorpay(providerSubscriptionId, planName, checkoutUrl);
       else setParams({ checkout: new URL(checkoutUrl).searchParams.get('checkout') ?? '' });
     },
   });
@@ -60,7 +136,7 @@ export function BillingPage() {
   if (query.error) return <Alert>{errorMessage(query.error)}</Alert>;
   const { subscription: sub, plan, usage, plans, invoices, provider } = query.data;
   const sandboxCheckout = params.get('checkout');
-  const actionError = checkout.error ?? cancel.error ?? discard.error;
+  const actionError = checkout.error ?? confirm.error ?? cancel.error ?? discard.error;
   const isPaid = sub.status === 'active' && sub.provider !== 'none';
 
   return (
@@ -71,6 +147,18 @@ export function BillingPage() {
           <Alert tone="info">
             <strong>Sandbox billing.</strong> Checkout is simulated and no money moves. Set <code>BILLING_PROVIDER=razorpay</code> for real payments.
           </Alert>
+        </div>
+      )}
+      {provider === 'razorpay' && query.data.razorpayKeyId?.startsWith('rzp_test_') && (
+        <div className="mb-4">
+          <Alert tone="info">
+            <strong>Razorpay test mode.</strong> Payments use test cards and no real money moves.
+          </Alert>
+        </div>
+      )}
+      {confirm.isPending && (
+        <div className="mb-4">
+          <Alert tone="info">Confirming your payment…</Alert>
         </div>
       )}
       {actionError != null && (
@@ -105,9 +193,12 @@ export function BillingPage() {
               {manage && (
                 <div className="flex gap-3">
                   {provider === 'razorpay' ? (
-                    <a href={sub.pending.checkoutUrl} className="inline-flex items-center gap-1 font-semibold underline">
+                    <button
+                      className="inline-flex items-center gap-1 font-semibold underline"
+                      onClick={() => void openRazorpay(sub.pending!.providerSubscriptionId, plans.find((p) => p.code === sub.pending!.planCode)?.name ?? sub.pending!.planCode, sub.pending!.checkoutUrl)}
+                    >
                       Continue payment <ExternalLink className="size-3" />
-                    </a>
+                    </button>
                   ) : (
                     <button className="font-semibold underline" onClick={() => setParams({ checkout: new URL(sub.pending!.checkoutUrl).searchParams.get('checkout') ?? '' })}>
                       Continue payment

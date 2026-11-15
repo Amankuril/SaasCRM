@@ -111,7 +111,7 @@ function Report({ data: a }: { data: Analytics }) {
             {a.campaigns.map((c) => (
               <tr key={c.id}>
                 <td className="px-4 py-2">
-                  <Link to={`/w/${workspace.id}/campaigns/${c.id}`} className="font-medium text-slate-800 hover:underline">
+                  <Link to={`/w/${workspace.id}/broadcast/campaigns/${c.id}`} className="font-medium text-slate-800 hover:underline">
                     {c.name}
                   </Link>
                 </td>

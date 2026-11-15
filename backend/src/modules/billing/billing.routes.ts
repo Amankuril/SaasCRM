@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import type { Types } from 'mongoose';
 import { z } from 'zod';
-import { isProd } from '../../config/env.js';
+import { env, isProd } from '../../config/env.js';
 import { AppError, conflict, notFound } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { parse } from '../../lib/validate.js';
@@ -14,9 +14,13 @@ import { WorkspaceMember } from '../workspaces/member.model.js';
 import { ACCESS_STATUSES, Invoice, LIMIT_KEYS, Plan, type PlanDoc, type SubscriptionDoc, type SubscriptionStatus } from './billing.model.js';
 import { addCycle, applyProviderEvent, getEntitlements, getPlan, usageFor } from './billing.service.js';
 import { ensurePlans } from './plans.js';
-import { billingProvider, type BillingCycle } from './provider.js';
+import { RazorpayProvider, billingProvider, type BillingCycle } from './provider.js';
+
+/** Razorpay plans are created on first checkout, so any priced plan can be bought once the keys are set. */
+const autoPlans = () => billingProvider().name === 'razorpay' && !!env.RAZORPAY_KEY_ID && !!env.RAZORPAY_KEY_SECRET;
 
 export function toPublicPlan(p: PlanDoc) {
+  const auto = autoPlans();
   return {
     code: p.code,
     name: p.name,
@@ -29,7 +33,7 @@ export function toPublicPlan(p: PlanDoc) {
     trialDays: p.trialDays,
     graceDays: p.graceDays,
     isPublic: p.isPublic,
-    purchasable: { monthly: !!p.providerPlanIds?.monthly, yearly: !!p.providerPlanIds?.yearly },
+    purchasable: { monthly: !!p.providerPlanIds?.monthly || (auto && p.priceMonthly > 0), yearly: !!p.providerPlanIds?.yearly || (auto && p.priceYearly > 0) },
   };
 }
 
@@ -46,7 +50,7 @@ export function toPublicSubscription(s: SubscriptionDoc) {
     cancelAtPeriodEnd: s.cancelAtPeriodEnd,
     endedAt: s.endedAt,
     provider: s.provider,
-    pending: s.pending?.planCode ? { planCode: s.pending.planCode, cycle: s.pending.cycle, checkoutUrl: s.pending.checkoutUrl, createdAt: s.pending.createdAt } : null,
+    pending: s.pending?.planCode ? { planCode: s.pending.planCode, cycle: s.pending.cycle, checkoutUrl: s.pending.checkoutUrl, providerSubscriptionId: s.pending.providerSubscriptionId, createdAt: s.pending.createdAt } : null,
     lastPaymentAt: s.lastPaymentAt,
   };
 }
@@ -84,6 +88,8 @@ billingRouter.get('/', requirePermission('workspace:read'), async (req, res) => 
     limitKeys: LIMIT_KEYS,
     plans: plans.map(toPublicPlan),
     provider: billingProvider().name,
+    // Public key for Razorpay Checkout (test keys start with rzp_test_).
+    razorpayKeyId: billingProvider().name === 'razorpay' ? (env.RAZORPAY_KEY_ID ?? null) : null,
     invoices: invoices.map((i) => ({
       id: i._id.toString(),
       number: i.number,
@@ -105,6 +111,7 @@ billingRouter.get('/', requirePermission('workspace:read'), async (req, res) => 
 billingRouter.post('/checkout', requirePermission('billing:manage'), async (req, res) => {
   const { planCode, cycle } = parse(checkoutSchema, req.body);
   const workspaceId = req.workspace!._id;
+  await ensurePlans();
   const plan = await Plan.findOne({ code: planCode, isPublic: true });
   if (!plan) throw new AppError(400, 'VALIDATION_ERROR', 'Some fields are invalid.', { planCode: ['Choose a plan.'] });
   const { subscription: sub } = await getEntitlements(workspaceId);
@@ -116,7 +123,7 @@ billingRouter.post('/checkout', requirePermission('billing:manage'), async (req,
   sub.set({ pending: { planCode: plan.code, cycle, providerSubscriptionId: session.providerSubscriptionId, checkoutUrl: session.checkoutUrl, createdAt: new Date() } });
   await sub.save();
   await audit(req, { workspaceId, action: 'billing.checkout_started', metadata: { plan: plan.code, cycle, provider: billingProvider().name } });
-  res.json({ checkoutUrl: session.checkoutUrl, provider: billingProvider().name });
+  res.json({ checkoutUrl: session.checkoutUrl, providerSubscriptionId: session.providerSubscriptionId, provider: billingProvider().name });
 });
 
 billingRouter.post('/cancel', requirePermission('billing:manage'), async (req, res) => {
@@ -135,6 +142,33 @@ billingRouter.post('/checkout/discard', requirePermission('billing:manage'), asy
   sub.set({ pending: { planCode: null, cycle: null, providerSubscriptionId: null, checkoutUrl: null, createdAt: null } });
   await sub.save();
   res.json({ subscription: toPublicSubscription(sub) });
+});
+
+const confirmSchema = z.object({
+  razorpay_payment_id: z.string().min(1).max(64),
+  razorpay_subscription_id: z.string().min(1).max(64),
+  razorpay_signature: z.string().regex(/^[a-f0-9]{64}$/i),
+});
+
+/** Called by the browser after Razorpay Checkout succeeds: verifies the payment and switches the plan. */
+billingRouter.post('/razorpay/confirm', requirePermission('billing:manage'), async (req, res) => {
+  const provider = billingProvider();
+  if (!(provider instanceof RazorpayProvider)) throw notFound();
+  const input = parse(confirmSchema, req.body);
+  const workspaceId = req.workspace!._id;
+  const { subscription: sub } = await getEntitlements(workspaceId);
+  // Only this workspace's own checkout (or its already-confirmed subscription) is accepted.
+  if (sub.pending?.providerSubscriptionId !== input.razorpay_subscription_id && sub.providerSubscriptionId !== input.razorpay_subscription_id) {
+    throw conflict('CHECKOUT_NOT_FOUND', 'This checkout is no longer open.');
+  }
+  const event = await provider.confirmCheckout(
+    { paymentId: input.razorpay_payment_id, subscriptionId: input.razorpay_subscription_id, signature: input.razorpay_signature },
+    workspaceId.toString(),
+  );
+  await applyProviderEvent('razorpay', event);
+  await audit(req, { workspaceId, action: 'billing.payment_confirmed', metadata: { paymentId: input.razorpay_payment_id } });
+  const fresh = await getEntitlements(workspaceId);
+  res.json({ subscription: toPublicSubscription(fresh.subscription), plan: toPublicPlan(fresh.plan) });
 });
 
 const sandboxSchema = z.object({ providerSubscriptionId: z.string().min(1), outcome: z.enum(['success', 'failure']) });

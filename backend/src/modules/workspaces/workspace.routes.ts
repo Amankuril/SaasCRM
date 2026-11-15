@@ -29,6 +29,7 @@ import { memberRouter } from './member.routes.js';
 import { toPublicWorkspace } from './workspace.model.js';
 import { createWorkspace, listUserWorkspaces, workspaceContext } from './workspace.service.js';
 import { sheetsRouter } from '../integrations/sheets.routes.js';
+import { dashboardRouter } from './dashboard.routes.js';
 import { cannedReplyRouter } from '../inbox/cannedReply.routes.js';
 
 const workspaceFields = {
@@ -118,3 +119,4 @@ scoped.use('/forms', formRouter);
 scoped.use('/developer', developerRouter);
 scoped.use('/billing', billingRouter);
 scoped.use('/analytics', analyticsRouter);
+scoped.use('/dashboard', dashboardRouter);

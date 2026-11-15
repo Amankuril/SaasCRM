@@ -25,6 +25,13 @@ export interface CheckoutSession {
   checkoutUrl: string;
 }
 
+/** What the browser sends back after paying in Razorpay Checkout. */
+export interface CheckoutProof {
+  paymentId: string;
+  subscriptionId: string;
+  signature: string;
+}
+
 export interface BillingProvider {
   readonly name: 'razorpay' | 'sandbox';
   createCheckout(args: { workspaceId: string; plan: PlanDoc; cycle: BillingCycle; email: string }): Promise<CheckoutSession>;
@@ -52,15 +59,16 @@ const fromUnix = (v: unknown) => (typeof v === 'number' && v > 0 ? new Date(v * 
 export class RazorpayProvider implements BillingProvider {
   readonly name = 'razorpay' as const;
 
-  private async call<T>(path: string, body: unknown): Promise<T> {
+  /** POST with a body, GET without. */
+  private async call<T>(path: string, body?: unknown): Promise<T> {
     if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) throw new AppError(503, 'BILLING_NOT_CONFIGURED', 'Online payments are not set up yet. Contact support.');
     const res = await fetch(`${RAZORPAY_API}${path}`, {
-      method: 'POST',
+      method: body === undefined ? 'GET' : 'POST',
       headers: {
         Authorization: `Basic ${Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString('base64')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(15_000),
     }).catch(() => {
       throw new AppError(502, 'BILLING_PROVIDER_UNAVAILABLE', 'The payment provider could not be reached. Try again.');
@@ -74,8 +82,7 @@ export class RazorpayProvider implements BillingProvider {
   }
 
   async createCheckout({ workspaceId, plan, cycle }: { workspaceId: string; plan: PlanDoc; cycle: BillingCycle }): Promise<CheckoutSession> {
-    const planId = plan.providerPlanIds?.[cycle];
-    if (!planId) throw new AppError(409, 'PLAN_NOT_PURCHASABLE', `The ${plan.name} plan is not available for ${cycle} billing yet.`);
+    const planId = await this.planIdFor(plan, cycle);
     const sub = await this.call<{ id: string; short_url: string }>('/subscriptions', {
       plan_id: planId,
       // Renews until cancelled (Razorpay needs a finite count).
@@ -86,8 +93,58 @@ export class RazorpayProvider implements BillingProvider {
     return { providerSubscriptionId: sub.id, checkoutUrl: sub.short_url };
   }
 
+  /**
+   * The Razorpay plan for this price. Created on first use, and again after a
+   * price change (Razorpay plans are immutable). Ids pasted by an admin are used as they are.
+   */
+  private async planIdFor(plan: PlanDoc, cycle: BillingCycle): Promise<string> {
+    const amount = cycle === 'yearly' ? plan.priceYearly : plan.priceMonthly;
+    const existing = plan.providerPlanIds?.[cycle];
+    const madeFor = plan.providerPlanAmounts?.[cycle] ?? null;
+    if (existing && (madeFor === null || madeFor === amount)) return existing;
+    if (!(amount > 0)) throw new AppError(409, 'PLAN_NOT_PURCHASABLE', `The ${plan.name} plan is not available for ${cycle} billing yet.`);
+    const created = await this.call<{ id: string }>('/plans', {
+      period: cycle,
+      interval: 1,
+      item: { name: `${plan.name} (${cycle})`, amount, currency: plan.currency, description: plan.description.slice(0, 250) },
+      notes: { plan_code: plan.code, cycle },
+    });
+    plan.set(`providerPlanIds.${cycle}`, created.id);
+    plan.set(`providerPlanAmounts.${cycle}`, amount);
+    await plan.save();
+    return created.id;
+  }
+
   async cancel(providerSubscriptionId: string, atPeriodEnd: boolean): Promise<void> {
     await this.call(`/subscriptions/${encodeURIComponent(providerSubscriptionId)}/cancel`, { cancel_at_cycle_end: atPeriodEnd });
+  }
+
+  /**
+   * Confirms a payment made in Razorpay Checkout so the plan switches right away
+   * (the webhook reports the same payment later and is ignored as a duplicate).
+   * razorpay_signature = hex HMAC-SHA256 of "payment_id|subscription_id" with the key secret.
+   */
+  async confirmCheckout(proof: CheckoutProof, workspaceId: string): Promise<BillingProviderEvent> {
+    if (!env.RAZORPAY_KEY_SECRET) throw new AppError(503, 'BILLING_NOT_CONFIGURED', 'Online payments are not set up yet. Contact support.');
+    const expected = createHmac('sha256', env.RAZORPAY_KEY_SECRET).update(`${proof.paymentId}|${proof.subscriptionId}`).digest();
+    const received = Buffer.from(proof.signature, 'hex');
+    if (received.length !== expected.length || !timingSafeEqual(received, expected)) throw new AppError(400, 'PAYMENT_NOT_VERIFIED', 'This payment could not be verified. If money was deducted, it will be confirmed or refunded automatically.');
+    const id = encodeURIComponent(proof.subscriptionId);
+    const [sub, pay] = await Promise.all([
+      this.call<{ current_start?: number; current_end?: number; customer_id?: string }>(`/subscriptions/${id}`),
+      this.call<{ amount?: number; currency?: string; invoice_id?: string; status?: string }>(`/payments/${encodeURIComponent(proof.paymentId)}`),
+    ]);
+    if (pay.status === 'failed') throw new AppError(402, 'PAYMENT_FAILED', 'The payment did not go through. Try again.');
+    return {
+      eventId: `checkout:${proof.paymentId}`,
+      type: 'charged',
+      providerSubscriptionId: proof.subscriptionId,
+      workspaceId,
+      periodStart: fromUnix(sub.current_start),
+      periodEnd: fromUnix(sub.current_end),
+      customerId: typeof sub.customer_id === 'string' ? sub.customer_id : null,
+      payment: { id: proof.paymentId, amount: Number(pay.amount ?? 0), currency: String(pay.currency ?? 'INR'), invoiceId: typeof pay.invoice_id === 'string' ? pay.invoice_id : null, failureReason: null },
+    };
   }
 
   parseWebhook(raw: Buffer, headers: Record<string, string | undefined>): BillingProviderEvent[] {

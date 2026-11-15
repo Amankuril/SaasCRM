@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router';
 import { useAuth } from './auth/AuthContext';
 import { Spinner } from './components/ui';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
@@ -10,6 +10,7 @@ import { AdminLayout } from './layouts/AdminLayout';
 import { AdminContentPage } from './pages/admin/AdminContentPage';
 import { PublicPage } from './pages/PublicPage';
 import { AdminWorkspacePage } from './pages/admin/AdminWorkspacePage';
+import { AdminRevenuePage } from './pages/admin/AdminRevenuePage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
@@ -39,6 +40,7 @@ import { BroadcastLayout } from './pages/broadcast/BroadcastLayout';
 import { ContactListsPage } from './pages/broadcast/ContactListsPage';
 import { BroadcastGuidePage } from './pages/broadcast/BroadcastGuidePage';
 import { RetargetPage } from './pages/broadcast/RetargetPage';
+import { CreateCampaignPage } from './pages/broadcast/CreateCampaignPage';
 import { AutoRepliesPage } from './pages/autoreplies/AutoRepliesPage';
 import { AutoReplyEditorPage } from './pages/autoreplies/AutoReplyEditorPage';
 import { AllTemplatesPage } from './pages/templates/AllTemplatesPage';
@@ -79,6 +81,7 @@ export function App() {
         <Route path="businesses" element={<AdminBusinessesPage />} />
         <Route path="workspaces/:id" element={<AdminWorkspacePage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="revenue" element={<AdminRevenuePage />} />
         <Route path="plans" element={<AdminPlansPage />} />
         <Route path="operations" element={<AdminOperationsPage />} />
         <Route path="activity" element={<AdminActivityPage />} />
@@ -108,9 +111,13 @@ export function App() {
           <Route path="broadcast" element={<ContactListsPage />} />
           <Route path="broadcast/guide" element={<BroadcastGuidePage />} />
           <Route path="broadcast/retarget" element={<RetargetPage />} />
-          <Route path="campaigns" element={<CampaignsPage />} />
-          <Route path="campaigns/:campaignId" element={<CampaignPage />} />
+          <Route path="broadcast/campaigns" element={<CampaignsPage />} />
+          <Route path="broadcast/campaigns/new" element={<CreateCampaignPage />} />
+          <Route path="broadcast/campaigns/:campaignId" element={<CampaignPage />} />
         </Route>
+        {/* Old campaign links keep working. */}
+        <Route path="campaigns" element={<Navigate to="../broadcast/campaigns" replace />} />
+        <Route path="campaigns/:campaignId" element={<LegacyCampaignRedirect />} />
         <Route path="auto-replies" element={<AutoRepliesPage />} />
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
@@ -147,6 +154,11 @@ export function App() {
     </Routes>
     </>
   );
+}
+
+function LegacyCampaignRedirect() {
+  const { workspaceId, campaignId } = useParams();
+  return <Navigate to={`/w/${workspaceId}/broadcast/campaigns/${campaignId}`} replace />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {

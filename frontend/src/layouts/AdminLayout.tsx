@@ -1,4 +1,4 @@
-import { Activity, ArrowLeftRight, Building2, FileText, History, LayoutDashboard, Layers, LifeBuoy, LogOut, Menu, Scale, Settings2, Users, X, type LucideIcon } from 'lucide-react';
+import { Activity, ArrowLeftRight, IndianRupee, Building2, FileText, History, LayoutDashboard, Layers, LifeBuoy, LogOut, Menu, Scale, Settings2, Users, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
@@ -24,7 +24,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: 'users', label: 'Users', icon: Users },
     ],
   },
-  { section: 'Billing', items: [{ to: 'plans', label: 'Plans', icon: Layers }] },
+  {
+    section: 'Billing',
+    items: [
+      { to: 'revenue', label: 'Revenue & payments', icon: IndianRupee },
+      { to: 'plans', label: 'Plans', icon: Layers },
+    ],
+  },
   {
     section: 'Content',
     items: [

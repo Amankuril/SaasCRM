@@ -30,6 +30,9 @@ const planSchema = new Schema(
     sortOrder: { type: Number, default: 0 },
     // Razorpay plan ids (create the plans in the Razorpay dashboard and paste them here).
     providerPlanIds: { monthly: { type: String, default: null }, yearly: { type: String, default: null } },
+    // Price (paise) each Razorpay plan was created for. Set when the plan was created automatically:
+    // a price change then creates a fresh Razorpay plan. Null for ids pasted by an admin.
+    providerPlanAmounts: { monthly: { type: Number, default: null }, yearly: { type: Number, default: null } },
   },
   { timestamps: true },
 );
