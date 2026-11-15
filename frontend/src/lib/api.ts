@@ -227,6 +227,63 @@ export interface WhatsAppConnection {
   createdAt: string;
 }
 
+export interface DashboardData {
+  generatedAt: string;
+  overview: {
+    contacts: number;
+    conversationsToday: number;
+    conversationsWeek: number;
+    openChats: number;
+    messages: { sent: number; delivered: number; read: number; failed: number };
+    activeFlows: number;
+    campaignsRunning: number;
+  };
+  profile: {
+    businessName: string;
+    logoUrl: string | null;
+    displayName: string | null;
+    phoneNumber: string | null;
+    plan: { name: string; status: SubscriptionStatus; renewsAt: string; trialEndsAt: string | null };
+  };
+  waba: {
+    status: 'connected' | 'disconnected' | 'pending';
+    wabaId: string;
+    wabaName: string | null;
+    businessVerification: string | null;
+    accountReview: string | null;
+    displayNameStatus: string | null;
+    lastError: string | null;
+    lastSyncAt: string | null;
+  } | null;
+  health: {
+    qualityRating: string | null;
+    phoneStatus: string | null;
+    canSendMessage: string | null;
+    issues: { entity: string; message: string; solution: string | null }[];
+    lastWebhookAt: string | null;
+  } | null;
+  limits: {
+    tier: string | null;
+    limit: number | null;
+    unlimited: boolean;
+    used: number;
+    remaining: number | null;
+    templates: { total: number; approved: number; pending: number; rejected: number; quota: number };
+  };
+  connectors: { key: string; name: string; connected: boolean; detail: string; path: string }[];
+  /** Set when Meta could not be reached: account widgets then show the last saved values. */
+  metaError: string | null;
+}
+
+export interface AppNotification {
+  id: string;
+  tone: 'red' | 'amber' | 'blue';
+  title: string;
+  detail: string;
+  path: string;
+  at: string | null;
+}
+
 export interface ConnectionPayload {
   connection: WhatsAppConnection | null;
   webhook: { callbackUrl: string; configured: boolean };
@@ -522,7 +579,24 @@ export type FlowNodeType =
   | 'ai_answer'
   | 'http_request'
   | 'handoff'
-  | 'exit';
+  | 'exit'
+  | 'send_list'
+  | 'send_media'
+  | 'send_location'
+  | 'send_contacts'
+  | 'send_catalog'
+  | 'rating'
+  | 'ask_address'
+  | 'wait_reply'
+  | 'time_check'
+  | 'add_tags'
+  | 'set_stage'
+  | 'set_field'
+  | 'loop'
+  | 'book_appointment'
+  | 'create_ticket'
+  | 'resolve_chat'
+  | 'google_sheets';
 
 export interface FlowGraphNode {
   id: string;
@@ -554,6 +628,7 @@ export interface FlowSummary {
   trigger: { event: string | null; keywords: string[] } | null;
   hasUnpublishedChanges: boolean;
   draftUpdatedAt: string;
+  createdAt: string;
   updatedAt: string;
   stats30d?: Partial<Record<'running' | 'waiting' | 'completed' | 'exited' | 'failed', number>>;
 }
@@ -561,6 +636,43 @@ export interface FlowSummary {
 export interface FlowDetail extends FlowSummary {
   draftGraph: FlowGraph;
   settings: { allowReentry: boolean; exitOnReply: boolean };
+}
+
+export interface FlowAnalytics {
+  range: { from: string; to: string };
+  totals: { flows: number; activeFlows: number; runs: number; runsInRange: number; replies: number; appointments: number; dataEntries: number };
+  series: { date: string; runs: number; replies: number }[];
+  flows: { id: string; name: string; status: FlowStatus; runs: number; replies: number; completionRate: number | null; dropOffRate: number | null; lastRunAt: string | null }[];
+}
+
+export interface FlowRun {
+  id: string;
+  flow: { id: string; name: string };
+  contact: { id: string; name: string; phone: string } | null;
+  status: 'running' | 'waiting' | 'completed' | 'exited' | 'failed';
+  steps: number;
+  lastStep: { type: string | null; outcome: string | null; detail: string | null } | null;
+  droppedOff: boolean;
+  handedOff: boolean;
+  exitReason: string | null;
+  error: string | null;
+  trigger: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface FlowDataRow {
+  id: string;
+  flow: { id: string; name: string };
+  contact: { id: string; name: string; phone: string } | null;
+  data: Record<string, string>;
+  collectedAt: string;
+}
+
+export interface FlowAdsReport {
+  range: { from: string; to: string };
+  totals: { ads: number; leads: number; flowRuns: number; replies: number };
+  ads: { id: string; headline: string; body: string; sourceUrl: string | null; sourceType: string | null; leads: number; messages: number; flowRuns: number; replies: number; flows: string[]; lastLeadAt: string }[];
 }
 
 export interface FlowIssue {
@@ -769,7 +881,7 @@ export interface SubscriptionInfo {
   cancelAtPeriodEnd: boolean;
   endedAt: string | null;
   provider: 'razorpay' | 'sandbox' | 'manual' | 'none';
-  pending: { planCode: string; cycle: string; checkoutUrl: string; createdAt: string } | null;
+  pending: { planCode: string; cycle: string; checkoutUrl: string; providerSubscriptionId: string; createdAt: string } | null;
   lastPaymentAt: string | null;
 }
 
@@ -794,6 +906,7 @@ export interface BillingOverview {
   usage: Record<Exclude<LimitKey, 'apiRequestsPerMinute'>, number> & { apiRequests: number };
   plans: PlanInfo[];
   provider: 'razorpay' | 'sandbox';
+  razorpayKeyId: string | null;
   invoices: InvoiceInfo[];
 }
 
@@ -993,7 +1106,7 @@ export interface BoardTask {
 
 // ---- Appointments ----
 
-export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type AppointmentSource = 'ai_assistant' | 'flow' | 'manual' | 'api';
 
 export interface Appointment {
@@ -1074,6 +1187,8 @@ export interface InboxCounts {
   waiting: number;
   snoozed: number;
   ai: { all: number; active: number; escalated: number };
+  /** Chats with unread messages (overall and per list) and the total of unread messages. */
+  unread: { chats: number; messages: number; open: number; mine: number; unassigned: number };
 }
 
 export interface TeamMate {
