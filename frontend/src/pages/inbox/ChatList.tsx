@@ -13,6 +13,16 @@ import { NAV_LISTS, type NavList } from './navLists';
 import { snoozeLabel, snoozeOptions, useInboxCounts, useInboxRefresh, useTeam } from './shared';
 
 type WindowTab = 'active' | 'rolling';
+/** Quick filter tabs above the general chat lists. */
+type QuickTab = 'all' | 'unread' | 'mine' | 'unassigned' | 'open' | 'resolved';
+const QUICK: Record<QuickTab, { label: string; view?: 'mine' | 'unassigned'; status: ConversationStatus | 'all' }> = {
+  all: { label: 'All', status: 'all' },
+  unread: { label: 'Unread', status: 'all' },
+  mine: { label: 'Assigned to me', view: 'mine', status: 'open' },
+  unassigned: { label: 'Unassigned', view: 'unassigned', status: 'open' },
+  open: { label: 'Open', status: 'open' },
+  resolved: { label: 'Resolved', status: 'resolved' },
+};
 type AiTab = 'all' | 'active' | 'escalated' | 'resolved';
 
 interface Filters {
@@ -21,6 +31,7 @@ interface Filters {
   priority: '' | 'high';
   unread: boolean;
   tag: string;
+  window: '' | WindowTab;
 }
 
 const AVATAR_TONES = ['bg-emerald-100 text-emerald-700', 'bg-lime-100 text-lime-700', 'bg-violet-100 text-violet-700', 'bg-rose-100 text-rose-700', 'bg-fuchsia-100 text-fuchsia-700', 'bg-sky-100 text-sky-700', 'bg-amber-100 text-amber-700'];
@@ -32,28 +43,32 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
   const isAi = list === 'ai';
   const [q, setQ] = useState('');
   const term = useDeferredValue(q.trim());
-  const [tab, setTab] = useState<WindowTab | 'any'>(list === 'open' ? 'active' : 'any');
+  // The general lists get the quick tabs; the focused lists (mentions, starred…) are already one filter.
+  const quickOn = list === 'open' || list === 'all';
+  const [quick, setQuick] = useState<QuickTab>(list === 'all' ? 'all' : 'open');
   const [aiTab, setAiTab] = useState<AiTab>('all');
-  const defaults: Filters = { status: nav.status, assignee: '', priority: '', unread: false, tag: '' };
+  const defaults: Filters = { status: nav.status, assignee: '', priority: '', unread: false, tag: '', window: '' };
   const [filters, setFilters] = useState<Filters>(defaults);
   const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [starting, setStarting] = useState(false);
   const counts = useInboxCounts();
   const refresh = useInboxRefresh();
-  const filtered = filters.status !== nav.status || filters.assignee || filters.priority || filters.unread || filters.tag;
+  const filtered = filters.status !== nav.status || filters.assignee || filters.priority || filters.unread || filters.tag || filters.window;
+  const tab: WindowTab | 'any' = filters.window || 'any';
+  const status = quickOn ? QUICK[quick].status : filters.status;
 
   const query = useInfiniteQuery({
-    queryKey: ['conversations', workspace.id, { list, term, tab, aiTab, filters }],
+    queryKey: ['conversations', workspace.id, { list, term, quick: quickOn ? quick : null, aiTab, filters }],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const p = new URLSearchParams({ view: nav.view, status: filters.status });
+      const p = new URLSearchParams({ view: (quickOn && QUICK[quick].view) || nav.view, status });
       if (isAi) p.set('ai', aiTab);
-      else if (tab !== 'any') p.set('window', tab);
+      else if (filters.window) p.set('window', filters.window);
       if (term) p.set('q', term);
       if (filters.assignee) p.set('assignee', filters.assignee);
       if (filters.priority) p.set('priority', filters.priority);
-      if (filters.unread) p.set('unread', 'true');
+      if (filters.unread || (quickOn && quick === 'unread')) p.set('unread', 'true');
       if (filters.tag) p.set('tag', filters.tag);
       if (pageParam) p.set('before', pageParam);
       return api.get<{ conversations: ConversationSummary[]; nextBefore: string | null }>(`/workspaces/${workspace.id}/conversations?${p}`);
@@ -95,6 +110,11 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
           <MobileViewPicker list={list} />
           <h1 className="hidden flex-1 text-lg font-semibold text-ink md:block">
             {isAi ? nav.label : 'Chats'}
+            {!isAi && !!counts.data?.unread.messages && (
+              <span className="ml-2 rounded-full bg-brand-600 px-2 py-0.5 align-middle text-[11px] font-semibold text-white" title={`${counts.data.unread.messages} unread messages in ${counts.data.unread.chats} chats`}>
+                {counts.data.unread.messages} unread
+              </span>
+            )}
             {isAi && counts.data && <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-xs font-medium text-slate-500">{counts.data.ai.all}</span>}
           </h1>
           {canStart && !isAi && (
@@ -107,7 +127,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
           <div className="relative flex-1">
             <input
               aria-label="Search chats"
-              placeholder="Search for a chat..."
+              placeholder="Search name, number or message"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="block w-full rounded-xl border border-slate-200 py-2 pr-9 pl-3.5 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
@@ -124,7 +144,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
             <Filter className="size-4" />
             {filtered && <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-brand-600 ring-2 ring-white" />}
           </button>
-          <FilterPopover anchor={filterAnchor} onClose={() => setFilterAnchor(null)} value={filters} defaults={defaults} onChange={setFilters} showStatus={!isAi} />
+          <FilterPopover anchor={filterAnchor} onClose={() => setFilterAnchor(null)} value={filters} defaults={defaults} onChange={setFilters} showStatus={!isAi && !quickOn} showWindow={!isAi} />
         </div>
         {isAi ? (
           <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 text-sm">
@@ -142,21 +162,19 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
               </button>
             ))}
           </div>
-        ) : (
-          <div className="flex overflow-x-auto border-b border-slate-200 text-sm [scrollbar-width:none]">
-            {(
-              [
-                ['active', 'Active', 'Customer wrote in the last 24 hours: reply freely'],
-                ['rolling', 'Rolling Over', 'Older than 24 hours: only templates can be sent'],
-                ['any', 'Everything', 'All chats in this list'],
-              ] as const
-            ).map(([k, label, hint]) => (
-              <button key={k} type="button" title={hint} onClick={() => setTab(k)} className={cn('-mb-px shrink-0 border-b-2 px-3 py-2 font-medium whitespace-nowrap', tab === k ? 'border-ink text-ink' : 'border-transparent text-slate-500 hover:text-slate-700')}>
-                {label}
-              </button>
-            ))}
+        ) : quickOn ? (
+          <div className="flex overflow-x-auto border-b border-slate-200 text-sm [scrollbar-width:none]" role="tablist" aria-label="Filter chats">
+            {(Object.keys(QUICK) as QuickTab[]).map((k) => {
+              const n = k === 'unread' ? counts.data?.unread.chats : k === 'mine' ? counts.data?.unread.mine : k === 'unassigned' ? counts.data?.unread.unassigned : undefined;
+              return (
+                <button key={k} type="button" role="tab" aria-selected={quick === k} onClick={() => setQuick(k)} className={cn('-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-2 font-medium whitespace-nowrap', quick === k ? 'border-brand-600 text-ink' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                  {QUICK[k].label}
+                  {!!n && <span className="rounded-full bg-brand-600 px-1.5 text-[10px] font-semibold text-white">{n}</span>}
+                </button>
+              );
+            })}
           </div>
-        )}
+        ) : null}
       </div>
 
       {checked.size > 0 && <BulkBar ids={[...checked]} onDone={() => (setChecked(new Set()), refresh())} onClear={() => setChecked(new Set())} />}
@@ -284,7 +302,7 @@ function Chip({ tone, children }: { tone: keyof typeof CHIP; children: React.Rea
   return <span className={cn('inline-flex max-w-36 items-center gap-1 truncate rounded-md px-2 py-0.5 text-[11px] font-medium', CHIP[tone])}>{children}</span>;
 }
 
-function FilterPopover({ anchor, onClose, value, defaults, onChange, showStatus }: { anchor: HTMLElement | null; onClose: () => void; value: Filters; defaults: Filters; onChange: (f: Filters) => void; showStatus: boolean }) {
+function FilterPopover({ anchor, onClose, value, defaults, onChange, showStatus, showWindow }: { anchor: HTMLElement | null; onClose: () => void; value: Filters; defaults: Filters; onChange: (f: Filters) => void; showStatus: boolean; showWindow: boolean }) {
   const { workspace, can } = useWorkspace();
   const team = useTeam();
   const tags = useTags(workspace.id);
@@ -307,6 +325,16 @@ function FilterPopover({ anchor, onClose, value, defaults, onChange, showStatus 
               <option value="snoozed">Snoozed</option>
               <option value="resolved">Resolved</option>
               <option value="all">Any status</option>
+            </Select>
+          </label>
+        )}
+        {showWindow && (
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-slate-500">24-hour window</span>
+            <Select value={value.window} onChange={(e) => set({ window: e.target.value as Filters['window'] })}>
+              <option value="">Any</option>
+              <option value="active">Active: customer wrote in the last 24h</option>
+              <option value="rolling">Closed: templates only</option>
             </Select>
           </label>
         )}

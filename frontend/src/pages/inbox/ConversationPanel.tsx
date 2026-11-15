@@ -10,7 +10,7 @@ import { Popover } from '../audience/shared';
 import { CANNED_EVENT, COMPOSE_EVENT, Composer } from './Composer';
 import { ContactPanel, StatusPill } from './ContactPanel';
 import { PanelResizeHandle } from './PanelResizeHandle';
-import { snoozeLabel, snoozeOptions, useInboxRefresh } from './shared';
+import { snoozeLabel, snoozeOptions, useInboxRefresh, useMarkRead } from './shared';
 import { Timeline } from './Timeline';
 
 interface ConversationDetail {
@@ -97,7 +97,6 @@ export interface ChatLayout {
  */
 export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: () => void; layout: ChatLayout }) {
   const { workspace } = useWorkspace();
-  const queryClient = useQueryClient();
   const refresh = useInboxRefresh();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [palette, setPalette] = useState(false);
@@ -141,15 +140,17 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
   }, [conversation, writable, onBack, star, update]);
 
   // Opening an unread conversation marks it read.
+  // (Also when a message arrives while the chat is open and the tab is in view.)
+  const markRead = useMarkRead();
   const unread = conversation?.unreadCount ?? 0;
   useEffect(() => {
-    if (unread > 0) {
-      void api.post(`/workspaces/${workspace.id}/conversations/${id}/read`).then(() => {
-        void queryClient.invalidateQueries({ queryKey: ['conversations', workspace.id] });
-        void queryClient.invalidateQueries({ queryKey: ['conversation', workspace.id, id] });
-      });
-    }
-  }, [unread, id, workspace.id, queryClient]);
+    if (!conversation || unread <= 0) return;
+    const run = () => document.visibilityState === 'visible' && markRead(conversation);
+    run();
+    document.addEventListener('visibilitychange', run);
+    return () => document.removeEventListener('visibilitychange', run);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unread, id, markRead]);
 
   const card = 'min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white';
   if (detail.isPending || detail.error) {

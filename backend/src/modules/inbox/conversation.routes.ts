@@ -17,6 +17,8 @@ import { Contact, toPublicContact } from '../contacts/contact.model.js';
 import { isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
 import { Message } from '../messages/message.model.js';
 import { queueOutboundMessage } from '../messages/message.service.js';
+import { credentialsOf, getConnection } from '../whatsapp/connection.service.js';
+import { whatsappProvider } from '../whatsapp/provider/index.js';
 import { can, type Role } from '../roles.js';
 import { WorkspaceMember } from '../workspaces/member.model.js';
 import { CONVERSATION_STATUSES, Conversation, type ConversationDoc } from './conversation.model.js';
@@ -146,7 +148,19 @@ async function listFilter(req: Req, query: z.infer<typeof listSchema>): Promise<
   }
   if (contactConds.length) {
     const matches = await Contact.find({ workspaceId, $and: contactConds }).select('_id').limit(2000).lean();
-    filter.contactId = { $in: matches.map((c) => c._id) };
+    const ids = matches.map((c) => c._id);
+    // The search also finds chats by what was said in them.
+    if (query.q && query.q.length >= 3) {
+      const rx = { $regex: escapeRegex(query.q), $options: 'i' };
+      const said = await Message.find({ workspaceId, $or: [{ 'content.text': rx }, { 'content.body': rx }, { 'content.caption': rx }] })
+        .sort({ createdAt: -1 })
+        .limit(500)
+        .select('contactId')
+        .lean();
+      const tagged = query.tag ? new Set((await Contact.find({ workspaceId, tags: objectId(query.tag, 'Tag') }).select('_id').lean()).map((c) => c._id.toString())) : null;
+      for (const m of said) if (!tagged || tagged.has(m.contactId.toString())) ids.push(m.contactId);
+    }
+    filter.contactId = { $in: ids };
   }
   if (and.length) filter.$and = and;
   return filter;
@@ -208,7 +222,7 @@ conversationRouter.post('/', requirePermission('contacts:manage'), requirePermis
   res.status(created ? 201 : 200).json({ conversation: serialized, created, createdContact });
 });
 
-/** Counts for the inbox navigation (open chats, not snoozed). */
+/** Counts for the inbox navigation (open chats, not snoozed) and the unread badges. */
 conversationRouter.get('/counts', async (req, res) => {
   const workspaceId = req.workspace!._id;
   const userId = req.user!._id;
@@ -216,7 +230,9 @@ conversationRouter.get('/counts', async (req, res) => {
   const base = { workspaceId, status: { $in: ['open', 'pending'] }, ...visibilityFilter(req.membership!), $or: [{ snoozedUntil: null }, { snoozedUntil: { $lte: now } }] };
   const mentionIds = await ConversationNote.distinct('conversationId', { workspaceId, mentions: userId });
   const aiBase = { workspaceId, ...visibilityFilter(req.membership!), aiTouchedAt: { $ne: null } };
-  const [all, mine, unassigned, mentions, starred, waiting, snoozed, aiAll, aiActive, aiEscalated] = await Promise.all([
+  const visibleUnread = { workspaceId, ...visibilityFilter(req.membership!), unreadCount: { $gt: 0 } };
+  const hasUnread = { unreadCount: { $gt: 0 } };
+  const [all, mine, unassigned, mentions, starred, waiting, snoozed, aiAll, aiActive, aiEscalated, unreadChats, unreadOpen, unreadMine, unreadUnassigned, unreadDocs] = await Promise.all([
     Conversation.countDocuments(base),
     Conversation.countDocuments({ ...base, assigneeId: userId }),
     Conversation.countDocuments({ ...base, assigneeId: null }),
@@ -227,8 +243,24 @@ conversationRouter.get('/counts', async (req, res) => {
     Conversation.countDocuments(aiBase),
     Conversation.countDocuments({ ...aiBase, botPaused: false, status: { $ne: 'resolved' } }),
     Conversation.countDocuments({ ...aiBase, handoffSource: 'ai', botPaused: true, status: { $ne: 'resolved' } }),
+    Conversation.countDocuments(visibleUnread),
+    Conversation.countDocuments({ ...base, ...hasUnread }),
+    Conversation.countDocuments({ ...base, ...hasUnread, assigneeId: userId }),
+    Conversation.countDocuments({ ...base, ...hasUnread, assigneeId: null }),
+    Conversation.find(visibleUnread).select('unreadCount').lean(),
   ]);
-  res.json({ all, mine, unassigned, mentions, starred, waiting, snoozed, ai: { all: aiAll, active: aiActive, escalated: aiEscalated } });
+  res.json({
+    all,
+    mine,
+    unassigned,
+    mentions,
+    starred,
+    waiting,
+    snoozed,
+    ai: { all: aiAll, active: aiActive, escalated: aiEscalated },
+    // Chats with unread messages (per list) and the total of unread messages.
+    unread: { chats: unreadChats, messages: unreadDocs.reduce((n, c) => n + c.unreadCount, 0), open: unreadOpen, mine: unreadMine, unassigned: unreadUnassigned },
+  });
 });
 
 /** Teammates who can be @mentioned or assigned (any role that can reply). */
@@ -332,6 +364,7 @@ conversationRouter.post('/:conversationId/read', async (req, res) => {
   if (conv.unreadCount > 0) {
     await Conversation.updateOne({ _id: conv._id, workspaceId: conv.workspaceId }, { unreadCount: 0 });
     notify(conv.workspaceId, conv._id);
+    void sendReadReceipt(conv);
   }
   res.status(204).end();
 });
@@ -440,6 +473,21 @@ conversationRouter.patch('/:conversationId', requirePermission('messages:send'),
 });
 
 type Req = Parameters<Parameters<typeof conversationRouter.get>[1]>[0];
+
+/** Tells WhatsApp the customer's latest message was seen (blue ticks). Best effort. */
+async function sendReadReceipt(conv: ConversationDoc) {
+  try {
+    const last = await Message.findOne({ workspaceId: conv.workspaceId, contactId: conv.contactId, direction: 'inbound', providerMessageId: { $type: 'string' } })
+      .sort({ createdAt: -1 })
+      .select('providerMessageId')
+      .lean();
+    const conn = last && (await getConnection(conv.workspaceId, true));
+    if (!last?.providerMessageId || !conn || conn.status !== 'connected') return;
+    await whatsappProvider().markRead?.(credentialsOf(conn), last.providerMessageId);
+  } catch {
+    /* a missed read receipt must never fail opening a chat */
+  }
+}
 
 function visible(req: Req) {
   return findVisibleConversation(req.workspace!._id, objectId(req.params.conversationId, 'Conversation'), req.membership!);

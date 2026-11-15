@@ -186,7 +186,10 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
       {!collapsed && opts.badge}
     </button>
   );
+  // Lists with unread chats show that number, highlighted; it drops as soon as the chats are opened.
+  const unread: Partial<Record<NavList, number | undefined>> = { open: n?.unread.open, all: n?.unread.chats, mine: n?.unread.mine, unassigned: n?.unread.unassigned };
   const countBadge = (k: NavList) => {
+    if (unread[k]) return <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white" title={`${unread[k]} unread`}>{unread[k]}</span>;
     const v = count[k];
     return v ? <span className={cn('rounded-full px-1.5 text-[11px] font-semibold', k === 'mentions' || k === 'waiting' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500')}>{v}</span> : null;
   };
