@@ -11,6 +11,9 @@ import { Flow } from '../flows/flow.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
 import { GoogleAccount, SheetCampaign } from '../integrations/sheets.model.js';
 import { Message } from '../messages/message.model.js';
+import { ReminderRecord, ReminderSend, ReminderSetup } from '../reminders/reminder.model.js';
+import { AutoReply } from '../autoreplies/autoReply.model.js';
+import { can, type Role } from '../roles.js';
 import { MessageTemplate } from '../templates/template.model.js';
 import { credentialsOf, getConnection } from '../whatsapp/connection.service.js';
 import { ProviderError, type AccountHealth } from '../whatsapp/provider/types.js';
@@ -46,7 +49,55 @@ async function overview(workspaceId: Types.ObjectId, timeZone: string) {
     Campaign.countDocuments({ workspaceId, status: { $in: ['running', 'scheduled'] } }),
     Conversation.countDocuments({ workspaceId, status: { $ne: 'resolved' } }),
   ]);
-  return { contacts, conversationsToday, conversationsWeek, openChats, messages: { sent, delivered, read, failed }, activeFlows, campaignsRunning };
+  // The seven days before, for "vs the week before".
+  const prev = { workspaceId, direction: 'outbound', createdAt: { $gte: new Date(now - 14 * DAY), $lt: week } };
+  const [prevSent, newContacts, activeReminders, remindersDue, received, keywordTriggers] = await Promise.all([
+    Message.countDocuments({ ...prev, status: { $in: ['sent', 'delivered', 'read'] } }),
+    Contact.countDocuments({ workspaceId, createdAt: { $gte: week } }),
+    ReminderSetup.countDocuments({ workspaceId, status: 'active' }),
+    ReminderRecord.countDocuments({ workspaceId, status: 'active', nextRunAt: { $gte: new Date(now), $lte: new Date(now + 7 * DAY) } }),
+    Message.countDocuments({ workspaceId, direction: 'inbound', createdAt: { $gte: week } }),
+    AutoReply.countDocuments({ workspaceId, active: true }),
+  ]);
+  return { contacts, newContacts, conversationsToday, conversationsWeek, openChats, messages: { sent, delivered, read, failed, received, prevSent }, activeFlows, campaignsRunning, activeReminders, remindersDue, keywordTriggers };
+}
+
+/** Sent and received per day for the last 14 days, in the workspace timezone. */
+async function trend(workspaceId: Types.ObjectId, timezone: string) {
+  const now = Date.now();
+  const rows = await Message.aggregate<{ _id: { day: string; direction: string }; n: number }>([
+    { $match: { workspaceId, createdAt: { $gte: new Date(now - 14 * DAY) }, status: { $ne: 'failed' } } },
+    { $group: { _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone } }, direction: '$direction' }, n: { $sum: 1 } } },
+  ]);
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return Array.from({ length: 14 }, (_, i) => {
+    const day = fmt.format(new Date(now - (13 - i) * DAY));
+    const of = (direction: string) => rows.find((r) => r._id.day === day && r._id.direction === direction)?.n ?? 0;
+    return { day, sent: of('outbound'), received: of('inbound') };
+  });
+}
+
+type Activity = { id: string; kind: 'chat' | 'campaign' | 'template' | 'reminder'; title: string; detail: string; status: string | null; path: string; at: Date };
+
+/** The latest things that happened across the workspace. */
+async function recentActivity(workspaceId: Types.ObjectId, viewAllChats: boolean): Promise<Activity[]> {
+  const [chats, campaigns, templates, reminders] = await Promise.all([
+    viewAllChats ? Conversation.find({ workspaceId, lastMessageAt: { $ne: null } }).sort({ lastMessageAt: -1 }).limit(5).lean() : [],
+    Campaign.find({ workspaceId, status: { $ne: 'draft' } }).sort({ updatedAt: -1 }).limit(3).select('name status updatedAt').lean(),
+    MessageTemplate.find({ workspaceId, statusUpdatedAt: { $ne: null } }).sort({ statusUpdatedAt: -1 }).limit(3).select('name status statusUpdatedAt').lean(),
+    ReminderSend.find({ workspaceId, status: { $in: ['sent', 'failed'] } }).sort({ updatedAt: -1 }).limit(3).lean(),
+  ]);
+  const contacts = new Map((await Contact.find({ workspaceId, _id: { $in: chats.map((c) => c.contactId) } }).select('name profileName phoneE164').lean()).map((c) => [c._id.toString(), c]));
+  const items: Activity[] = [
+    ...chats.map((c): Activity => {
+      const contact = contacts.get(c.contactId.toString());
+      return { id: `chat-${c._id.toString()}`, kind: 'chat', title: contact?.name ?? contact?.profileName ?? contact?.phoneE164 ?? 'Chat', detail: c.lastMessagePreview ?? '', status: null, path: `inbox?c=${c._id.toString()}`, at: c.lastMessageAt! };
+    }),
+    ...campaigns.map((c): Activity => ({ id: `campaign-${c._id.toString()}`, kind: 'campaign', title: c.name, detail: 'Broadcast', status: c.status, path: `broadcast/campaigns/${c._id.toString()}`, at: c.updatedAt })),
+    ...templates.map((t): Activity => ({ id: `template-${t._id.toString()}`, kind: 'template', title: t.name, detail: 'Template', status: t.status.toLowerCase(), path: 'templates', at: t.statusUpdatedAt! })),
+    ...reminders.map((r): Activity => ({ id: `reminder-${r._id.toString()}`, kind: 'reminder', title: r.name || r.phoneE164, detail: 'Date reminder', status: r.status, path: `reminders/${r.setupId.toString()}?tab=log`, at: r.updatedAt })),
+  ];
+  return items.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 7);
 }
 
 /** Mounted at /api/workspaces/:workspaceId/dashboard (workspace already loaded). */
@@ -72,7 +123,9 @@ dashboardRouter.get('/', requirePermission('workspace:read'), async (req, res) =
   }
 
   const dayAgo = new Date(Date.now() - DAY);
-  const [stats, entitlements, usedContacts, templates, googleAccounts, sheetAutomations, webhooks, apiKeys] = await Promise.all([
+  const [days, activity, stats, entitlements, usedContacts, templates, googleAccounts, sheetAutomations, webhooks, apiKeys] = await Promise.all([
+    trend(workspaceId, workspace.timezone || 'UTC'),
+    recentActivity(workspaceId, can(req.membership!.role as Role, 'conversations:view_all')),
     overview(workspaceId, workspace.timezone || 'UTC'),
     getEntitlements(workspaceId),
     // Business-initiated conversations: distinct customers sent a template in the last 24 hours.
@@ -93,6 +146,8 @@ dashboardRouter.get('/', requirePermission('workspace:read'), async (req, res) =
   res.json({
     generatedAt: new Date(),
     overview: stats,
+    trend: days,
+    activity,
     profile: {
       businessName: workspace.name,
       logoUrl: health?.profilePictureUrl ?? null,
@@ -146,13 +201,14 @@ dashboardRouter.get('/notifications', requirePermission('workspace:read'), async
   const workspaceId = workspace._id;
   const now = new Date();
   const week = new Date(now.getTime() - 7 * DAY);
-  const [conn, e, unassigned, waiting, failedCampaigns, rejectedTemplates, appointments] = await Promise.all([
+  const [conn, e, unassigned, waiting, failedCampaigns, rejectedTemplates, failedReminders, appointments] = await Promise.all([
     getConnection(workspaceId),
     getEntitlements(workspaceId),
     Conversation.countDocuments({ workspaceId, status: { $ne: 'resolved' }, assigneeId: null, unreadCount: { $gt: 0 } }),
     Conversation.countDocuments({ workspaceId, status: { $ne: 'resolved' }, awaitingHuman: true }),
     Campaign.find({ workspaceId, status: 'failed', updatedAt: { $gte: week } }).sort({ updatedAt: -1 }).limit(3).select('name updatedAt').lean(),
     MessageTemplate.find({ workspaceId, status: 'REJECTED', updatedAt: { $gte: week } }).sort({ updatedAt: -1 }).limit(3).select('name updatedAt').lean(),
+    ReminderSend.countDocuments({ workspaceId, status: 'failed', updatedAt: { $gte: week } }),
     Appointment.countDocuments({ workspaceId, status: { $in: ['scheduled', 'confirmed'] }, startAt: { $gte: now, $lte: new Date(now.getTime() + DAY) } }),
   ]);
 
@@ -163,6 +219,10 @@ dashboardRouter.get('/notifications', requirePermission('workspace:read'), async
   else if (conn.qualityRating === 'RED' || conn.qualityRating === 'YELLOW') {
     items.push({ id: `wa-quality-${conn.qualityRating}`, tone: conn.qualityRating === 'RED' ? 'red' : 'amber', title: `Quality rating is ${conn.qualityRating === 'RED' ? 'low' : 'medium'}`, detail: 'Customers are blocking or reporting your messages. Review recent broadcasts.', path: '', at: conn.lastSyncAt ?? null });
   }
+  if (conn?.status === 'connected' && conn.templateSync?.lastError) {
+    items.push({ id: `template-sync-${conn.templateSync.lastErrorCode ?? 'error'}`, tone: 'amber', title: 'Template statuses could not be refreshed', detail: conn.templateSync.lastError, path: 'templates', at: conn.templateSync.lastAttemptAt ?? null });
+  }
+  if (failedReminders > 0) items.push({ id: `reminders-failed-${failedReminders}`, tone: 'amber', title: `${failedReminders} date reminder(s) failed this week`, detail: 'Open Date reminders to see the reason and send again.', path: 'reminders', at: null });
   if (!e.access) items.push({ id: `plan-${s.status}`, tone: 'red', title: 'Subscription inactive', detail: 'Sending, broadcasts and automations are paused. Choose a plan to resume.', path: 'billing', at: s.endedAt ?? null });
   else if (s.status === 'past_due') items.push({ id: 'plan-past-due', tone: 'amber', title: 'Payment failed', detail: 'Update your payment to keep the plan active.', path: 'billing', at: null });
   else if (s.status === 'trialing' && s.trialEndsAt && s.trialEndsAt.getTime() - now.getTime() < 5 * DAY) {
