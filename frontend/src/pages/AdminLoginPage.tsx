@@ -37,7 +37,7 @@ export function AdminLoginPage() {
           <KeyRound className="size-5" />
         </span>
         <div>
-          <h1 className="text-xl font-bold text-white">Administrator sign in</h1>
+          <h1 className="text-xl font-semibold text-white">Administrator sign in</h1>
           <p className="text-sm text-slate-400">Platform administrators only.</p>
         </div>
       </div>

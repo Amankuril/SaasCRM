@@ -55,8 +55,8 @@ export function PublicPage({ slug }: { slug: SitePageSlug }) {
           </div>
         ) : (
           <article className="rounded-2xl bg-white px-6 py-8 shadow-[0_1px_3px_rgba(15,23,42,0.06)] ring-1 ring-slate-200 sm:px-12 sm:py-12">
-            <p className="text-xs font-medium tracking-wide text-emerald-700 uppercase">Zeta Connect</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{page.title}</h1>
+            <p className="text-xs font-medium text-brand-700">Zeta Connect</p>
+            <h1 className="mt-2 text-3xl font-semibold text-ink sm:text-4xl">{page.title}</h1>
             <p className="mt-2 text-sm text-slate-500">Last updated {formatDate(page.updatedAt)}</p>
             {page.contact && <ContactCards contact={page.contact} />}
             <div className="mt-8 border-t border-slate-100 pt-8 text-[15px]">
@@ -89,7 +89,7 @@ function ContactCards({ contact }: { contact: NonNullable<SitePage['contact']> }
       {cards.map(({ icon: Icon, label, value, href }) => {
         const body = (
           <>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
               <Icon className="size-5" />
             </span>
             <span className="min-w-0">
@@ -99,7 +99,7 @@ function ContactCards({ contact }: { contact: NonNullable<SitePage['contact']> }
           </>
         );
         return href ? (
-          <a key={label} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="flex items-center gap-3 rounded-xl p-4 ring-1 ring-slate-200 transition hover:ring-emerald-300 hover:bg-emerald-50/30">
+          <a key={label} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="flex items-center gap-3 rounded-xl p-4 ring-1 ring-slate-200 transition hover:ring-emerald-300 hover:bg-brand-50/30">
             {body}
           </a>
         ) : (

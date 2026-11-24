@@ -75,8 +75,8 @@ export function SignupPage() {
           <PasswordStrength password={password} />
           <ul className="grid gap-1 pt-1 sm:grid-cols-2">
             {RULES.map((r) => (
-              <li key={r.label} className={cn('flex items-center gap-1.5 text-xs', r.test(password) ? 'text-emerald-700' : 'text-slate-500')}>
-                <span className={cn('flex size-4 items-center justify-center rounded-full', r.test(password) ? 'bg-emerald-100' : 'bg-slate-100')}>
+              <li key={r.label} className={cn('flex items-center gap-1.5 text-xs', r.test(password) ? 'text-brand-700' : 'text-slate-500')}>
+                <span className={cn('flex size-4 items-center justify-center rounded-full', r.test(password) ? 'bg-brand-100' : 'bg-slate-100')}>
                   <Check className="size-3" />
                 </span>
                 {r.label}
@@ -86,7 +86,7 @@ export function SignupPage() {
           {fieldErr('password')}
         </div>
         <label className="flex items-start gap-2.5 text-sm text-slate-600">
-          <input type="checkbox" className="mt-0.5 size-4 rounded accent-emerald-600" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+          <input type="checkbox" className="mt-0.5 size-4 rounded accent-brand-600" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
           <span>I agree to use WhatsApp messaging responsibly and only contact customers who opted in.</span>
         </label>
         <Button type="submit" className="w-full rounded-xl py-3 text-base" loading={submitting} disabled={!name.trim() || !email.trim() || !rulesOk || !agreed}>

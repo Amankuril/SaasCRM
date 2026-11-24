@@ -230,12 +230,12 @@ function ago(iso: string) {
 /** "Already logged in elsewhere": the other session closes if the user continues here. */
 function ActiveSessionDialog({ info, busy, onCancel, onConfirm }: { info: { device: string; lastSeenAt: string }; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="session-title">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 " role="dialog" aria-modal="true" aria-labelledby="session-title">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
         <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
           <MonitorSmartphone className="size-7" />
         </span>
-        <h2 id="session-title" className="mt-4 text-lg font-bold text-ink">
+        <h2 id="session-title" className="mt-4 text-lg font-semibold text-ink">
           Already logged in elsewhere
         </h2>
         <p className="mt-2 text-sm text-slate-600">
