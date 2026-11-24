@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { Modal, initials } from '../../components/crm';
 import { AButton, IconButton, Panel, Segmented, useConfirm } from '../../components/admin';
-import { Alert, Badge, EmptyState, Field, Input, Spinner, errorMessage } from '../../components/ui';
+import { Alert, Badge, EmptyState, Field, Input, Spinner, errorMessage, LoadError } from '../../components/ui';
 import { SearchInput } from '../AdminPage';
 import { api, type Role } from '../../lib/api';
 import { ROLE_INFO, formatDate } from '../../lib/options';
@@ -65,13 +65,13 @@ export function UsersTab() {
       {list.isPending ? (
         <Spinner />
       ) : list.error ? (
-        <div className="p-4"><Alert>{errorMessage(list.error)}</Alert></div>
-      ) : list.data.users.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.users.length === 0 ? (
         <EmptyState icon={<Users className="size-5" />} title="No users found" />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
+            <thead className="bg-slate-50/70 text-left text-[11px] text-slate-500">
               <tr>
                 <th className="px-5 py-2.5 font-medium">User</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
@@ -103,7 +103,7 @@ export function UsersTab() {
                   <td className="hidden px-4 py-3 text-slate-600 md:table-cell">{u.workspaceCount}</td>
                   <td className="hidden px-4 py-3 text-slate-500 md:table-cell">
                     {u.lastLoginAt ? formatDate(u.lastLoginAt, true) : '—'}
-                    {u.activeSessions > 0 && <p className="text-[11px] text-emerald-700">{u.activeSessions} live session(s)</p>}
+                    {u.activeSessions > 0 && <p className="text-[11px] text-brand-700">{u.activeSessions} live session(s)</p>}
                   </td>
                   <td className="hidden px-4 py-3 text-slate-500 lg:table-cell">{formatDate(u.createdAt)}</td>
                   <td className="px-5 py-3 text-right">
@@ -299,7 +299,7 @@ function Block({ title, action, children }: { title: string; action?: ReactNode;
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">{title}</h3>
+        <h3 className="text-[11px] font-medium text-slate-400">{title}</h3>
         {action}
       </div>
       {children}

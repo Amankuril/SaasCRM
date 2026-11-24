@@ -87,7 +87,7 @@ export function AdminRevenuePage() {
             r ? (
               <>
                 {money(r.collected, r.currency)}
-                {change !== null && <span className={`ml-2 text-xs font-medium ${change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{change >= 0 ? '+' : ''}{change}%</span>}
+                {change !== null && <span className={`ml-2 text-xs font-medium ${change >= 0 ? 'text-brand-600' : 'text-red-600'}`}>{change >= 0 ? '+' : ''}{change}%</span>}
               </>
             ) : undefined
           }
@@ -100,7 +100,7 @@ export function AdminRevenuePage() {
       {r && (
         <div className="mb-6 grid gap-6 xl:grid-cols-3">
           <Panel title="Collections" description="Payments received per day." className="xl:col-span-2">
-            <TrendChart title="Revenue collected per day" days={r.series.map((s) => s.date)} series={[{ key: 'amount', label: `Collected (${r.currency})`, color: '#2a78d6', values: r.series.map((s) => Math.round(s.amount / 100)) }]} />
+            <TrendChart title="Revenue collected per day" days={r.series.map((s) => s.date)} series={[{ key: 'amount', label: `Collected (${r.currency})`, color: '#0a7d55', values: r.series.map((s) => Math.round(s.amount / 100)) }]} />
           </Panel>
           <Panel title="Recurring revenue by plan" description="Active and past-due subscriptions." flush>
             {r.planMix.length === 0 ? (

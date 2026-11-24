@@ -3,7 +3,7 @@ import { History } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { AButton, Panel, Segmented } from '../../components/admin';
-import { Alert, Badge, EmptyState, Spinner, errorMessage } from '../../components/ui';
+import { Badge, EmptyState, Spinner, LoadError } from '../../components/ui';
 import { SearchInput } from '../AdminPage';
 import { api } from '../../lib/api';
 import { formatDate } from '../../lib/options';
@@ -59,8 +59,8 @@ export function ActivityTab() {
       {feed.isPending ? (
         <Spinner />
       ) : feed.error ? (
-        <div className="p-4"><Alert>{errorMessage(feed.error)}</Alert></div>
-      ) : items.length === 0 ? (
+            <LoadError error={feed.error} what="this list" onRetry={() => void feed.refetch()} />
+          ) : items.length === 0 ? (
         <EmptyState icon={<History className="size-5" />} title="Nothing logged yet" />
       ) : (
         <>

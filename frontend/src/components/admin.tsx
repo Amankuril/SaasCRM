@@ -9,7 +9,7 @@ type Variant = 'primary' | 'outline' | 'subtle' | 'danger' | 'danger-outline';
 type Size = 'sm' | 'md';
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-slate-900 text-white shadow-sm hover:bg-slate-800 active:bg-slate-950',
+  primary: 'bg-brand-600 text-white hover:bg-brand-700',
   outline: 'bg-white text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ring-1 ring-inset ring-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:ring-slate-300',
   subtle: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
   danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700',
@@ -146,8 +146,8 @@ export function AdminHeader({ title, description, eyebrow, actions }: { title: R
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">{eyebrow}</div>}
-        <h1 className="text-[22px] font-semibold tracking-tight text-ink">{title}</h1>
+        {eyebrow && <div className="mb-1 text-xs font-medium text-slate-500">{eyebrow}</div>}
+        <h1 className="text-[22px] font-semibold text-ink">{title}</h1>
         {description && <p className="mt-1 max-w-2xl text-sm text-slate-500">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -200,7 +200,7 @@ export function Switch({ checked, onChange, label, disabled, tone = 'emerald' }:
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50', checked ? (tone === 'red' ? 'bg-red-600' : 'bg-emerald-600') : 'bg-slate-300')}
+      className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50', checked ? (tone === 'red' ? 'bg-red-600' : 'bg-brand-600') : 'bg-slate-300')}
     >
       <span className={cn('inline-block size-4 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-0.5')} />
     </button>
@@ -260,12 +260,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={ask}>
       {children}
       {pending && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-900/50 p-4 backdrop-blur-[2px] sm:items-center" onMouseDown={() => close(null)}>
+        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-900/50 p-4 sm:items-center" onMouseDown={() => close(null)}>
           <form
             role="alertdialog"
             aria-modal="true"
             aria-label={pending.title}
-            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl"
             onMouseDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.key === 'Escape' && close(null)}
             onSubmit={(e) => {
@@ -292,7 +292,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                       value={text}
                       placeholder={pending.input.placeholder}
                       onChange={(e) => setText(e.target.value)}
-                      className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 focus:outline-none"
+                      className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 focus:outline-none"
                     />
                   </label>
                 )}

@@ -144,8 +144,8 @@ export function AdminContentPage() {
             </div>
             <div className={view === 'write' ? 'hidden lg:block' : undefined}>
               <div className="h-[560px] overflow-y-auto p-6">
-                <p className="mb-4 text-[11px] font-medium tracking-wide text-slate-400 uppercase">Preview</p>
-                <h1 className="text-2xl font-semibold tracking-tight text-ink">{form.title || 'Untitled'}</h1>
+                <p className="mb-4 text-[11px] font-medium text-slate-400">Preview</p>
+                <h1 className="text-2xl font-semibold text-ink">{form.title || 'Untitled'}</h1>
                 <div className="mt-4 text-[15px]">
                   <Markdown source={form.content || '*Nothing written yet.*'} />
                 </div>

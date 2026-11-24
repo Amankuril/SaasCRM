@@ -5,8 +5,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { AButton, DetailList, IconButton, Panel, Segmented, useConfirm } from '../../components/admin';
 import { initials } from '../../components/crm';
-import { Alert, Badge, Field, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
-import { api, ROLES, type FeatureKey, type LimitKey, type Role, type SubscriptionStatus, type WorkspaceStatus } from '../../lib/api';
+import { Alert, Badge, Field, Input, Select, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
+import { api, ROLES, type FeatureKey, type LimitKey, type Role, type SubscriptionStatus, type WorkspaceStatus, type ReminderAccess } from '../../lib/api';
 import { ROLE_INFO, formatDate } from '../../lib/options';
 import { FEATURES, FEATURE_INFO, LIMIT_LABEL, STATUS_TONE, SUB_TONE, StatCard, SubscriptionModal } from '../AdminPage';
 import { money } from '../BillingPage';
@@ -22,6 +22,7 @@ interface Detail {
   usage: Record<string, number>;
   counts: Record<string, number>;
   connection: { displayPhoneNumber: string | null; verifiedName: string | null; phoneNumberId: string; wabaId: string; status: string; qualityRating: string | null; messagingLimitTier: string | null; lastError: string | null; lastWebhookAt: string | null; connectedVia: string; registered: boolean; createdAt: string } | null;
+  dateReminders: ReminderAccess;
   invoices: { id: string; number: string; planCode: string; cycle: string; amount: number; currency: string; status: string; provider: string; providerPaymentId: string | null; failureReason: string | null; paidAt: string | null; createdAt: string }[];
   audit: (Omit<LogItem, 'workspaceId' | 'workspaceName'> & { workspaceId?: null; workspaceName?: null })[];
 }
@@ -55,14 +56,14 @@ export function AdminWorkspacePage() {
       {detail.isPending ? (
         <Spinner />
       ) : detail.error ? (
-        <Alert>{errorMessage(detail.error)}</Alert>
-      ) : (
+          <LoadError error={detail.error} onRetry={() => void detail.refetch()} />
+        ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-base font-semibold text-white">{initials(d!.workspace.name)}</span>
               <div className="min-w-0">
-                <h1 className="flex flex-wrap items-center gap-2 text-[22px] font-semibold tracking-tight text-ink">
+                <h1 className="flex flex-wrap items-center gap-2 text-[22px] font-semibold text-ink">
                   {d!.workspace.name} <Badge tone={STATUS_TONE[d!.workspace.status]}>{d!.workspace.status}</Badge>
                 </h1>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-slate-500">
@@ -117,6 +118,7 @@ export function AdminWorkspacePage() {
             <div className="grid gap-5 lg:grid-cols-2">
               <SubscriptionCard d={d!} onChange={() => setPlanOpen(true)} />
               <ConnectionCard d={d!} />
+              <RemindersCard d={d!} />
               <DataCard d={d!} />
             </div>
           )}
@@ -303,7 +305,7 @@ function OverridesCard({ d }: { d: Detail }) {
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
+          <thead className="bg-slate-50/70 text-left text-[11px] text-slate-500">
             <tr>
               <th className="px-5 py-2.5 font-medium">Limit</th>
               <th className="px-4 py-2.5 text-right font-medium">Used</th>
@@ -500,9 +502,40 @@ function ConnectionCard({ d }: { d: Detail }) {
             ['WABA id', <span className="font-mono text-xs">{c.wabaId}</span>],
             ['Connected via', `${c.connectedVia.replace('_', ' ')} · ${c.registered ? 'registered' : 'not registered'}`],
             ['Last webhook', c.lastWebhookAt ? formatDate(c.lastWebhookAt, true) : '—'],
-            ['Last error', c.lastError ?? '—'],
+            ['Last error', c.lastError ?? 'None'],
           ]}
         />
+      )}
+    </Panel>
+  );
+}
+
+/** Date reminders for this business: free, bought, or granted from here. */
+function RemindersCard({ d }: { d: Detail }) {
+  const queryClient = useQueryClient();
+  const a = d.dateReminders;
+  const grant = useMutation({
+    mutationFn: (unlocked: boolean) => api.post(`/admin/workspaces/${d.workspace.id}/date-reminders`, { unlocked }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'workspace', d.workspace.id] }),
+  });
+  const state = !a.offer.paid ? 'Free for every business' : a.unlocked ? (a.source === 'granted' ? 'Unlocked by an admin' : 'Bought') : 'Locked';
+  return (
+    <Panel title="Date reminders" actions={<Badge tone={a.unlocked ? 'green' : 'gray'}>{a.unlocked ? 'Available' : 'Locked'}</Badge>}>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p className="text-slate-600">
+          {state}
+          {a.unlockedAt ? ` on ${formatDate(a.unlockedAt)}` : ''}
+        </p>
+        {a.offer.paid && (
+          <AButton loading={grant.isPending} onClick={() => grant.mutate(!a.unlocked)}>
+            {a.unlocked ? 'Revoke' : 'Grant for free'}
+          </AButton>
+        )}
+      </div>
+      {grant.error != null && (
+        <div className="mt-3">
+          <Alert>{errorMessage(grant.error)}</Alert>
+        </div>
       )}
     </Panel>
   );
@@ -536,7 +569,7 @@ function InvoicesCard({ d }: { d: Detail }) {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
+            <thead className="bg-slate-50/70 text-left text-[11px] text-slate-500">
               <tr>
                 {['Invoice', 'Plan', 'Amount', 'Status', 'Provider / payment id', 'Date'].map((h) => (
                   <th key={h} className="px-5 py-2.5 font-medium">
@@ -550,7 +583,7 @@ function InvoicesCard({ d }: { d: Detail }) {
                 <tr key={i.id}>
                   <td className="px-5 py-2.5 font-mono text-xs">{i.number}</td>
                   <td className="px-5 py-2.5 capitalize">
-                    {i.planCode} · {i.cycle}
+                    {i.planCode.replace('_', ' ')}, {i.cycle.replace('_', '-')}
                   </td>
                   <td className="px-5 py-2.5 font-medium tabular-nums">{money(i.amount, i.currency)}</td>
                   <td className="px-5 py-2.5">

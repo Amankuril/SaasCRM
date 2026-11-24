@@ -2,14 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RotateCcw, Save } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AButton, Panel, Switch, useConfirm } from '../../components/admin';
-import { Alert, Field, Input, Spinner, cn, errorMessage } from '../../components/ui';
-import { api } from '../../lib/api';
+import { Alert, Field, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
+import { api, type ReminderOffer } from '../../lib/api';
+import { money } from '../reminders/shared';
 
 interface PlatformSettings {
   announcement: { active: boolean; text: string; tone: 'info' | 'warning' | 'critical' };
   signupsEnabled: boolean;
   maintenanceMode: boolean;
   maintenanceMessage: string;
+  dateReminders: ReminderOffer;
 }
 
 const TONES = [
@@ -65,7 +67,7 @@ export function SettingsTab() {
             </div>
           </div>
           <div>
-            <p className="mb-1.5 text-[11px] font-medium tracking-wide text-slate-400 uppercase">Preview</p>
+            <p className="mb-1.5 text-[11px] font-medium text-slate-400">Preview</p>
             <div className={cn('rounded-lg border px-4 py-2.5 text-sm', tone.banner, !form.announcement.active && 'opacity-50')}>{form.announcement.text || 'Your message appears here.'}</div>
             {!form.announcement.active && <p className="mt-1 text-xs text-slate-500">The banner is switched off and hidden from businesses.</p>}
           </div>
@@ -105,6 +107,8 @@ export function SettingsTab() {
         </div>
       </Panel>
 
+      <ReminderPricing value={form.dateReminders} saving={save.isPending} onSave={(dateReminders) => save.mutate({ dateReminders } as Partial<PlatformSettings>)} />
+
       <Panel title="Recovery tools">
         {requeue.error != null && (
           <div className="mb-3">
@@ -127,6 +131,68 @@ export function SettingsTab() {
         </div>
       </Panel>
     </div>
+  );
+}
+
+const rupees = (paise: number) => (paise ? String(paise / 100) : '');
+const paise = (text: string) => Math.max(0, Math.round((Number(text.replace(/[^\d.]/g, '')) || 0) * 100));
+
+/** The Date reminders module and its one-time unlock offer. Nothing about the price is fixed in the app. */
+function ReminderPricing({ value, saving, onSave }: { value: ReminderOffer; saving: boolean; onSave: (v: Partial<ReminderOffer>) => void }) {
+  const [v, setV] = useState(value);
+  const [price, setPrice] = useState(rupees(value.price));
+  const [compare, setCompare] = useState(rupees(value.comparePrice));
+  const [benefits, setBenefits] = useState(value.benefits.join('\n'));
+  const priceP = paise(price);
+  const compareP = paise(compare);
+  const discount = compareP > priceP && priceP > 0 ? Math.round(((compareP - priceP) / compareP) * 100) : 0;
+  const invalid = v.paid && priceP < 100;
+  return (
+    <Panel title="Date reminders" description="The date-based automation module and its one-time unlock. Reminders a business already activated keep running if you start charging.">
+      <div className="-mx-5 -mt-5 divide-y divide-slate-100 border-b border-slate-100 text-sm">
+        <SettingRow title="Module available" text="Off: businesses cannot create or activate date reminders.">
+          <Switch label="Module available" checked={v.enabled} onChange={(enabled) => setV({ ...v, enabled })} />
+        </SettingRow>
+        <SettingRow title="Charge a one-time unlock" text="Off: free for every business. You can still grant it to one business from its page.">
+          <Switch label="Charge a one-time unlock" checked={v.paid} onChange={(paid) => setV({ ...v, paid })} />
+        </SettingRow>
+      </div>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <Field label="Price (INR)" htmlFor="dr-price" error={invalid ? 'Set a price of at least 1.' : undefined}>
+          <Input id="dr-price" inputMode="decimal" placeholder="1499" value={price} invalid={invalid} onChange={(e) => setPrice(e.target.value)} />
+        </Field>
+        <Field label="Price before discount (INR)" htmlFor="dr-compare" hint="Shown crossed out. Leave empty for no discount.">
+          <Input id="dr-compare" inputMode="decimal" placeholder="2499" value={compare} onChange={(e) => setCompare(e.target.value)} />
+        </Field>
+        <Field label="Panel title" htmlFor="dr-title">
+          <Input id="dr-title" maxLength={60} value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} />
+        </Field>
+        <Field label="Button label" htmlFor="dr-button">
+          <Input id="dr-button" maxLength={40} value={v.buttonLabel} onChange={(e) => setV({ ...v, buttonLabel: e.target.value })} />
+        </Field>
+        <Field label="Benefits, one per line" htmlFor="dr-benefits">
+          <textarea id="dr-benefits" rows={4} className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:ring-3 focus:ring-brand-600/15 focus:outline-none" value={benefits} onChange={(e) => setBenefits(e.target.value)} />
+        </Field>
+        <Field label="One payment unlocks" htmlFor="dr-scope">
+          <Select id="dr-scope" value={v.scope} onChange={(e) => setV({ ...v, scope: e.target.value as ReminderOffer['scope'] })}>
+            <option value="owner">Every business of the owner</option>
+            <option value="workspace">Only the business that pays</option>
+          </Select>
+        </Field>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-500 tabular-nums">{v.paid ? `Businesses see ${money(priceP, 'INR')}${discount ? `, ${discount}% off ${money(compareP, 'INR')}` : ''}` : 'Businesses use it for free'}</p>
+        <AButton
+          variant="primary"
+          icon={Save}
+          loading={saving}
+          disabled={invalid}
+          onClick={() => onSave({ enabled: v.enabled, paid: v.paid, title: v.title, price: priceP, comparePrice: compareP, buttonLabel: v.buttonLabel, scope: v.scope, benefits: benefits.split('\n').map((b) => b.trim()).filter(Boolean).slice(0, 8) })}
+        >
+          Save
+        </AButton>
+      </div>
+    </Panel>
   );
 }
 

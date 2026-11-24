@@ -28,7 +28,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AButton, ALink, ActionMenu, AdminHeader, Panel, Segmented, Switch, useConfirm } from '../components/admin';
 import { Modal, initials } from '../components/crm';
-import { Alert, Badge, EmptyState, Field, Input, Select, Spinner, cn, errorMessage } from '../components/ui';
+import { Alert, Badge, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, LoadError } from '../components/ui';
 import { api, type FeatureKey, type LimitKey, type PlanInfo, type SubscriptionStatus, type Workspace, type WorkspaceStatus } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { NewPlanButton } from './admin/AdminRevenuePage';
@@ -108,7 +108,7 @@ export function AdminDashboardPage() {
         <div className="mb-6 flex flex-wrap gap-2">
           {(['setup', 'active', 'suspended'] as const).map((st) => (
             <Link key={st} to={`/admin/businesses?status=${st}`} className="group inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[13px] text-slate-600 ring-1 ring-slate-200 transition hover:text-slate-900 hover:ring-slate-300">
-              <span className={cn('size-1.5 rounded-full', st === 'active' ? 'bg-emerald-500' : st === 'setup' ? 'bg-amber-500' : 'bg-red-500')} />
+              <span className={cn('size-1.5 rounded-full', st === 'active' ? 'bg-brand-500' : st === 'setup' ? 'bg-amber-500' : 'bg-red-500')} />
               <span className="capitalize">{st}</span>
               <span className="font-semibold text-ink tabular-nums">{stats.workspaces[st] ?? 0}</span>
               <ArrowUpRight className="size-3.5 text-slate-400 group-hover:text-slate-700" />
@@ -118,7 +118,7 @@ export function AdminDashboardPage() {
       )}
       {o && (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric label="Database" value={o.db} tone={o.db === 'up' ? 'text-emerald-700' : 'text-red-600'} />
+          <Metric label="Database" value={o.db} tone={o.db === 'up' ? 'text-brand-700' : 'text-red-600'} />
           <Metric label="Failed sends (24h)" value={o.last24h.failedMessages} tone={warnTone(o.last24h.failedMessages)} />
           <Metric label="Unprocessed Meta webhooks" value={o.now.webhookBacklog} tone={warnTone(o.now.webhookBacklog)} />
           <Metric label="Numbers needing attention" value={o.now.brokenConnections} tone={warnTone(o.now.brokenConnections)} />
@@ -252,15 +252,13 @@ function TenantsTab() {
       {list.isPending ? (
         <Spinner />
       ) : list.error ? (
-        <div className="p-5">
-          <Alert>{errorMessage(list.error)}</Alert>
-        </div>
-      ) : list.data.workspaces.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.workspaces.length === 0 ? (
         <EmptyState icon={<Building2 className="size-5" />} title="No businesses found" />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/70 text-left text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+            <thead className="bg-slate-50/70 text-left text-[11px] font-medium text-slate-500">
               <tr>
                 <th className="px-5 py-2.5 font-medium">Business</th>
                 <th className="px-4 py-2.5 font-medium">Owner</th>
@@ -509,14 +507,14 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
   const free = p.priceMonthly === 0;
   const yearlySaving = p.priceMonthly > 0 && p.priceYearly > 0 ? Math.round((1 - p.priceYearly / (p.priceMonthly * 12)) * 100) : 0;
   return (
-    <article className={cn('relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition hover:shadow-md', popular ? 'ring-2 ring-slate-900' : 'ring-1 ring-slate-200')}>
+    <article className={cn('relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition ', popular ? 'ring-2 ring-slate-900' : 'ring-1 ring-slate-200')}>
       {popular && <span className="absolute top-4 right-4 rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-medium text-white">Most popular</span>}
       <div className="p-5 pb-4">
         <h3 className="pr-24 text-base font-semibold text-ink">{p.name}</h3>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">{p.code}</code>
           {p.isPublic ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+            <span className="inline-flex items-center gap-1 text-[11px] text-brand-700">
               <Eye className="size-3" /> On billing page
             </span>
           ) : (
@@ -528,7 +526,7 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
         <p className="mt-3 line-clamp-2 min-h-10 text-[13px] leading-5 text-slate-500">{p.description || 'No description.'}</p>
 
         <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-3xl font-semibold tracking-tight text-ink tabular-nums">{free ? 'Free' : money(p.priceMonthly, p.currency)}</span>
+          <span className="text-3xl font-semibold text-ink tabular-nums">{free ? 'Free' : money(p.priceMonthly, p.currency)}</span>
           {!free && <span className="text-sm text-slate-500">/month</span>}
         </div>
         <p className="mt-1 min-h-5 text-xs text-slate-500">
@@ -537,7 +535,7 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
           ) : p.priceYearly ? (
             <>
               {money(p.priceYearly, p.currency)} billed yearly
-              {yearlySaving > 0 && <span className="ml-1.5 rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">save {yearlySaving}%</span>}
+              {yearlySaving > 0 && <span className="ml-1.5 rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">save {yearlySaving}%</span>}
             </>
           ) : (
             'Monthly only'
@@ -556,7 +554,7 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
       </div>
 
       <div className="border-t border-slate-100 px-5 py-4">
-        <p className="mb-2.5 text-[11px] font-medium tracking-wide text-slate-400 uppercase">Limits</p>
+        <p className="mb-2.5 text-[11px] font-medium text-slate-400">Limits</p>
         <ul className="space-y-1.5 text-[13px]">
           {(Object.keys(LIMIT_LABEL) as LimitKey[]).map((k) => {
             const Icon = LIMIT_ICON[k];
@@ -573,11 +571,11 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
       </div>
 
       <div className="border-t border-slate-100 px-5 py-4">
-        <p className="mb-2.5 text-[11px] font-medium tracking-wide text-slate-400 uppercase">Features</p>
+        <p className="mb-2.5 text-[11px] font-medium text-slate-400">Features</p>
         <ul className="space-y-1.5 text-[13px]">
           {FEATURES.map((f) => (
             <li key={f} className={cn('flex items-center gap-2', p.features[f] ? 'text-slate-700' : 'text-slate-400')}>
-              {p.features[f] ? <Check className="size-3.5 text-emerald-600" /> : <Minus className="size-3.5 text-slate-300" />}
+              {p.features[f] ? <Check className="size-3.5 text-brand-600" /> : <Minus className="size-3.5 text-slate-300" />}
               {FEATURE_INFO[f].label}
             </li>
           ))}
@@ -606,7 +604,7 @@ function PlanCard({ plan: p, popular, share, onEdit }: { plan: AdminPlan; popula
 function RazorpayId({ label, id }: { label: string; id: string | null }) {
   return (
     <span className="flex items-center gap-1.5" title={id ?? 'No Razorpay plan id'}>
-      <span className={cn('size-1.5 rounded-full', id ? 'bg-emerald-500' : 'bg-slate-300')} />
+      <span className={cn('size-1.5 rounded-full', id ? 'bg-brand-500' : 'bg-slate-300')} />
       {label} {id ? 'linked' : 'not linked'}
     </span>
   );
@@ -728,7 +726,7 @@ function PlanModal({ plan, onClose }: { plan: AdminPlan; onClose: () => void }) 
 export function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h3 className="mb-3 text-[11px] font-medium tracking-wide text-slate-400 uppercase">{title}</h3>
+      <h3 className="mb-3 text-[11px] font-medium text-slate-400">{title}</h3>
       {children}
     </section>
   );
@@ -744,7 +742,7 @@ function OpsTab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Database" value={o.db} tone={o.db === 'up' ? 'text-emerald-700' : 'text-red-600'} />
+        <Metric label="Database" value={o.db} tone={o.db === 'up' ? 'text-brand-700' : 'text-red-600'} />
         <Metric label="Failed sends (24h)" value={o.last24h.failedMessages} tone={warnTone(o.last24h.failedMessages)} />
         <Metric label="Failed flow runs (24h)" value={o.last24h.failedRuns} tone={warnTone(o.last24h.failedRuns)} />
         <Metric label="Dead webhook deliveries (24h)" value={o.last24h.deadDeliveries} tone={warnTone(o.last24h.deadDeliveries)} />
@@ -760,7 +758,7 @@ function OpsTab() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50/70 text-left text-[11px] tracking-wide text-slate-500 uppercase">
+              <thead className="bg-slate-50/70 text-left text-[11px] text-slate-500">
                 <tr>
                   {['Queue', 'Waiting', 'Active', 'Delayed', 'Failed', 'Completed'].map((h, i) => (
                     <th key={h} className={cn('px-5 py-2.5 font-medium', i > 0 && 'text-right')}>
@@ -828,9 +826,9 @@ export function Metric({ label, value, tone }: { label: string; value: ReactNode
 
 export function StatCard({ label, value, accent = false }: { label: string; value: ReactNode | undefined; accent?: boolean }) {
   return (
-    <div className={cn('rounded-xl p-4 ring-1', accent ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-slate-200')}>
+    <div className={cn('rounded-xl p-4 ring-1', 'bg-white ring-slate-200')}>
       <p className={cn('text-xs font-medium', accent ? 'text-slate-400' : 'text-slate-500')}>{label}</p>
-      <p className={cn('mt-1.5 text-2xl font-semibold tracking-tight tabular-nums', accent ? 'text-white' : 'text-ink')}>{value ?? '—'}</p>
+      <p className={cn('mt-1.5 text-2xl font-semibold tabular-nums', accent ? 'text-white' : 'text-ink')}>{value ?? '—'}</p>
     </div>
   );
 }
