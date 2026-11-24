@@ -20,10 +20,10 @@ import {
   libraryFiltersSchema,
   listLibrary,
   saveDraft,
-  syncTemplates,
   templateInputSchema,
   templateUsage,
 } from './template.service.js';
+import { checkWebhookSetup, ensureSubscribed, syncStatus, syncTemplates } from './templateSync.js';
 
 const listSchema = z.object({
   status: z.string().trim().toUpperCase().optional(),
@@ -69,8 +69,21 @@ templateRouter.get('/', requirePermission('workspace:read'), async (req, res) =>
 templateRouter.post('/sync', requirePermission('templates:manage'), async (req, res) => {
   const conn = await getConnection(req.workspace!._id, true);
   assertConnected(conn);
-  const result = await syncTemplates(req.workspace!, conn);
-  res.json(result);
+  await ensureSubscribed(conn);
+  const result = await syncTemplates(req.workspace!._id, conn, 'manual');
+  res.json({ ...result, sync: await syncStatus(req.workspace!._id) });
+});
+
+/** Last sync, visible errors and how many templates are in review. */
+templateRouter.get('/sync-status', requirePermission('workspace:read'), async (req, res) => {
+  res.json({ sync: await syncStatus(req.workspace!._id) });
+});
+
+/** Asks Meta whether instant status updates are set up (webhook receiver, account subscription, event field). */
+templateRouter.post('/sync-check', requirePermission('templates:manage'), async (req, res) => {
+  const conn = await getConnection(req.workspace!._id, true);
+  assertConnected(conn);
+  res.json({ check: await checkWebhookSetup(conn) });
 });
 
 /** Uploads a sample header/card media file to Meta; the returned handle goes into the template. */

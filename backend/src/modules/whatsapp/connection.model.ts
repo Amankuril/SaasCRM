@@ -20,6 +20,17 @@ const connectionSchema = new Schema(
     lastError: { type: String, default: null },
     lastSyncAt: { type: Date, default: null },
     lastWebhookAt: { type: Date, default: null },
+    // Template status sync with Meta (see templates/templateSync.ts).
+    templateSync: {
+      lastAttemptAt: { type: Date, default: null },
+      lastSuccessAt: { type: Date, default: null },
+      lastSource: { type: String, default: null },
+      lastError: { type: String, default: null },
+      lastErrorCode: { type: String, default: null },
+      lastWebhookAt: { type: Date, default: null },
+      failures: { type: Number, default: 0 },
+      lockedUntil: { type: Date, default: null },
+    },
     // How the business connected: Embedded Signup ("Connect with Facebook") or pasted credentials.
     connectedVia: { type: String, enum: ['embedded_signup', 'manual'], default: 'manual' },
     // Set once we've registered the number for Cloud API (two-step PIN set by us or the business).

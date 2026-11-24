@@ -46,7 +46,12 @@ export class FakeProvider implements WhatsAppProvider {
     return { providerMessageId: `wamid.fake.${this.counter}` };
   }
 
+  listTemplatesError: ProviderError | null = null;
+  listTemplatesCalls = 0;
+
   async listTemplates() {
+    this.listTemplatesCalls += 1;
+    if (this.listTemplatesError) throw this.listTemplatesError;
     return this.templates;
   }
 
@@ -179,10 +184,10 @@ export function statusPayload(
   };
 }
 
-export function templateStatusPayload(wabaId: string, templateId: string, event: string) {
+export function templateStatusPayload(wabaId: string, templateId: string | number, event: string, extra: Record<string, unknown> = {}) {
   return {
     object: 'whatsapp_business_account',
-    entry: [{ id: wabaId, changes: [{ field: 'message_template_status_update', value: { event, message_template_id: templateId, reason: 'NONE' } }] }],
+    entry: [{ id: wabaId, changes: [{ field: 'message_template_status_update', value: { event, message_template_id: templateId, reason: 'NONE', ...extra } }] }],
   };
 }
 

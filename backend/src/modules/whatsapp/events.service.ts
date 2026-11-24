@@ -13,7 +13,7 @@ import { handleFormReply } from '../forms/form.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
 import { Message } from '../messages/message.model.js';
 import { applyStatusEvent } from '../messages/message.service.js';
-import { MessageTemplate } from '../templates/template.model.js';
+import { applyTemplateCategoryEvent, applyTemplateChangedEvent, applyTemplateStatusEvent } from '../templates/templateSync.js';
 import { ProviderConnection } from './connection.model.js';
 import type { InboundMessageEvent, NormalizedEvent } from './provider/types.js';
 import { sandboxEvents } from './provider/sandbox.js';
@@ -33,17 +33,17 @@ export async function processEvents(events: NormalizedEvent[]): Promise<ProcessR
   const touched = new Map<string, Types.ObjectId>();
 
   for (const event of events) {
-    if (event.kind === 'template_status') {
-      // Deliberate cross-tenant lookup: route by the business account id from the webhook.
-      const conn = await ProviderConnection.findOne({ wabaId: event.wabaId }).setOptions({ skipTenantScope: true }).lean();
-      if (!conn) {
+    if (event.kind === 'template_status' || event.kind === 'template_category' || event.kind === 'template_changed') {
+      const known =
+        event.kind === 'template_status'
+          ? await applyTemplateStatusEvent(event)
+          : event.kind === 'template_category'
+            ? await applyTemplateCategoryEvent(event)
+            : await applyTemplateChangedEvent(event);
+      if (!known) {
+        logger.warn({ wabaId: event.wabaId, kind: event.kind }, 'Template webhook for an account no workspace is connected to');
         result.ignored++;
-        continue;
       }
-      await MessageTemplate.updateOne(
-        { workspaceId: conn.workspaceId, providerTemplateId: event.providerTemplateId },
-        { status: event.status, rejectedReason: event.reason, syncedAt: new Date() },
-      );
       continue;
     }
 

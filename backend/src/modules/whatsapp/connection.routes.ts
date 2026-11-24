@@ -11,6 +11,7 @@ import { ProviderConnection, toPublicConnection } from './connection.model.js';
 import { connectWhatsApp, getConnection, providerToAppError, refreshConnection, registerNumber } from './connection.service.js';
 import { whatsappProvider } from './provider/index.js';
 import { processEvents } from './events.service.js';
+import { requestSync } from '../templates/templateSync.js';
 
 const connectSchema = z.object({
   wabaId: z.string().trim().regex(/^\d{5,30}$/, 'Enter the numeric WhatsApp Business Account ID.'),
@@ -69,6 +70,8 @@ connectionRouter.post('/connection/embedded-signup', requirePermission('provider
   }
   const conn = await connectWhatsApp(req.workspace!, req.user!, { wabaId: input.wabaId, phoneNumberId: input.phoneNumberId, accessToken, connectedVia: 'embedded_signup' });
 
+  await requestSync(req.workspace!._id, 'connect');
+
   // Register for Cloud API. A number that already has two-step verification needs its existing PIN.
   let warning: string | null = null;
   const pin = input.pin ?? String(randomInt(0, 1_000_000)).padStart(6, '0');
@@ -102,6 +105,7 @@ connectionRouter.post('/connection/register', requirePermission('provider:manage
 connectionRouter.put('/connection', requirePermission('provider:manage'), async (req, res) => {
   const input = parse(connectSchema, req.body);
   const conn = await connectWhatsApp(req.workspace!, req.user!, input);
+  await requestSync(req.workspace!._id, 'connect');
   await audit(req, {
     workspaceId: req.workspace!._id,
     action: 'whatsapp.connected',

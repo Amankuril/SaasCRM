@@ -6,44 +6,13 @@ import { Campaign } from '../campaigns/campaign.model.js';
 import { Flow } from '../flows/flow.model.js';
 import { FORM_SCREEN_ID } from '../forms/flowJson.js';
 import { Form } from '../forms/form.model.js';
+import { ReminderSetup } from '../reminders/reminder.model.js';
 import { credentialsOf, providerToAppError } from '../whatsapp/connection.service.js';
 import type { ConnectionDoc } from '../whatsapp/connection.model.js';
 import { whatsappProvider, type LibraryTemplate, type TemplateButton, type TemplateComponent } from '../whatsapp/provider/index.js';
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { MessageTemplate, TEMPLATE_TYPES, countVariables, type TemplateDoc, type TemplateType } from './template.model.js';
-
-/** Pulls every template from the provider and mirrors it locally (provider is the source of truth). */
-export async function syncTemplates(workspace: WorkspaceDoc, conn: ConnectionDoc): Promise<{ synced: number; removed: number }> {
-  let remote;
-  try {
-    remote = await whatsappProvider().listTemplates(credentialsOf(conn));
-  } catch (err) {
-    throw providerToAppError(err, 'Could not fetch templates from WhatsApp');
-  }
-
-  const now = new Date();
-  for (const t of remote) {
-    await MessageTemplate.updateOne(
-      { workspaceId: workspace._id, name: t.name, language: t.language },
-      {
-        $set: {
-          providerTemplateId: t.providerTemplateId,
-          category: t.category,
-          status: t.status,
-          rejectedReason: t.rejectedReason,
-          components: t.components,
-          draft: null,
-          syncedAt: now,
-        },
-        $setOnInsert: { workspaceId: workspace._id },
-      },
-      { upsert: true },
-    );
-  }
-  // Templates deleted on the provider side disappear locally too.
-  const removed = await MessageTemplate.deleteMany({ workspaceId: workspace._id, syncedAt: { $ne: now }, providerTemplateId: { $ne: null } });
-  return { synced: remote.length, removed: removed.deletedCount };
-}
+import { setStatus } from './templateSync.js';
 
 const variableText = (max: number) => z.string().trim().min(1, 'Fill in every required field in this section.').max(max, `Keep it under ${max + 1} characters.`);
 const templateName = z
@@ -345,8 +314,12 @@ export async function createTemplate(
     name: input.name,
     language: input.language,
     category: created.category || input.category,
-    status: created.status,
+    status: (created.status || 'PENDING').toUpperCase(),
     rejectedReason: null,
+    statusUpdatedAt: new Date(),
+    statusHistory: [{ status: (created.status || 'PENDING').toUpperCase(), at: new Date(), source: 'submit', reason: null }],
+    wabaId: conn.wabaId,
+    awaitingRemoteSince: new Date(),
     components,
     templateType: input.type,
     draft: null,
@@ -358,7 +331,19 @@ export async function createTemplate(
     draft.set(fields);
     return draft.save();
   }
-  return MessageTemplate.create({ workspaceId: workspace._id, ...fields, createdBy: user._id });
+  try {
+    return await MessageTemplate.create({ workspaceId: workspace._id, ...fields, createdBy: user._id });
+  } catch (err) {
+    if ((err as { code?: number }).code !== 11000) throw err;
+    // A sync listed it before we saved it: that record's status is newer, so only add our details.
+    const synced = await MessageTemplate.findOneAndUpdate(
+      { workspaceId: workspace._id, name: input.name, language: input.language },
+      { $set: { templateType: input.type, createdBy: user._id, updatedBy: user._id } },
+      { new: true },
+    );
+    if (!synced) throw err;
+    return synced;
+  }
 }
 
 /** Saves (or updates) a local draft. Nothing is sent to WhatsApp. */
@@ -406,7 +391,8 @@ export async function editTemplate(conn: ConnectionDoc, user: UserDoc, template:
   } catch (err) {
     throw providerToAppError(err, 'WhatsApp rejected this edit');
   }
-  template.set({ components, category: input.category, templateType: input.type, status: 'PENDING', rejectedReason: null, updatedBy: user._id, syncedAt: new Date() });
+  setStatus(template, 'PENDING', 'submit');
+  template.set({ components, category: input.category, templateType: input.type, updatedBy: user._id, syncedAt: new Date() });
   return template.save();
 }
 
@@ -445,13 +431,19 @@ export async function duplicateTemplate(user: UserDoc, template: TemplateDoc): P
 
 /** How many campaigns and flows reference each template. */
 export async function templateUsage(workspaceId: Types.ObjectId, ids: Types.ObjectId[]) {
-  const usage = new Map(ids.map((id) => [id.toString(), { campaigns: 0, flows: 0 }]));
+  const usage = new Map(ids.map((id) => [id.toString(), { campaigns: 0, flows: 0, reminders: 0 }]));
   if (!ids.length) return usage;
   const campaigns = await Campaign.aggregate<{ _id: Types.ObjectId; n: number }>([
     { $match: { workspaceId, templateId: { $in: ids } } },
     { $group: { _id: '$templateId', n: { $sum: 1 } } },
   ]);
   for (const c of campaigns) usage.get(c._id.toString())!.campaigns = c.n;
+
+  const reminders = await ReminderSetup.aggregate<{ _id: Types.ObjectId; n: number }>([
+    { $match: { workspaceId, templateId: { $in: ids } } },
+    { $group: { _id: '$templateId', n: { $sum: 1 } } },
+  ]);
+  for (const r of reminders) usage.get(r._id.toString())!.reminders = r.n;
 
   const keys = ids.map(String);
   const flows = await Flow.find({ workspaceId, 'draftGraph.nodes.data.templateId': { $in: keys } }, { draftGraph: 1 });
@@ -538,7 +530,11 @@ export async function createFromLibrary(workspace: WorkspaceDoc, conn: Connectio
     name: input.name,
     language: input.language,
     category: created.category || 'UTILITY',
-    status: created.status,
+    status: (created.status || 'PENDING').toUpperCase(),
+    statusUpdatedAt: new Date(),
+    statusHistory: [{ status: (created.status || 'PENDING').toUpperCase(), at: new Date(), source: 'submit', reason: null }],
+    wabaId: conn.wabaId,
+    awaitingRemoteSince: new Date(),
     components,
     templateType: 'CUSTOM' satisfies TemplateType,
     libraryTemplateName: input.libraryTemplateName,

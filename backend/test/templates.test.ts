@@ -150,7 +150,7 @@ describe('template lifecycle', () => {
 
     const page = await api().get(`${base}?limit=2&page=2`).set(as).expect(200);
     expect(page.body).toMatchObject({ total: 3, page: 2, limit: 2 });
-    expect(page.body.templates[0].usage).toEqual({ campaigns: 0, flows: 0 });
+    expect(page.body.templates[0].usage).toEqual({ campaigns: 0, flows: 0, reminders: 0 });
     expect(page.body.templates[0].createdBy).toEqual(expect.any(String));
 
     // Drafts are deleted locally only; submitted ones on WhatsApp too.

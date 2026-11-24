@@ -15,6 +15,16 @@ const templateSchema = new Schema(
     // plus DRAFT for templates saved locally and not submitted yet.
     status: { type: String, required: true },
     rejectedReason: { type: String, default: null },
+    statusUpdatedAt: { type: Date, default: null },
+    // How the status got here, oldest first (submit, webhook, reconcile, manual sync).
+    statusHistory: {
+      type: [{ _id: false, status: String, at: Date, source: String, reason: { type: String, default: null } }],
+      default: [],
+    },
+    // The WhatsApp Business Account that owns this template.
+    wabaId: { type: String, default: null },
+    // Submitted by us and not listed by Meta yet.
+    awaitingRemoteSince: { type: Date, default: null },
     components: { type: [Schema.Types.Mixed], default: [] },
     syncedAt: { type: Date, default: null },
     // What the builder was used for (custom, carousel, otp...). Inferred from components when null.
@@ -32,6 +42,7 @@ const templateSchema = new Schema(
 templateSchema.plugin(tenantScoped);
 templateSchema.index({ workspaceId: 1, name: 1, language: 1 }, { unique: true });
 templateSchema.index({ workspaceId: 1, providerTemplateId: 1 });
+templateSchema.index({ workspaceId: 1, status: 1 });
 
 export type TemplateDoc = HydratedDocument<InferSchemaType<typeof templateSchema>>;
 export const MessageTemplate = model('MessageTemplate', templateSchema);
@@ -72,7 +83,7 @@ export function inferTemplateType(category: string, components: TemplateComponen
 /** createdBy/updatedBy are only populated on reads that ask for it. */
 const userName = (u: unknown) => (u && typeof u === 'object' && 'name' in u ? ((u as { name?: string }).name ?? null) : null);
 
-export function toPublicTemplate(t: TemplateDoc, usage?: { campaigns: number; flows: number }) {
+export function toPublicTemplate(t: TemplateDoc, usage?: { campaigns: number; flows: number; reminders: number }) {
   const components = t.components as TemplateComponent[];
   return {
     id: t.id as string,
@@ -82,6 +93,9 @@ export function toPublicTemplate(t: TemplateDoc, usage?: { campaigns: number; fl
     category: t.category,
     status: t.status,
     rejectedReason: t.rejectedReason,
+    statusUpdatedAt: t.statusUpdatedAt ?? null,
+    statusHistory: (t.statusHistory ?? []).map((h) => ({ status: h.status, at: h.at, source: h.source, reason: h.reason ?? null })),
+    wabaId: t.wabaId ?? null,
     components,
     variables: templateVariables(components),
     requirements: sendRequirements(components),
