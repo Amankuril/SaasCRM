@@ -53,6 +53,9 @@ import { IntegrationsPage } from './pages/integrations/IntegrationsPage';
 import { SheetCampaignsPage } from './pages/integrations/SheetCampaignsPage';
 import { SheetSetupPage } from './pages/integrations/SheetSetupPage';
 import { SheetDataPage } from './pages/integrations/SheetDataPage';
+import { RemindersPage } from './pages/reminders/RemindersPage';
+import { ReminderTypePage } from './pages/reminders/ReminderTypePage';
+import { ReminderSetupPage } from './pages/reminders/ReminderSetupPage';
 import { SessionReplacedDialog, SingleTabGuard } from './auth/SessionGuards';
 import { UpdateWatcher } from './components/UpdateWatcher';
 
@@ -122,6 +125,9 @@ export function App() {
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
         <Route path="flows" element={<FlowsPage />} />
+        <Route path="reminders" element={<RemindersPage />} />
+        <Route path="reminders/type/:categoryKey" element={<ReminderTypePage />} />
+        <Route path="reminders/:setupId" element={<ReminderSetupPage />} />
         <Route path="forms" element={<FormsListPage />} />
         <Route path="forms/:formId" element={<FormBuilderPage />} />
         <Route path="ai" element={<AiAgentPage />} />
