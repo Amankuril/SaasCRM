@@ -7,7 +7,7 @@ import { cn } from './ui';
 
 /** Dot, text and soft background classes per stage colour. */
 export const STAGE_TONE: Record<StageColor, { dot: string; text: string; soft: string }> = {
-  green: { dot: 'bg-emerald-500', text: 'text-emerald-600', soft: 'bg-emerald-50 text-emerald-700' },
+  green: { dot: 'bg-brand-500', text: 'text-brand-600', soft: 'bg-brand-50 text-brand-700' },
   orange: { dot: 'bg-orange-500', text: 'text-orange-600', soft: 'bg-orange-50 text-orange-700' },
   amber: { dot: 'bg-amber-500', text: 'text-amber-600', soft: 'bg-amber-50 text-amber-800' },
   yellow: { dot: 'bg-yellow-500', text: 'text-yellow-600', soft: 'bg-yellow-50 text-yellow-800' },
@@ -33,7 +33,7 @@ const TAG_TONES: Record<TagColor, string> = {
   gray: 'bg-slate-100 text-slate-700',
   red: 'bg-red-100 text-red-700',
   amber: 'bg-amber-100 text-amber-800',
-  green: 'bg-emerald-100 text-emerald-800',
+  green: 'bg-brand-100 text-emerald-800',
   blue: 'bg-sky-100 text-sky-800',
   violet: 'bg-violet-100 text-violet-800',
   pink: 'bg-pink-100 text-pink-800',

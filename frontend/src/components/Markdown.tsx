@@ -20,7 +20,7 @@ export function Markdown({ source }: { source: string }) {
     const heading = /^(#{1,3})\s+(.*)$/.exec(trimmed);
     if (heading) {
       const level = heading[1]!.length;
-      const cls = level === 1 ? 'mt-8 text-2xl font-semibold tracking-tight text-ink' : level === 2 ? 'mt-8 text-lg font-semibold text-ink' : 'mt-6 text-base font-semibold text-ink';
+      const cls = level === 1 ? 'mt-8 text-2xl font-semibold text-ink' : level === 2 ? 'mt-8 text-lg font-semibold text-ink' : 'mt-6 text-base font-semibold text-ink';
       const Tag = (`h${level + 1}`) as 'h2' | 'h3' | 'h4';
       blocks.push(<Tag key={i} className={cls}>{inline(heading[2]!)}</Tag>);
       i++;
@@ -76,7 +76,7 @@ function inline(text: string): ReactNode {
 }
 
 function SafeLink({ href, children }: { href: string; children: ReactNode }) {
-  const cls = 'font-medium text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800';
+  const cls = 'font-medium text-brand-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800';
   if (href.startsWith('/') && !href.startsWith('//')) return <Link to={href} className={cls}>{children}</Link>;
   if (/^(https?:|mailto:|tel:)/i.test(href)) return <a href={href} className={cls} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer noopener">{children}</a>;
   return <>{children}</>;

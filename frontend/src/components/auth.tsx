@@ -122,8 +122,8 @@ const STRENGTH = [
   { label: 'Too short', color: 'bg-red-500', text: 'text-red-600' },
   { label: 'Weak', color: 'bg-red-500', text: 'text-red-600' },
   { label: 'Fair', color: 'bg-amber-500', text: 'text-amber-600' },
-  { label: 'Good', color: 'bg-emerald-500', text: 'text-emerald-600' },
-  { label: 'Strong', color: 'bg-emerald-600', text: 'text-emerald-700' },
+  { label: 'Good', color: 'bg-brand-500', text: 'text-brand-600' },
+  { label: 'Strong', color: 'bg-brand-600', text: 'text-brand-700' },
 ];
 
 /** 0–4: length plus variety of character kinds. */

@@ -4,7 +4,7 @@ import { cn } from './ui';
 export interface TrendSeries {
   key: string;
   label: string;
-  /** Categorical slot color (validated palette: #2a78d6, #eb6834). */
+  /** Categorical slot color (validated palette: #0a7d55, #2a78d6). */
   color: string;
   values: number[];
 }
@@ -100,15 +100,15 @@ export function TrendChart({ days, series, title }: { days: string[]; series: Tr
           <svg width={width} height={H} role="img" aria-label={title} className="block">
             {ticks.map((t) => (
               <g key={t}>
-                <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeWidth={1} />
-                <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" className="fill-slate-400 text-[10px]">
+                <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--color-slate-100)" strokeWidth={1} />
+                <text x={PAD.left - 6} y={y(t)} dy="0.32em" textAnchor="end" className="fill-slate-400 text-[11px]">
                   {Number.isInteger(t) ? t.toLocaleString('en-IN') : t.toFixed(1)}
                 </text>
               </g>
             ))}
             {days.map((d, i) =>
-              i % labelEvery === 0 || i === days.length - 1 ? (
-                <text key={d} x={x(i)} y={H - 8} textAnchor="middle" className="fill-slate-400 text-[10px]">
+              (days.length - 1 - i) % labelEvery === 0 ? (
+                <text key={d} x={x(i)} y={H - 8} textAnchor="middle" className="fill-slate-400 text-[11px]">
                   {short(d)}
                 </text>
               ) : null,

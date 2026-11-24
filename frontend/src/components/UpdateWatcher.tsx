@@ -75,7 +75,7 @@ export function UpdateWatcher() {
   if (!available) return null;
   return (
     <div className="fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4" role="status">
-      <div className="flex items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-sm text-white shadow-2xl">
+      <div className="flex items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-sm text-white shadow-xl">
         <span>A new version of Zeta Connect is available.</span>
         <Button className="rounded-xl py-1.5" onClick={() => window.location.reload()}>
           <RefreshCw className="size-4" /> Reload

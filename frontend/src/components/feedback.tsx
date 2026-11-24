@@ -18,7 +18,7 @@ interface ToastApi {
 const ToastContext = createContext<ToastApi | null>(null);
 
 const TOAST_STYLE: Record<ToastTone, { icon: typeof Info; className: string }> = {
-  success: { icon: CheckCircle2, className: 'text-emerald-600' },
+  success: { icon: CheckCircle2, className: 'text-brand-600' },
   error: { icon: XCircle, className: 'text-red-600' },
   info: { icon: Info, className: 'text-sky-600' },
 };
@@ -171,7 +171,7 @@ const STATUS_TONE: Record<string, Tone> = {
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const text = label ?? status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
   const tone = STATUS_TONE[status.toLowerCase()] ?? 'gray';
-  const dot = { gray: 'bg-slate-400', green: 'bg-emerald-500', amber: 'bg-amber-500', red: 'bg-red-500', blue: 'bg-sky-500' }[tone];
+  const dot = { gray: 'bg-slate-400', green: 'bg-brand-500', amber: 'bg-amber-500', red: 'bg-red-500', blue: 'bg-sky-500' }[tone];
   return (
     <Badge tone={tone}>
       <span className={cn('mr-1.5 size-1.5 rounded-full', dot)} />

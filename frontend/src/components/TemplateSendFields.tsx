@@ -115,7 +115,7 @@ export function MediaInput({
             onClick={() => fileRef.current?.click()}
             className={cn(
               'flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-sm disabled:opacity-60',
-              value?.id ? 'border-emerald-300 bg-emerald-50/50 text-emerald-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50',
+              value?.id ? 'border-emerald-300 bg-brand-50/50 text-emerald-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50',
             )}
           >
             {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : value?.id ? <CheckCircle2 className="size-4" /> : <Upload className="size-4" />}

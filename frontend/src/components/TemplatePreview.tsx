@@ -34,7 +34,7 @@ export function TemplatePreview({
         {callPermission && (
           <div className="mt-1 rounded-lg bg-white p-3 text-sm shadow-sm">
             <p className="flex items-center gap-1.5 font-medium text-slate-800">
-              <PhoneCall className="size-4 text-emerald-600" /> Allow calls from this business?
+              <PhoneCall className="size-4 text-brand-600" /> Allow calls from this business?
             </p>
             <p className="mt-1 text-xs text-slate-500">You can change this anytime in chat settings.</p>
             <div className="mt-2 grid grid-cols-2 gap-1 text-center text-xs font-medium text-sky-600">
@@ -92,7 +92,7 @@ function Bubble({
       {header && <HeaderView header={header} params={headerValues} mediaUrl={mediaUrl} />}
       {offer && (
         <div className="mx-1 mt-1 flex items-center gap-2 rounded-md bg-slate-50 p-2">
-          <span className="rounded-full bg-emerald-100 p-1.5 text-emerald-700">
+          <span className="rounded-full bg-brand-100 p-1.5 text-brand-700">
             <Gift className="size-4" />
           </span>
           <div>
@@ -106,7 +106,7 @@ function Bubble({
           {bodyText ? formatWhatsApp(fill(bodyText, bodyValues)) : showBodyPlaceholder && <span className="text-slate-400">Message body…</span>}
         </p>
         {footerText && <p className="mt-1 text-xs text-slate-500">{footerText}</p>}
-        <p className="text-right text-[10px] text-slate-400">12:00</p>
+        <p className="text-right text-[11px] text-slate-400">12:00</p>
       </div>
     </div>
   );
