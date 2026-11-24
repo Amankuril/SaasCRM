@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { TrendChart } from '../components/TrendChart';
-import { Alert, Card, PageHeader, Spinner, cn, errorMessage } from '../components/ui';
+import { Card, PageHeader, Spinner, cn, LoadError } from '../components/ui';
 import { api, type Analytics, type DurationStats } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -46,8 +46,8 @@ export function AnalyticsPage() {
       {query.isPending ? (
         <Spinner />
       ) : query.error ? (
-        <Alert>{errorMessage(query.error)}</Alert>
-      ) : (
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
+        ) : (
         <Report data={query.data} />
       )}
     </>
@@ -74,8 +74,8 @@ function Report({ data: a }: { data: Analytics }) {
           title="Messages per day"
           days={a.messages.daily.map((d) => d.day)}
           series={[
-            { key: 'outbound', label: 'Sent', color: '#2a78d6', values: a.messages.daily.map((d) => d.outbound) },
-            { key: 'inbound', label: 'Received', color: '#eb6834', values: a.messages.daily.map((d) => d.inbound) },
+            { key: 'outbound', label: 'Sent', color: '#0a7d55', values: a.messages.daily.map((d) => d.outbound) },
+            { key: 'inbound', label: 'Received', color: '#2a78d6', values: a.messages.daily.map((d) => d.inbound) },
           ]}
         />
       </Card>
