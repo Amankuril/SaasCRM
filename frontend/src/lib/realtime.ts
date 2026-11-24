@@ -8,7 +8,9 @@ type RealtimeEvent =
   | { type: 'messages.changed'; conversationId: string }
   | { type: 'contacts.changed' }
   | { type: 'tasks.changed' }
-  | { type: 'appointments.changed' };
+  | { type: 'appointments.changed' }
+  | { type: 'templates.changed' }
+  | { type: 'reminders.changed' };
 
 /**
  * Live updates for the current workspace. The server only sends "something
@@ -28,7 +30,7 @@ export function useRealtime(workspaceId: string) {
     // Signals sent while we were disconnected are lost: refetch everything once on
     // reconnect, and poll while the socket is down so the inbox never goes stale.
     const refreshAll = () => {
-      for (const key of ['conversations', 'conversation-counts', 'conversation', 'timeline', 'messages', 'contacts']) {
+      for (const key of ['conversations', 'conversation-counts', 'conversation', 'timeline', 'messages', 'contacts', 'templates', 'template-sync', 'reminders']) {
         void queryClient.invalidateQueries({ queryKey: [key, workspaceId] });
       }
     };
@@ -71,6 +73,16 @@ export function useRealtime(workspaceId: string) {
       }
       if (event.type === 'appointments.changed') {
         void queryClient.invalidateQueries({ queryKey: ['appointments', workspaceId] });
+        return;
+      }
+      // Approvals reach every template picker (broadcasts, flows, inbox…) at once.
+      if (event.type === 'templates.changed') {
+        void queryClient.invalidateQueries({ queryKey: ['templates', workspaceId] });
+        void queryClient.invalidateQueries({ queryKey: ['template-sync', workspaceId] });
+        return;
+      }
+      if (event.type === 'reminders.changed') {
+        void queryClient.invalidateQueries({ queryKey: ['reminders', workspaceId] });
         return;
       }
       void queryClient.invalidateQueries({ queryKey: ['conversations', workspaceId] });

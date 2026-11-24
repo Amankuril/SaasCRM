@@ -231,13 +231,20 @@ export interface DashboardData {
   generatedAt: string;
   overview: {
     contacts: number;
+    newContacts: number;
     conversationsToday: number;
     conversationsWeek: number;
     openChats: number;
-    messages: { sent: number; delivered: number; read: number; failed: number };
+    messages: { sent: number; delivered: number; read: number; failed: number; received: number; prevSent: number };
     activeFlows: number;
     campaignsRunning: number;
+    activeReminders: number;
+    remindersDue: number;
+    keywordTriggers: number;
   };
+  /** Last 14 days, oldest first. */
+  trend: { day: string; sent: number; received: number }[];
+  activity: { id: string; kind: 'chat' | 'campaign' | 'template' | 'reminder'; title: string; detail: string; status: string | null; path: string; at: string }[];
   profile: {
     businessName: string;
     logoUrl: string | null;
@@ -334,7 +341,10 @@ export interface MessageTemplate {
   libraryTemplateName: string | null;
   createdBy: string | null;
   updatedBy: string | null;
-  usage: { campaigns: number; flows: number } | null;
+  usage: { campaigns: number; flows: number; reminders: number } | null;
+  statusUpdatedAt: string | null;
+  statusHistory: { status: string; at: string; source: 'submit' | 'webhook' | 'reconcile' | 'manual' | 'connect'; reason: string | null }[];
+  wabaId: string | null;
   syncedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1215,4 +1225,178 @@ export interface JourneyItem {
 export interface ContactJourney {
   items: JourneyItem[];
   stageHistory: { at: string; from: string | null; to: string | null; fromName: string; toName: string; by: string | null }[];
+}
+
+// ---- Template status sync ----
+
+export interface TemplateSyncStatus {
+  connected: boolean;
+  wabaId: string | null;
+  lastSyncedAt: string | null;
+  lastAttemptAt: string | null;
+  lastSource: string | null;
+  lastError: string | null;
+  lastErrorCode: string | null;
+  lastWebhookAt: string | null;
+  running: boolean;
+  inReview: number;
+  checkEveryMinutes: number;
+}
+
+export interface TemplateSyncCheck {
+  ok: boolean;
+  items: { key: string; label: string; state: 'ok' | 'missing' | 'unknown'; detail: string }[];
+}
+
+// ---- Date reminders ----
+
+export type ReminderRecurrence = 'none' | 'weekly' | 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'custom_days';
+export interface ReminderRule {
+  when: 'before' | 'on' | 'after';
+  value: number;
+  unit: 'minute' | 'hour' | 'day' | 'week';
+}
+export interface ReminderField {
+  key: string;
+  label: string;
+  type: 'text' | 'amount' | 'select';
+  options?: string[];
+  required?: boolean;
+  example: string;
+  aliases?: string[];
+}
+export interface ReminderCategory {
+  key: string;
+  name: string;
+  description: string;
+  person: string;
+  dateLabel: string;
+  dateAliases: string[];
+  dateKind: 'date' | 'datetime';
+  yearOptional?: boolean;
+  fields: ReminderField[];
+  recurrences: ReminderRecurrence[];
+  defaultRules: ReminderRule[];
+  followUps: boolean;
+  doneLabel: string | null;
+  sample: string;
+}
+export interface ReminderCounts {
+  contacts: number;
+  active: number;
+  paused: number;
+  completed: number;
+  nextRunAt: string | null;
+  sent: number;
+  pending: number;
+  failed: number;
+  skipped: number;
+}
+export interface ReminderVariable {
+  source: 'field' | 'static';
+  value: string;
+  fallback?: string | null;
+}
+export interface ReminderSetup {
+  id: string;
+  category: string;
+  name: string;
+  status: 'draft' | 'active' | 'paused';
+  eventLabel: string | null;
+  extraFields: { key: string; label: string }[];
+  fields: ReminderField[];
+  variables: { key: string; label: string; example: string }[];
+  recurrence: ReminderRecurrence;
+  everyDays: number;
+  rules: ReminderRule[];
+  sendTime: string;
+  sendMissedToday: boolean;
+  templateId: string | null;
+  template: { id: string; name: string; language: string; category: string; status: string; components: TemplateComponent[] } | null;
+  headerVariables: ReminderVariable[];
+  bodyVariables: ReminderVariable[];
+  buttonVariables: ReminderVariable[];
+  templateExtras: TemplateExtras | null;
+  lastError: string | null;
+  activatedAt: string | null;
+  counts: ReminderCounts;
+  /** What is still needed before it can go live. */
+  missing: Record<string, string[]>;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ReminderOffer {
+  enabled: boolean;
+  paid: boolean;
+  title: string;
+  price: number;
+  comparePrice: number;
+  currency: string;
+  discountPercent: number;
+  benefits: string[];
+  buttonLabel: string;
+  scope: 'workspace' | 'owner';
+}
+export interface ReminderAccess {
+  enabled: boolean;
+  unlocked: boolean;
+  source: 'purchase' | 'granted' | null;
+  unlockedAt: string | null;
+  offer: ReminderOffer;
+}
+export interface ReminderOverview {
+  categories: (ReminderCategory & { setups: number; live: number; contacts: number })[];
+  setups: ReminderSetup[];
+  totals: ReminderCounts & { setups: number; live: number };
+  access: ReminderAccess;
+  timezone: string;
+}
+export interface ReminderRecord {
+  id: string;
+  phone: string;
+  name: string;
+  eventDate: string;
+  eventDateLabel: string;
+  eventTime: string | null;
+  eventTimeLabel: string | null;
+  fields: Record<string, string>;
+  endDate: string | null;
+  maxCycles: number | null;
+  recurrence: ReminderRecurrence | null;
+  doneThrough: string | null;
+  status: 'active' | 'waiting' | 'paused' | 'completed';
+  nextRunAt: string | null;
+  nextOccurrence: string | null;
+  nextRuleId: string | null;
+}
+export interface ReminderLog {
+  id: string;
+  name: string;
+  phone: string;
+  status: 'upcoming' | 'pending' | 'sent' | 'failed' | 'skipped';
+  ruleId: string | null;
+  occurrence: string | null;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  delivery: string | null;
+  error: string | null;
+  attempts: number;
+  nextAttemptAt: string | null;
+  retryable: boolean;
+}
+export interface ReminderPreview {
+  values: Record<string, string>;
+  missing: string[];
+  record: { id: string; name: string; phone: string } | null;
+  nextRunAt: string | null;
+  contacts: number;
+}
+export interface ReminderImportReport {
+  total: number;
+  valid: number;
+  created: number;
+  updated: number;
+  duplicates: number;
+  invalid: { row: number; reason: string }[];
+  sample: { row: number; phone: string; name: string; eventDate: string; eventTime: string | null; fields: Record<string, string> }[];
 }
