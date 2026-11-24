@@ -4,6 +4,7 @@ import {
   Bell,
   Blocks,
   Bot,
+  CalendarClock,
   ChevronDown,
   ChevronsUpDown,
   ClipboardList,
@@ -30,8 +31,9 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Logo } from '../components/Logo';
-import { Alert, Spinner, cn } from '../components/ui';
+import { LoadError, Spinner, cn } from '../components/ui';
 import { ApiError, api, type AppNotification, type ConnectionPayload, type InboxCounts, type Permission, type WorkspaceContextPayload } from '../lib/api';
 import { ROLE_INFO } from '../lib/options';
 import { useRealtime } from '../lib/realtime';
@@ -60,7 +62,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Conversations',
     items: [
-      { to: 'inbox', label: 'Team Inbox', icon: MessageSquare, badge: 'inbox' },
+      { to: 'inbox', label: 'Team inbox', icon: MessageSquare, badge: 'inbox' },
       { to: 'audience', label: 'Audience', icon: Contact, alsoActive: ['contacts'] },
     ],
   },
@@ -74,10 +76,11 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Automation',
     items: [
-      { to: 'auto-replies', label: 'Keyword Trigger', icon: Zap },
-      { to: 'flows', label: 'Flow Builder', icon: Workflow },
+      { to: 'auto-replies', label: 'Keyword triggers', icon: Zap },
+      { to: 'flows', label: 'Flow builder', icon: Workflow },
+      { to: 'reminders', label: 'Date reminders', icon: CalendarClock },
       { to: 'forms', label: 'Forms', icon: ClipboardList },
-      { to: 'ai', label: 'AI Agent', icon: Bot },
+      { to: 'ai', label: 'AI agent', icon: Bot },
       { to: 'integrations', label: 'Integrations', icon: Blocks },
     ],
   },
@@ -104,6 +107,7 @@ export function WorkspaceLayout() {
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
   const audienceRoute = useMatch('/w/:workspaceId/audience/*');
   const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute;
+  const { pathname } = useLocation();
   useRealtime(workspaceId!);
 
   const query = useQuery({
@@ -120,9 +124,7 @@ export function WorkspaceLayout() {
   if (query.error) {
     if (query.error instanceof ApiError && query.error.status === 404) return <NotFoundPage message="This workspace doesn't exist or you are not a member of it." />;
     return (
-      <div className="p-6">
-        <Alert>Could not load this workspace. Please refresh the page.</Alert>
-      </div>
+      <LoadError error={query.error} what="this workspace" onRetry={() => void query.refetch()} />
     );
   }
 
@@ -147,11 +149,15 @@ export function WorkspaceLayout() {
             )}
             {fullBleed ? (
               <div className="min-h-0 flex-1">
-                <Outlet />
+                <ErrorBoundary resetKey={pathname}>
+                  <Outlet />
+                </ErrorBoundary>
               </div>
             ) : (
-              <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-                <Outlet />
+              <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+                <ErrorBoundary resetKey={pathname}>
+                  <Outlet />
+                </ErrorBoundary>
               </div>
             )}
           </main>
@@ -166,7 +172,7 @@ function SupportBanner() {
   const { workspace, supportAccess } = useWorkspace();
   if (!supportAccess) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-violet-300 bg-violet-600 px-6 py-2 text-sm text-white">
+    <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 bg-slate-900 px-6 py-2 text-sm text-white">
       <ShieldCheck className="size-4" />
       <span>
         Support access: you are inside <strong>{workspace.name}</strong> as owner. Every change is logged under your account.
@@ -225,11 +231,11 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform lg:static lg:translate-x-0',
+        'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-slate-200 bg-slate-50 transition-transform lg:static lg:translate-x-0',
         open ? 'translate-x-0' : '-translate-x-full',
       )}
     >
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+      <div className="flex h-14 shrink-0 items-center justify-between px-4">
         <Logo />
         <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100 lg:hidden" onClick={onNavigate} aria-label="Close menu">
           <X className="size-5" />
@@ -240,13 +246,13 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
         <WorkspaceSwitcher onNavigate={onNavigate} />
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 pt-2 pb-6" aria-label="Main">
         {NAV.map((group) => {
           const items = group.items.filter((i) => can(i.permission));
           if (items.length === 0) return null;
           return (
             <div key={group.section}>
-              <p className="px-2 pb-1 text-xs font-medium tracking-wide text-slate-400 uppercase">{group.section}</p>
+              <p className="px-2.5 pb-2 text-xs text-slate-400">{group.section}</p>
               <ul className="space-y-0.5">
                 {items.map((item) => (
                   <li key={item.label}>
@@ -254,7 +260,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                       <span className="flex cursor-default items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-slate-400" title="Coming in a later phase">
                         <item.icon className="size-4" />
                         {item.label}
-                        <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Soon</span>
+                        <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">Soon</span>
                       </span>
                     ) : (
                       <NavLink
@@ -263,14 +269,14 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                         onClick={onNavigate}
                         className={({ isActive }) =>
                           cn(
-                            'relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
+                            'group flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors',
                             isActive || alsoActive(item)
-                              ? "bg-brand-50 text-brand-700 before:absolute before:inset-y-1.5 before:-left-3 before:w-1 before:rounded-r-full before:bg-brand-600 before:content-['']"
-                              : 'text-slate-600 hover:bg-slate-100 hover:text-ink',
+                              ? 'bg-white font-medium text-ink ring-1 ring-slate-200 [&>svg]:text-brand-600'
+                              : 'text-slate-600 hover:bg-slate-200/50 hover:text-ink [&>svg]:text-slate-400',
                           )
                         }
                       >
-                        <item.icon className="size-4" />
+                        <item.icon className="size-4 shrink-0" strokeWidth={1.5} />
                         {item.label}
                         {item.badge === 'inbox' && <InboxBadge />}
                       </NavLink>
@@ -284,9 +290,9 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
 
         {user?.isPlatformAdmin && (
           <div>
-            <p className="px-2 pb-1 text-xs font-medium tracking-wide text-slate-400 uppercase">Platform</p>
-            <Link to="/admin" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
-              <ShieldCheck className="size-4" />
+            <p className="px-2.5 pb-2 text-xs text-slate-400">Platform</p>
+            <Link to="/admin" className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm text-slate-600 hover:bg-slate-200/50 hover:text-ink">
+              <ShieldCheck className="size-4 text-slate-400" strokeWidth={1.5} />
               Super Admin
             </Link>
           </div>
@@ -321,7 +327,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
     loading: { dot: 'bg-slate-300', text: 'Checking WhatsApp…', className: 'border-slate-200 text-slate-500' },
     none: { dot: 'bg-amber-500', text: can('provider:manage') ? 'Connect WhatsApp' : 'WhatsApp not connected', className: 'border-amber-200 bg-amber-50 text-amber-800' },
     error: { dot: 'bg-red-500', text: 'WhatsApp disconnected', className: 'border-red-200 bg-red-50 text-red-700' },
-    ok: { dot: 'bg-emerald-500', text: conn?.displayPhoneNumber ?? 'WhatsApp connected', className: 'border-slate-200 text-slate-700 hover:bg-slate-50' },
+    ok: { dot: 'bg-brand-500', text: conn?.displayPhoneNumber ?? 'WhatsApp connected', className: 'border-slate-200 text-slate-700 hover:bg-slate-50' },
   }[state];
 
   return (
@@ -339,7 +345,7 @@ function TopBar({ onMenu }: { onMenu: () => void }) {
         className={cn('inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium', STATE.className)}
         title={state === 'ok' ? `WhatsApp number connected${conn?.qualityRating ? ` · quality ${conn.qualityRating.toLowerCase()}` : ''}` : (conn?.lastError ?? STATE.text)}
       >
-        <span className={cn('size-2 rounded-full', STATE.dot, state === 'ok' && 'ring-2 ring-emerald-100')} />
+        <span className={cn('size-2 rounded-full', STATE.dot, state === 'ok' && 'ring-2 ring-brand-100')} />
         <MessageCircle className="size-3.5 sm:hidden" />
         <span className="hidden sm:inline">{STATE.text}</span>
       </Link>
@@ -390,7 +396,7 @@ function NotificationBell() {
     <div className="relative">
       <button onClick={toggle} className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={unseen ? `Notifications, ${unseen} new` : 'Notifications'} aria-expanded={open}>
         <Bell className="size-5" />
-        {unseen > 0 && <span className="absolute top-1 right-1 flex min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] leading-4 font-semibold text-white">{unseen}</span>}
+        {unseen > 0 && <span className="absolute top-1 right-1 flex min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] leading-4 font-semibold text-white">{unseen}</span>}
       </button>
       {open && (
         <>
@@ -489,10 +495,10 @@ function WorkspaceSwitcher({ onNavigate }: { onNavigate: () => void }) {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50"
+        className="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left transition-colors hover:border-slate-300"
         aria-expanded={open}
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-800 text-xs font-semibold text-white">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-200 text-xs font-medium text-slate-700">
           {initials(workspace.name)}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{workspace.name}</span>
@@ -536,7 +542,7 @@ function InboxBadge() {
   });
   // Chats with unread messages: drops the moment a chat is opened.
   const n = counts.data?.unread.chats ?? 0;
-  return n > 0 ? <span className="ml-auto rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{n}</span> : null;
+  return n > 0 ? <span className="ml-auto text-xs font-medium text-brand-700 tabular-nums">{n}</span> : null;
 }
 
 function initials(name: string): string {

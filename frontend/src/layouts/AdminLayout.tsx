@@ -4,6 +4,7 @@ import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmProvider } from '../components/admin';
 import { initials } from '../components/crm';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Logo } from '../components/Logo';
 import { cn } from '../components/ui';
 
@@ -51,6 +52,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
 
 /** Super Admin shell: same structure as the business app, with a dark sidebar. */
 export function AdminLayout() {
+  const { pathname } = useLocation();
   const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   if (!user?.isPlatformAdmin) return <Navigate to="/" replace />;
@@ -70,7 +72,9 @@ export function AdminLayout() {
         </header>
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-            <Outlet />
+            <ErrorBoundary resetKey={pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>
@@ -93,17 +97,17 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
     >
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <Logo light />
-        <button className="rounded-md p-1 text-slate-400 hover:bg-slate-800 lg:hidden" onClick={onNavigate} aria-label="Close menu">
+        <button className="rounded-md p-1 text-white/60 hover:bg-slate-800 lg:hidden" onClick={onNavigate} aria-label="Close menu">
           <X className="size-5" />
         </button>
       </div>
 
       <div className="px-3 pb-2">
         <div className="flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-800/60 px-2.5 py-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-xs font-bold text-slate-900">SA</span>
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-slate-900">SA</span>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-white">Super Admin</p>
-            <p className="truncate text-[11px] text-slate-400">Platform control</p>
+            <p className="truncate text-[11px] text-white/60">Platform control</p>
           </div>
         </div>
       </div>
@@ -111,7 +115,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3">
         {NAV.map((group) => (
           <div key={group.section}>
-            <p className="px-2 pb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">{group.section}</p>
+            <p className="px-2.5 pb-2 text-xs text-white/60">{group.section}</p>
             <ul className="space-y-0.5">
               {group.items.map((item) => (
                 <li key={item.label}>
@@ -121,14 +125,14 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                     onClick={onNavigate}
                     className={({ isActive }) =>
                       cn(
-                        'flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium',
+                        'flex items-center gap-2.5 rounded-lg h-9 px-2.5 text-sm',
                         isActive || alsoActive(item) ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800/70 hover:text-white',
                       )
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        <item.icon className={cn('size-4', isActive || alsoActive(item) ? 'text-emerald-400' : 'text-slate-400')} />
+                        <item.icon className={cn('size-4', isActive || alsoActive(item) ? 'text-emerald-300' : 'text-white/60')} />
                         {item.label}
                       </>
                     )}
@@ -142,9 +146,9 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
         {/* An admin without a business has no app to go back to ("/" leads here). */}
         {workspaces.length > 0 && (
           <div>
-            <p className="px-2 pb-1 text-xs font-medium tracking-wide text-slate-500 uppercase">Your app</p>
-            <Link to="/" onClick={onNavigate} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-800/70 hover:text-white">
-              <ArrowLeftRight className="size-4 text-slate-400" />
+            <p className="px-2.5 pb-2 text-xs text-white/60">Your app</p>
+            <Link to="/" onClick={onNavigate} className="flex items-center gap-2.5 rounded-lg h-9 px-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800/70 hover:text-white">
+              <ArrowLeftRight className="size-4 text-white/60" />
               Back to my business
             </Link>
           </div>
@@ -152,12 +156,12 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
       </nav>
 
       <div className="flex items-center gap-3 border-t border-slate-800 p-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold text-white">{initials(user?.name ?? '')}</div>
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">{initials(user?.name ?? '')}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-white">{user?.name}</p>
-          <p className="truncate text-xs text-slate-400">Platform admin</p>
+          <p className="truncate text-xs text-white/60">Platform admin</p>
         </div>
-        <button onClick={() => void logout('/admin/login')} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Log out" title="Log out">
+        <button onClick={() => void logout('/admin/login')} className="rounded-md p-1.5 text-white/60 hover:bg-slate-800 hover:text-white" aria-label="Log out" title="Log out">
           <LogOut className="size-4" />
         </button>
       </div>

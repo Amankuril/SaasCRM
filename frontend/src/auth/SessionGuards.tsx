@@ -101,10 +101,10 @@ export function SessionReplacedDialog() {
 
 function BlockingDialog({ icon, title, body, action }: { icon: ReactNode; title: string; body: string; action: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="guard-title">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 " role="alertdialog" aria-modal="true" aria-labelledby="guard-title">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
         <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">{icon}</span>
-        <h2 id="guard-title" className="mt-4 text-lg font-bold text-ink">
+        <h2 id="guard-title" className="mt-4 text-lg font-semibold text-ink">
           {title}
         </h2>
         <p className="mt-2 text-sm text-slate-600">{body}</p>
