@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ScrollText } from 'lucide-react';
-import { Alert, Button, Card, EmptyState, PageHeader, Spinner, errorMessage } from '../components/ui';
+import { Button, Card, EmptyState, PageHeader, Spinner, LoadError } from '../components/ui';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -40,7 +40,8 @@ function describe(item: AuditItem): string {
     case 'admin.workspace_status_changed':
       return `(platform admin) changed workspace status from ${m.from} to ${m.to}`;
     default:
-      return item.action;
+      // "template.submitted" -> "template submitted: order_ready"
+      return `${item.action.replace(/^admin\./, '(platform admin) ').replace(/[._]/g, ' ')}${m.name ? `: ${m.name}` : ''}`;
   }
 }
 
@@ -63,10 +64,8 @@ export function AuditLogPage() {
         {query.isPending ? (
           <Spinner />
         ) : query.error ? (
-          <div className="p-5">
-            <Alert>{errorMessage(query.error)}</Alert>
-          </div>
-        ) : items.length === 0 ? (
+            <LoadError error={query.error} what="this list" onRetry={() => void query.refetch()} />
+          ) : items.length === 0 ? (
           <EmptyState icon={<ScrollText className="size-5" />} title="No activity yet" />
         ) : (
           <ul className="divide-y divide-slate-100">

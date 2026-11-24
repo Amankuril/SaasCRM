@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Check, ChevronDown, ChevronRight, Copy, KeyRound, Pause, Play, Plus, RefreshCw, RotateCcw, Send, Trash2, Webhook } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Modal } from '../components/crm';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError, LoadError } from '../components/ui';
 import { ApiError, api, type ApiKeyInfo, type DeveloperCatalog, type WebhookDeliveryInfo, type WebhookInfo } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
@@ -29,7 +29,7 @@ export function DeveloperPage() {
         title="Developers"
         description="Connect Zeta Connect to your CRM, store or automation tools (Zapier, Make, Pabbly) with the REST API and webhooks."
       />
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
+      <div className="no-scrollbar mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-200">
         {(
           [
             ['keys', 'API keys', KeyRound],
@@ -93,10 +93,8 @@ function KeysTab({ catalog }: { catalog: DeveloperCatalog }) {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.apiKeys.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.apiKeys.length === 0 ? (
           <EmptyState icon={<KeyRound className="size-5" />} title="No API keys yet">
             Create a key to add contacts, send templates or start flows from your own systems.
           </EmptyState>
@@ -231,10 +229,8 @@ function WebhooksTab({ catalog }: { catalog: DeveloperCatalog }) {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.webhooks.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.webhooks.length === 0 ? (
           <EmptyState icon={<Webhook className="size-5" />} title="No webhook endpoints">
             Add a URL (for example a Zapier "Catch Hook") to get new messages, contacts and form submissions in real time.
           </EmptyState>
@@ -630,7 +626,7 @@ function CheckboxGrid({ label, items, selected, onChange, error }: { label: stri
           <label key={item.id} className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 text-sm hover:bg-slate-50">
             <input
               type="checkbox"
-              className="mt-0.5 size-4 accent-emerald-600"
+              className="mt-0.5 size-4 accent-brand-600"
               checked={selected.includes(item.id)}
               onChange={(e) => onChange(e.target.checked ? [...selected, item.id] : selected.filter((s) => s !== item.id))}
             />
@@ -678,7 +674,7 @@ function CopyButton({ value }: { value: string }) {
       className="shrink-0 rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
       aria-label="Copy"
     >
-      {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+      {copied ? <Check className="size-4 text-brand-600" /> : <Copy className="size-4" />}
     </button>
   );
 }

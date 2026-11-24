@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Database, Download, ExternalLink, Eye, Info, RefreshCw, Search, Send, XCircle } from 'lucide-react';
 import { Fragment, useDeferredValue, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type SheetCampaign, type SheetCounts, type SheetRowState, type SheetSyncResult } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 import { CategoryBadge, RowBadge, StateBadge, rowStyle, shortDate, shortDateTime } from './sheetUi';
@@ -69,13 +69,13 @@ export function SheetDataPage() {
           <ArrowLeft className="size-4" /> Back to Campaigns
         </Link>
         <div className="min-w-0 flex-1 text-center">
-          <h1 className="flex items-center justify-center gap-2 text-xl font-semibold text-ink">
+          <h1 className="flex items-center justify-center gap-2 text-2xl leading-8 font-medium text-ink">
             <span className="truncate">{c.name}</span> <StateBadge state={c.state} />
           </h1>
           <p className="text-xs text-slate-500">
             {c.tab?.title} · Last synced {c.lastSyncAt ? shortDate(c.lastSyncAt) : 'never'} ·{' '}
             <a href={c.sheetUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-slate-700 hover:underline">
-              Open Sheet <ExternalLink className="size-3" />
+              Open sheet <ExternalLink className="size-3" />
             </a>
           </p>
         </div>
@@ -83,8 +83,8 @@ export function SheetDataPage() {
           <Download className="size-4" /> Export
         </Button>
         {can('campaigns:manage') && (
-          <Button loading={sync.isPending} onClick={() => sync.mutate()} className="bg-slate-700 hover:bg-slate-800">
-            <RefreshCw className="size-4" /> Sync Data
+          <Button loading={sync.isPending} onClick={() => sync.mutate()}>
+            <RefreshCw className="size-4" /> Sync data
           </Button>
         )}
       </div>
@@ -104,10 +104,10 @@ export function SheetDataPage() {
       </div>
 
       <div className="mb-6 grid overflow-hidden rounded-2xl border border-slate-200 bg-white sm:grid-cols-3 xl:grid-cols-6 xl:divide-x xl:divide-slate-200">
-        <Stat icon={<Database className="size-5" />} tone="bg-sky-50 text-sky-600" label="Total Leads" value={c.rowCount} hint="From spreadsheet" />
+        <Stat icon={<Database className="size-5" />} tone="bg-sky-50 text-sky-600" label="Total leads" value={c.rowCount} hint="From spreadsheet" />
         <Stat icon={<Clock className="size-5" />} tone="bg-amber-50 text-amber-600" label="Queued" value={n.queued} hint={n.queued ? 'Waiting for the send delay' : 'All processed'} />
         <Stat icon={<Send className="size-5" />} tone="bg-slate-100 text-slate-600" label="Sent" value={n.sent} hint={n.sent ? 'Awaiting delivery receipt' : 'No messages awaiting receipt'} />
-        <Stat icon={<CheckCircle2 className="size-5" />} tone="bg-emerald-50 text-emerald-600" label="Delivered" value={n.delivered} valueTone="text-emerald-700" hint={messages ? `${pct(reached, messages)}% reached the handset` : 'No messages yet'} />
+        <Stat icon={<CheckCircle2 className="size-5" />} tone="bg-brand-50 text-brand-600" label="Delivered" value={n.delivered} valueTone="text-brand-700" hint={messages ? `${pct(reached, messages)}% reached the handset` : 'No messages yet'} />
         <Stat icon={<Eye className="size-5" />} tone="bg-sky-50 text-sky-600" label="Read" value={n.read} valueTone="text-sky-700" hint={messages ? `${pct(n.read, messages)}% opened the message` : 'No messages yet'} />
         <Stat icon={<XCircle className="size-5" />} tone="bg-slate-100 text-slate-500" label="Failed" value={n.failed} valueTone={n.failed ? 'text-red-600' : undefined} hint={n.failed ? 'Open a row for the reason' : 'No failures'} />
       </div>
@@ -135,7 +135,7 @@ export function SheetDataPage() {
               setPage(1);
             }}
           >
-            <option value="">All Statuses</option>
+            <option value="">All statuses</option>
             <option value="queued">Queued</option>
             <option value="sent">Sent</option>
             <option value="delivered">Delivered</option>
@@ -150,10 +150,8 @@ export function SheetDataPage() {
         {rows.isPending ? (
           <Spinner />
         ) : rows.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(rows.error)}</Alert>
-          </div>
-        ) : !rows.data.rows.length ? (
+            <LoadError error={rows.error} what="this list" onRetry={() => void rows.refetch()} />
+          ) : !rows.data.rows.length ? (
           <EmptyState icon={<Database className="size-5" />} title={term || state ? 'No rows match' : 'No rows yet'}>
             {term || state ? 'Try another search or status.' : 'Add a row with a phone number to your sheet; it shows up here within a minute, or click Sync Data.'}
           </EmptyState>
@@ -164,12 +162,12 @@ export function SheetDataPage() {
                 <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                   <tr>
                     <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Phone Number</th>
+                    <th className="px-4 py-3">Phone number</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Message</th>
                     <th className="px-4 py-3">Template</th>
                     <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Last Update</th>
+                    <th className="px-4 py-3">Last update</th>
                     <th className="px-4 py-3 text-right">Action</th>
                   </tr>
                 </thead>
@@ -246,7 +244,7 @@ function Stat({ icon, tone, label, value, hint, valueTone }: { icon: ReactNode; 
       <span className={cn('rounded-xl p-2.5', tone)}>{icon}</span>
       <div className="min-w-0">
         <p className="text-sm text-slate-500">{label}</p>
-        <p className={cn('text-2xl font-bold tabular-nums', valueTone ?? 'text-ink')}>{value}</p>
+        <p className={cn('text-2xl font-semibold tabular-nums', valueTone ?? 'text-ink')}>{value}</p>
         <p className="text-xs text-slate-500">{hint}</p>
       </div>
     </div>
@@ -279,7 +277,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       className="rounded p-0.5 text-slate-400 hover:text-slate-700"
     >
-      {done ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+      {done ? <Check className="size-3.5 text-brand-600" /> : <Copy className="size-3.5" />}
     </button>
   );
 }

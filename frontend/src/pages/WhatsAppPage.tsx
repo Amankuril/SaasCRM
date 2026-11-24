@@ -3,7 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, CheckCheck, FlaskConical, MessageCircle, R
 import { useState, type FormEvent } from 'react';
 import { TemplatePreview } from '../components/TemplatePreview';
 import { ButtonValueInputs, TemplateExtrasFields, emptyExtras, extrasPreview, needsExtras } from '../components/TemplateSendFields';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError } from '../components/ui';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError, LoadError } from '../components/ui';
 import { ApiError, api, type ChatMessage, type ConnectionPayload, type MessageTemplate, type TemplateExtras, type WhatsAppConnection } from '../lib/api';
 import { SignupCancelled, launchEmbeddedSignup } from '../lib/facebook';
 import { formatDate } from '../lib/options';
@@ -157,7 +157,7 @@ function ConnectCard({
       )}
 
       {embeddedSignup.enabled && (
-        <div className="my-5 flex items-center gap-3 text-xs font-medium text-slate-400 uppercase">
+        <div className="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">
           <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
         </div>
       )}
@@ -426,7 +426,7 @@ function SendTestCard() {
               rows={3}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none"
+              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none"
             />
           </Field>
         ) : templates.data?.templates.length === 0 ? (
@@ -528,10 +528,8 @@ function MessageLog() {
       {query.isPending ? (
         <Spinner />
       ) : query.error ? (
-        <div className="p-5">
-          <Alert>{errorMessage(query.error)}</Alert>
-        </div>
-      ) : query.data.messages.length === 0 ? (
+            <LoadError error={query.error} what="this list" onRetry={() => void query.refetch()} />
+          ) : query.data.messages.length === 0 ? (
         <EmptyState icon={<MessageCircle className="size-5" />} title="No messages yet">
           Send a test message or wait for a customer to write in.
         </EmptyState>
@@ -539,7 +537,7 @@ function MessageLog() {
         <ul className="divide-y divide-slate-100">
           {query.data.messages.map((m) => (
             <li key={m.id} className="flex items-start gap-3 px-5 py-3 text-sm">
-              <span className={m.direction === 'inbound' ? 'mt-0.5 text-emerald-600' : 'mt-0.5 text-sky-600'} title={m.direction}>
+              <span className={m.direction === 'inbound' ? 'mt-0.5 text-brand-600' : 'mt-0.5 text-sky-600'} title={m.direction}>
                 {m.direction === 'inbound' ? <ArrowDownLeft className="size-4" /> : <ArrowUpRight className="size-4" />}
               </span>
               <div className="min-w-0 flex-1">

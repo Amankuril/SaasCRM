@@ -8,6 +8,7 @@ import { Modal } from '../components/crm';
 import { Alert, Badge, Button, Card, EmptyState, PageHeader, Spinner, cn, errorMessage } from '../components/ui';
 import { api, type BillingOverview, type LimitKey, type PlanInfo, type SubscriptionStatus } from '../lib/api';
 import { formatDate } from '../lib/options';
+import { loadRazorpay, type RazorpayResult } from '../lib/razorpay';
 import { useWorkspace } from '../layouts/workspaceContext';
 
 export const money = (paise: number, currency = 'INR') => new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(paise / 100);
@@ -30,44 +31,6 @@ const LIMITS: { key: Exclude<LimitKey, 'apiRequestsPerMinute'>; label: string; r
   { key: 'forms', label: 'Forms', rule: 'All forms, drafts included.' },
   { key: 'aiRepliesPerMonth', label: 'AI replies this period', rule: 'Each AI answer attempt for customers (auto-reply, flows, inbox suggestions). Test chats are free.' },
 ];
-
-interface RazorpayResult {
-  razorpay_payment_id: string;
-  razorpay_subscription_id: string;
-  razorpay_signature: string;
-}
-interface RazorpayOptions {
-  key: string;
-  subscription_id: string;
-  name: string;
-  description: string;
-  prefill?: { email?: string; name?: string };
-  theme?: { color: string };
-  handler: (result: RazorpayResult) => void;
-  modal?: { ondismiss?: () => void };
-}
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayOptions) => { open: () => void; on: (event: 'payment.failed', cb: (r: { error?: { description?: string } }) => void) => void };
-  }
-}
-
-let razorpayScript: Promise<void> | undefined;
-/** Loads Razorpay Checkout once, on first use. */
-function loadRazorpay(): Promise<void> {
-  if (window.Razorpay) return Promise.resolve();
-  razorpayScript ??= new Promise<void>((resolve, reject) => {
-    const el = document.createElement('script');
-    el.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    el.onload = () => resolve();
-    el.onerror = () => {
-      razorpayScript = undefined;
-      reject(new Error('Could not load the payment page. Check your connection and try again.'));
-    };
-    document.head.appendChild(el);
-  });
-  return razorpayScript;
-}
 
 const FEATURE_LABEL: Record<string, string> = { campaigns: 'Broadcasts', flows: 'Flow builder', forms: 'WhatsApp Forms', ai: 'AI agent', api: 'API & webhooks' };
 const fmt = (n: number | null) => (n === null ? 'Unlimited' : n.toLocaleString('en-IN'));
@@ -111,7 +74,7 @@ export function BillingPage() {
       name: 'Zeta Connect',
       description: `${planName} plan`,
       prefill: { email: user?.email, name: user?.name },
-      theme: { color: '#059669' },
+      theme: { color: '#0a7d55' },
       handler: (result) => confirm.mutate(result),
       modal: { ondismiss: refresh },
     });
@@ -171,7 +134,7 @@ export function BillingPage() {
         <Card className="space-y-3 p-5">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase">Current plan</p>
+              <p className="text-xs font-medium text-slate-500">Current plan</p>
               <p className="mt-1 text-xl font-semibold text-ink">{plan.name}</p>
             </div>
             <Badge tone={STATUS[sub.status].tone}>{STATUS[sub.status].label}</Badge>
@@ -262,7 +225,7 @@ export function BillingPage() {
                 <li>{fmt(p.limits.activeFlows)} live flows</li>
                 {Object.entries(p.features).map(([k, on]) => (
                   <li key={k} className={cn('flex items-center gap-1.5', !on && 'text-slate-400')}>
-                    {on ? <Check className="size-3.5 text-emerald-600" /> : <X className="size-3.5" />} {FEATURE_LABEL[k]}
+                    {on ? <Check className="size-3.5 text-brand-600" /> : <X className="size-3.5" />} {FEATURE_LABEL[k]}
                     {k === 'ai' && on && p.limits.aiRepliesPerMonth !== null && <span className="text-xs text-slate-500">({fmt(p.limits.aiRepliesPerMonth)} replies)</span>}
                   </li>
                 ))}
@@ -300,7 +263,7 @@ export function BillingPage() {
                     <td className="px-4 py-2 font-mono text-xs">{i.number}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{formatDate(i.createdAt)}</td>
                     <td className="px-4 py-2 capitalize">
-                      {plans.find((p) => p.code === i.planCode)?.name ?? i.planCode} · {i.cycle}
+                      {i.planCode === 'date_reminders' ? 'Date reminders' : (plans.find((p) => p.code === i.planCode)?.name ?? i.planCode)}, {i.cycle.replace('_', '-')}
                     </td>
                     <td className="px-4 py-2 text-xs whitespace-nowrap text-slate-500">{i.periodStart && i.periodEnd ? `${formatDate(i.periodStart)} – ${formatDate(i.periodEnd)}` : '—'}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(i.amount, i.currency)}</td>

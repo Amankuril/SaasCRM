@@ -31,8 +31,8 @@ const STEPS = [
   { key: 'start', label: 'Start' },
   { key: 'link', label: 'Sheet link' },
   { key: 'connect', label: 'Connect' },
-  { key: 'select', label: 'Select Sheet' },
-  { key: 'map', label: 'Map Columns' },
+  { key: 'select', label: 'Select sheet' },
+  { key: 'map', label: 'Map columns' },
   { key: 'settings', label: 'Settings' },
 ] as const;
 type StepKey = (typeof STEPS)[number]['key'];
@@ -93,7 +93,7 @@ function Wizard({ campaign: initial }: { campaign: SheetCampaign | null }) {
   return (
     <div className="flex h-[calc(100vh-6rem)] min-h-[560px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 px-6 py-4">
-        <p className="w-28 text-xs font-semibold tracking-widest text-slate-500">
+        <p className="w-28 text-xs font-semibold text-slate-500">
           STEP {stepIndex(step) + 1} OF {STEPS.length}
         </p>
         <ol className="flex flex-1 items-start justify-center overflow-x-auto">
@@ -108,12 +108,12 @@ function Wizard({ campaign: initial }: { campaign: SheetCampaign | null }) {
                   <span
                     className={cn(
                       'flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold',
-                      done ? 'border-emerald-400 bg-emerald-50 text-emerald-600' : current ? 'border-slate-800 text-slate-900 ring-4 ring-slate-200' : 'border-slate-200 text-slate-400',
+                      done ? 'border-emerald-400 bg-brand-50 text-brand-600' : current ? 'border-slate-800 text-slate-900 ring-4 ring-slate-200' : 'border-slate-200 text-slate-400',
                     )}
                   >
                     {done ? <Check className="size-4" /> : i + 1}
                   </span>
-                  <span className={cn('text-center text-[11px] whitespace-nowrap', current ? 'font-semibold text-ink' : done ? 'text-emerald-600' : 'text-slate-400')}>{s.label}</span>
+                  <span className={cn('text-center text-[11px] whitespace-nowrap', current ? 'font-semibold text-ink' : done ? 'text-brand-600' : 'text-slate-400')}>{s.label}</span>
                 </button>
               </li>
             );
@@ -200,7 +200,7 @@ function StepFrame({ bodyRef, title, subtitle, children, footer }: { bodyRef: Re
     <>
       <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-3xl">
-          <h2 className="text-center text-2xl font-bold text-ink">{title}</h2>
+          <h2 className="text-center text-2xl font-semibold text-ink">{title}</h2>
           <p className="mx-auto mt-1.5 max-w-lg text-center text-slate-500">{subtitle}</p>
           <div className="mt-8">{children}</div>
         </div>
@@ -217,7 +217,7 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
 );
 
 const NextButton = ({ label = 'Next Step', ...props }: { label?: string; loading?: boolean; disabled?: boolean; onClick: () => void }) => (
-  <Button {...props} className="bg-slate-700 px-5 py-2.5 hover:bg-slate-800">
+  <Button {...props} className="px-5 py-2.5">
     {label} <ChevronRight className="size-4" />
   </Button>
 );
@@ -240,17 +240,17 @@ function StartStep({ onNext, bodyRef }: { onNext: () => void; bodyRef: React.Ref
   return (
     <StepFrame
       bodyRef={bodyRef}
-      title="Connect Your Google Sheet"
+      title="Connect your Google Sheet"
       subtitle="Connect your sheet, pick a template, and start sending messages — all in under 2 minutes."
       footer={
         <>
           <span />
-          <NextButton label="Get Started" onClick={onNext} />
+          <NextButton label="Get started" onClick={onNext} />
         </>
       }
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <InfoCard icon={<Zap className="size-4" />} tone="bg-indigo-50 text-indigo-600" title="How it works">
+        <InfoCard icon={<Zap className="size-4" />} tone="bg-slate-100 text-slate-600" title="How it works">
           Every new row triggers a WhatsApp message automatically — no manual sending. Each row uses one message credit. Edits to the sheet are picked up live, about once a minute.
         </InfoCard>
         <InfoCard icon={<AlertTriangle className="size-4" />} tone="bg-amber-50 text-amber-600" title="Before you begin">
@@ -263,21 +263,21 @@ function StartStep({ onNext, bodyRef }: { onNext: () => void; bodyRef: React.Ref
             </li>
           </ul>
         </InfoCard>
-        <InfoCard icon={<Database className="size-4" />} tone="bg-sky-50 text-sky-600" title="Prepare Your Sheet">
+        <InfoCard icon={<Database className="size-4" />} tone="bg-sky-50 text-sky-600" title="Prepare your sheet">
           Make sure your sheet has a phone number column with country codes (e.g. 919876543210).
           <p className="mt-1.5">
             Name it <b>Phone</b>, <b>Mobile</b>, or <b>WhatsApp</b> — it will be auto-detected.
           </p>
         </InfoCard>
-        <InfoCard icon={<Sparkles className="size-4" />} tone="bg-fuchsia-50 text-fuchsia-600" title="Format Your Sheet">
+        <InfoCard icon={<Sparkles className="size-4" />} tone="bg-slate-100 text-slate-600" title="Format your sheet">
           Row 1 must be column headers (e.g. Name, Phone) — these are mapped to your message template variables.
         </InfoCard>
       </div>
-      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-        <p className="mb-2 text-xs font-bold tracking-wide text-emerald-800">QUICK CHECKLIST</p>
+      <div className="mt-4 rounded-2xl border border-emerald-200 bg-brand-50/70 p-4">
+        <p className="mb-2 text-xs font-semibold text-emerald-800">QUICK CHECKLIST</p>
         {['Phone numbers include country code (e.g. 91XXXXXXXXXX)', 'No merged cells in the sheet', 'Headers in row 1, data starts from row 2', 'Each phone number gets the message once per campaign'].map((t) => (
           <p key={t} className="flex items-center gap-2 py-0.5 text-sm text-emerald-800">
-            <CheckCircle2 className="size-4 text-emerald-500" /> {t}
+            <CheckCircle2 className="size-4 text-brand-500" /> {t}
           </p>
         ))}
       </div>
@@ -455,9 +455,9 @@ function AccessOption({ checked, onSelect, icon, title, badge, disabled, childre
       tabIndex={0}
       onClick={() => !disabled && onSelect()}
       onKeyDown={(e) => e.key === ' ' && !disabled && onSelect()}
-      className={cn('flex cursor-pointer gap-3 rounded-2xl border-2 p-4 transition', checked ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-200 hover:border-slate-300', disabled && 'cursor-not-allowed opacity-60')}
+      className={cn('flex cursor-pointer gap-3 rounded-2xl border-2 p-4 transition', checked ? 'border-brand-500 bg-brand-50/30' : 'border-slate-200 hover:border-slate-300', disabled && 'cursor-not-allowed opacity-60')}
     >
-      <span className={cn('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2', checked ? 'border-emerald-500' : 'border-slate-300')}>{checked && <span className="size-2.5 rounded-full bg-emerald-500" />}</span>
+      <span className={cn('mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2', checked ? 'border-brand-500' : 'border-slate-300')}>{checked && <span className="size-2.5 rounded-full bg-brand-500" />}</span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 font-semibold text-ink">
           <span className="text-slate-500">{icon}</span> {title}
@@ -527,7 +527,7 @@ function SelectStep({ base, campaign, tabs: knownTabs, bodyRef, onBack, onDone }
                 type="button"
                 disabled={locked && t.gid !== campaign.tab?.gid}
                 onClick={() => setGid(t.gid)}
-                className={cn('inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-medium transition disabled:opacity-40', gid === t.gid ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-700 hover:border-slate-300')}
+                className={cn('inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-medium transition disabled:opacity-40', gid === t.gid ? 'border-brand-500 bg-brand-50 text-emerald-800' : 'border-slate-200 text-slate-700 hover:border-slate-300')}
               >
                 <Table2 className="size-4" /> {t.title}
               </button>
@@ -555,7 +555,7 @@ function SelectStep({ base, campaign, tabs: knownTabs, bodyRef, onBack, onDone }
                         </option>
                       ))}
                     </Select>
-                    {preview.data.detected.phoneColumn && phone === preview.data.detected.phoneColumn && <span className="flex items-center gap-1 text-xs text-emerald-700"><Sparkles className="size-3" /> Auto-detected</span>}
+                    {preview.data.detected.phoneColumn && phone === preview.data.detected.phoneColumn && <span className="flex items-center gap-1 text-xs text-brand-700"><Sparkles className="size-3" /> Auto-detected</span>}
                   </label>
                   <label className="space-y-1.5 text-sm">
                     <span className="font-medium text-slate-700">Name column (optional)</span>
@@ -580,7 +580,7 @@ function SelectStep({ base, campaign, tabs: knownTabs, bodyRef, onBack, onDone }
                       <thead className="text-left text-xs text-slate-500">
                         <tr>
                           {preview.data.headers.map((h) => (
-                            <th key={h} className={cn('px-3 py-2 font-medium whitespace-nowrap', h === phone && 'bg-emerald-50 text-emerald-700')}>
+                            <th key={h} className={cn('px-3 py-2 font-medium whitespace-nowrap', h === phone && 'bg-brand-50 text-brand-700')}>
                               {h}
                             </th>
                           ))}
@@ -590,7 +590,7 @@ function SelectStep({ base, campaign, tabs: knownTabs, bodyRef, onBack, onDone }
                         {preview.data.rows.map((r, i) => (
                           <tr key={i}>
                             {preview.data.headers.map((h) => (
-                              <td key={h} className={cn('max-w-48 truncate px-3 py-2 text-slate-700', h === phone && 'bg-emerald-50/50 font-mono text-xs')}>
+                              <td key={h} className={cn('max-w-48 truncate px-3 py-2 text-slate-700', h === phone && 'bg-brand-50/50 font-mono text-xs')}>
                                 {r[h] || <span className="text-slate-300">—</span>}
                               </td>
                             ))}
@@ -661,7 +661,7 @@ function MapStep({ base, campaign, bodyRef, onBack, onDone }: { base: string; ca
   return (
     <StepFrame
       bodyRef={bodyRef}
-      title="Map Your Template"
+      title="Map your template"
       subtitle="Pick a template, then configure each component."
       footer={
         <>
@@ -724,7 +724,7 @@ function MapStep({ base, campaign, bodyRef, onBack, onDone }: { base: string; ca
 function VarGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-slate-200">
-      <p className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">{title}</p>
+      <p className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">{title}</p>
       <div className="space-y-3 p-4">{children}</div>
     </div>
   );
@@ -773,7 +773,7 @@ function TemplatePicker({ templates, loading, value, onChange }: { templates?: M
   return (
     <div ref={ref} className="relative">
       <p className="mb-1.5 text-sm font-semibold text-ink">
-        Select Template <span className="font-normal text-slate-500">({templates?.length ?? 0} available)</span>
+        Select template <span className="font-normal text-slate-500">({templates?.length ?? 0} available)</span>
       </p>
       <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-left text-sm hover:border-slate-400">
         {value ? (
@@ -800,7 +800,7 @@ function TemplatePicker({ templates, loading, value, onChange }: { templates?: M
                     onChange(t);
                     setOpen(false);
                   }}
-                  className={cn('flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-slate-50', value?.id === t.id && 'bg-emerald-50')}
+                  className={cn('flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-slate-50', value?.id === t.id && 'bg-brand-50')}
                 >
                   <span>
                     <span className="text-slate-800">{pretty(t.name)}</span> <span className="text-xs text-slate-400">{t.language}</span>
@@ -903,8 +903,8 @@ function SettingsStep({
               ['all', 'Send to existing rows too', 'Everyone already in the sheet gets the message as soon as you activate.'],
             ] as const
           ).map(([v, title, hint]) => (
-            <label key={v} className={cn('flex cursor-pointer gap-3 rounded-xl border-2 p-3', startFrom === v ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-200')}>
-              <input type="radio" className="mt-1 accent-emerald-600" checked={startFrom === v} onChange={() => setStartFrom(v)} />
+            <label key={v} className={cn('flex cursor-pointer gap-3 rounded-xl border-2 p-3', startFrom === v ? 'border-brand-500 bg-brand-50/30' : 'border-slate-200')}>
+              <input type="radio" className="mt-1 accent-brand-600" checked={startFrom === v} onChange={() => setStartFrom(v)} />
               <span>
                 <span className="block text-sm font-medium text-ink">{title}</span>
                 <span className="block text-xs text-slate-500">{hint}</span>

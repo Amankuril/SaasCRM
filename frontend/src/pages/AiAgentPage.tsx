@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, BookOpen, FlaskConical, Globe, MessageSquareText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError } from '../components/ui';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, fieldError, LoadError } from '../components/ui';
 import { ApiError, api, type AgentDecision, type AiSettings, type KnowledgeSource } from '../lib/api';
 import { formatDate } from '../lib/options';
 import { useWorkspace } from '../layouts/workspaceContext';
 
 const textarea =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-100';
+  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm  focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-100';
 
 type Tab = 'settings' | 'knowledge' | 'test';
 
@@ -32,7 +32,7 @@ export function AiAgentPage() {
   return (
     <>
       <PageHeader
-        title="AI Agent"
+        title="AI agent"
         description="Answers customer questions from your knowledge base and hands off to the team when it isn't sure."
         actions={settings.enabled ? <Badge tone="green">{settings.autoReply ? 'On · auto-replying' : 'On · drafts & flows only'}</Badge> : <Badge>Off</Badge>}
       />
@@ -306,10 +306,8 @@ function KnowledgeTab() {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.sources.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.sources.length === 0 ? (
           <EmptyState icon={<BookOpen className="size-5" />} title="No knowledge yet">
             Add FAQs, policies or your website. The AI only answers from what's here and your business description.
           </EmptyState>
@@ -369,7 +367,7 @@ function TestTab() {
               <p className="max-w-[80%] rounded-xl rounded-tr-sm bg-white px-3 py-2 text-sm shadow-sm">{q}</p>
             </div>
             <div className="flex justify-start">
-              <div className={cn('max-w-[80%] rounded-xl rounded-tl-sm px-3 py-2 text-sm shadow-sm', d.outcome === 'answered' ? 'bg-emerald-100' : 'border border-amber-200 bg-amber-50')}>
+              <div className={cn('max-w-[80%] rounded-xl rounded-tl-sm px-3 py-2 text-sm shadow-sm', d.outcome === 'answered' ? 'bg-brand-100' : 'border border-amber-200 bg-amber-50')}>
                 {d.outcome === 'answered' ? <p className="whitespace-pre-wrap">{d.answer}</p> : <p className="font-medium text-amber-800">Would hand off to a teammate</p>}
                 <p className="mt-1 text-[11px] text-slate-500">{d.reason}</p>
                 {d.sources.length > 0 && <p className="mt-0.5 text-[11px] text-slate-500">Sources: {d.sources.map((s) => s.title).join(', ')}</p>}
@@ -402,7 +400,7 @@ function TestTab() {
 function Toggle({ label, description, checked, disabled, onChange }: { label: string; description: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className={cn('flex items-start gap-3', disabled && 'opacity-50')}>
-      <input type="checkbox" className="mt-1 size-4 accent-emerald-600" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-1 size-4 accent-brand-600" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>
         <span className="block text-sm font-medium text-slate-800">{label}</span>
         <span className="block text-xs text-slate-500">{description}</span>

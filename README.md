@@ -90,6 +90,18 @@ scripts/    dev.mjs: starts both apps together
 - Analytics page (7/30/90 days, workspace timezone): sends, delivery/read/failure rates, daily chart, inbox first-response and resolution times, agent workload, broadcasts, flow runs with drop-off steps, AI resolution rate
 - Super Admin: plan editor, per-tenant plan/status overrides (audited), MRR estimate, operations view (queues, failures, backlogs, trials ending, overdue payments)
 
+**Date reminders (Automation → Date reminders)**
+
+- 11 event types (birthdays, anniversaries, payments, EMI/SIP, appointments, offers, document expiry, contracts, healthcare, employees, custom), each with its own fields, repeat options, timing and message (`backend/src/modules/reminders/categories.ts`)
+- CSV/Excel import with column matching and a dry-run check; records can be paused, resumed, marked paid/renewed, edited and deleted
+- A `reminders.tick` job (every 30s) logs each due reminder once (`event + person + rule` is unique, so nothing is ever sent twice) and sends it as an approved template; late, opted-out and paused cases are skipped with a reason; fixable problems (template in review, WhatsApp disconnected, plan limit) are retried
+- Optional one-time unlock: price, discount, wording and scope are set in Super Admin → Platform settings; payments use Razorpay Orders. Subscribe the Razorpay webhook to `order.paid` as well
+
+**Template status sync**
+
+- Statuses come only from Meta: webhooks (`message_template_status_update`, `template_category_update`, `message_template_components_update`), a background check (every 2 min while something is in review, hourly otherwise) and the Sync button
+- Failures are stored and shown on the Templates page; "Check setup" names the exact missing piece (server secrets, account subscription or webhook field). Needs a token with `whatsapp_business_management`
+
 Not yet: email verification, password reset, a real email provider, media messages, routing rules/SLA alerts, GST tax invoices (PDF), multi-screen forms / Flow endpoints, native Google Sheets/Shopify/Zoho adapters (use webhooks + API via Zapier/Make for now), and Phase 9 (catalog, payments, OTP, Click-to-WhatsApp ads, Instagram).
 
 ## Getting started
