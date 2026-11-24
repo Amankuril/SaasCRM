@@ -148,6 +148,10 @@ export class SandboxProvider implements WhatsAppProvider {
 
   async subscribeApp() {}
 
+  async getWebhookSetup() {
+    return { accountSubscribed: true, fields: ['messages', 'message_template_status_update'], callbackUrl: null };
+  }
+
   async sendMessage(creds: ProviderCredentials, message: OutboundMessage) {
     const providerMessageId = `wamid.sandbox.${randomBytes(12).toString('hex')}`;
     const at = (offsetMs: number) => new Date(Date.now() + offsetMs);
@@ -196,7 +200,7 @@ export class SandboxProvider implements WhatsAppProvider {
     setTimeout(() => {
       const t = this.templates(wabaId).find((x) => x.providerTemplateId === providerTemplateId);
       if (t) t.status = 'APPROVED';
-      sandboxEvents.emit('events', [{ kind: 'template_status', wabaId, providerTemplateId, status: 'APPROVED', reason: null }]);
+      sandboxEvents.emit('events', [{ kind: 'template_status', wabaId, providerTemplateId, name: t?.name ?? null, language: t?.language ?? null, status: 'APPROVED', reason: null }]);
     }, 3_000).unref();
   }
 

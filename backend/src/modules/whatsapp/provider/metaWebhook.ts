@@ -23,6 +23,12 @@ interface MetaChange {
     statuses?: MetaStatus[];
     event?: string;
     message_template_id?: number | string;
+    message_template_name?: string;
+    message_template_language?: string;
+    new_category?: string;
+    rejection_info?: { reason?: string; recommendation?: string };
+    other_info?: { title?: string; description?: string };
+    disable_info?: { disable_date?: string };
     reason?: string;
   };
 }
@@ -77,18 +83,29 @@ export function parseMetaWebhook(payload: unknown): NormalizedEvent[] {
         }
       }
 
-      if (change.field === 'message_template_status_update' && value.message_template_id && value.event) {
-        events.push({
-          kind: 'template_status',
-          wabaId: entry.id,
-          providerTemplateId: String(value.message_template_id),
-          status: value.event,
-          reason: value.reason && value.reason !== 'NONE' ? value.reason : null,
-        });
+      const templateRef = {
+        wabaId: entry.id,
+        providerTemplateId: value.message_template_id != null ? String(value.message_template_id) : '',
+        name: value.message_template_name ?? null,
+        language: value.message_template_language ?? null,
+      };
+      if (change.field === 'message_template_status_update' && value.event && (templateRef.providerTemplateId || templateRef.name)) {
+        events.push({ kind: 'template_status', ...templateRef, status: value.event, reason: templateReason(value) });
       }
+      if (change.field === 'template_category_update' && value.new_category && (templateRef.providerTemplateId || templateRef.name)) {
+        events.push({ kind: 'template_category', ...templateRef, category: value.new_category });
+      }
+      if (change.field === 'message_template_components_update') events.push({ kind: 'template_changed', wabaId: entry.id });
     }
   }
   return events;
+}
+
+/** Meta puts the explanation in different places depending on the event. */
+function templateReason(value: MetaChange['value']): string | null {
+  const code = value.reason && value.reason !== 'NONE' ? value.reason : null;
+  const detail = value.rejection_info?.reason ?? value.other_info?.description ?? null;
+  return [code, detail].filter(Boolean).join(': ') || null;
 }
 
 function fromUnix(ts: string): Date {

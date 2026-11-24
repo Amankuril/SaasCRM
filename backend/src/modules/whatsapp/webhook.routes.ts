@@ -35,7 +35,9 @@ webhookRouter.post('/whatsapp', express.raw({ type: '*/*', limit: '2mb' }), asyn
 
   let payload: unknown;
   try {
-    payload = JSON.parse(raw.toString('utf8'));
+    // Template ids can be longer than JavaScript numbers hold exactly (2^53): keep them as
+    // text, or a rounded id would never match the template it belongs to.
+    payload = JSON.parse(raw.toString('utf8').replace(/("message_template_id"\s*:\s*)(\d+)/g, '$1"$2"'));
   } catch {
     throw new AppError(400, 'INVALID_JSON', 'Webhook body is not valid JSON.');
   }

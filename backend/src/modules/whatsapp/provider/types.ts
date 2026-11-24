@@ -188,6 +188,14 @@ export interface TemplateDraft {
   components: TemplateComponent[];
 }
 
+export interface WebhookSetup {
+  /** Our app is subscribed to this business account. */
+  accountSubscribed: boolean | null;
+  /** Webhook fields the app receives for WhatsApp accounts. */
+  fields: string[] | null;
+  callbackUrl: string | null;
+}
+
 export interface WhatsAppProvider {
   readonly name: string;
   getPhoneNumber(creds: ProviderCredentials): Promise<PhoneNumberInfo>;
@@ -195,6 +203,8 @@ export interface WhatsAppProvider {
   getAccountHealth(creds: ProviderCredentials): Promise<AccountHealth>;
   /** Subscribes our app to the business account so its webhooks reach us. */
   subscribeApp(creds: ProviderCredentials): Promise<void>;
+  /** Whether template webhooks can reach us; null parts could not be checked. */
+  getWebhookSetup?(creds: ProviderCredentials): Promise<WebhookSetup>;
   sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }>;
   listTemplates(creds: ProviderCredentials): Promise<ProviderTemplate[]>;
   createTemplate(creds: ProviderCredentials, draft: TemplateDraft): Promise<{ providerTemplateId: string; status: string; category: string }>;
@@ -274,8 +284,25 @@ export interface TemplateStatusEvent {
   kind: 'template_status';
   wabaId: string;
   providerTemplateId: string;
+  name: string | null;
+  language: string | null;
   status: string;
   reason: string | null;
 }
 
-export type NormalizedEvent = InboundMessageEvent | StatusEvent | TemplateStatusEvent;
+export interface TemplateCategoryEvent {
+  kind: 'template_category';
+  wabaId: string;
+  providerTemplateId: string;
+  name: string | null;
+  language: string | null;
+  category: string;
+}
+
+/** Something about the account's templates changed; details must be read from the API. */
+export interface TemplateChangedEvent {
+  kind: 'template_changed';
+  wabaId: string;
+}
+
+export type NormalizedEvent = InboundMessageEvent | StatusEvent | TemplateStatusEvent | TemplateCategoryEvent | TemplateChangedEvent;

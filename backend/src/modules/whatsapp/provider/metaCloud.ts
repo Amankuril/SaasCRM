@@ -94,6 +94,27 @@ export class MetaCloudProvider implements WhatsAppProvider {
     await this.graph(creds, 'POST', `/${creds.wabaId}/subscribed_apps`);
   }
 
+  async getWebhookSetup(creds: ProviderCredentials) {
+    const account = await this.graph<{ data?: { whatsapp_business_api_data?: { id?: string } }[] }>(creds, 'GET', `/${creds.wabaId}/subscribed_apps`)
+      .then((r) => {
+        const ids = (r.data ?? []).map((a) => a.whatsapp_business_api_data?.id);
+        return env.META_APP_ID ? ids.includes(env.META_APP_ID) : ids.length > 0;
+      })
+      .catch(() => null);
+    let fields: string[] | null = null;
+    let callbackUrl: string | null = null;
+    if (env.META_APP_ID && env.META_APP_SECRET) {
+      const app = { ...creds, accessToken: `${env.META_APP_ID}|${env.META_APP_SECRET}` };
+      const subs = await this.graph<{ data?: { object: string; callback_url?: string; active?: boolean; fields?: { name: string }[] }[] }>(app, 'GET', `/${env.META_APP_ID}/subscriptions`).catch(() => null);
+      if (subs) {
+        const waba = (subs.data ?? []).find((s) => s.object === 'whatsapp_business_account');
+        fields = waba?.active === false ? [] : (waba?.fields ?? []).map((f) => f.name);
+        callbackUrl = waba?.callback_url ?? null;
+      }
+    }
+    return { accountSubscribed: account, fields, callbackUrl };
+  }
+
   async sendMessage(creds: ProviderCredentials, message: OutboundMessage): Promise<{ providerMessageId: string }> {
     const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: message.to.replace(/^\+/, '') };
     const interactiveParts = (m: { body: string; header?: string; footer?: string }) => ({
