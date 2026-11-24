@@ -26,7 +26,7 @@ export interface PaletteItem {
 /** The builder's left sidebar, grouped like WhatsApp's own Flow components. */
 export const PALETTE_GROUPS: { title: string; items: PaletteItem[] }[] = [
   {
-    title: 'Text Elements',
+    title: 'Text elements',
     items: [
       { type: 'heading', label: 'Heading', icon: Heading1 },
       { type: 'subheading', label: 'Sub-heading', icon: Heading2 },
@@ -35,24 +35,24 @@ export const PALETTE_GROUPS: { title: string; items: PaletteItem[] }[] = [
     ],
   },
   {
-    title: 'Input Elements',
+    title: 'Input elements',
     items: [
       { type: 'text_input', label: 'Input', icon: TextCursorInput },
       { type: 'text_area', label: 'Textarea', icon: NotepadText },
     ],
   },
   {
-    title: 'Selection Elements',
+    title: 'Selection elements',
     items: [
-      { type: 'single_choice', label: 'Single Choice', icon: CircleDot },
-      { type: 'multi_choice', label: 'Multi Choice', icon: ListChecks },
+      { type: 'single_choice', label: 'Single choice', icon: CircleDot },
+      { type: 'multi_choice', label: 'Multi choice', icon: ListChecks },
       { type: 'dropdown', label: 'Dropdown', icon: SquareChevronDown },
     ],
   },
-  { title: 'Date Elements', items: [{ type: 'date', label: 'Date Picker', icon: CalendarDays }] },
-  { title: 'Media Elements', items: [{ type: 'image', label: 'Image', icon: Image }] },
+  { title: 'Date elements', items: [{ type: 'date', label: 'Date picker', icon: CalendarDays }] },
+  { title: 'Media elements', items: [{ type: 'image', label: 'Image', icon: Image }] },
   {
-    title: 'Other Elements',
+    title: 'Other elements',
     items: [
       { type: 'opt_in', label: 'Opt-in', icon: BadgeCheck },
       { type: 'link', label: 'Link', icon: Link2 },
@@ -145,7 +145,7 @@ export function ElementView({ c, answers, onChange }: { c: FormComponent; answer
   const helper = c.helperText && <span className="mt-1 block text-[11px] text-slate-400">{c.helperText}</span>;
   switch (c.type) {
     case 'heading':
-      return <p className="text-lg leading-snug font-bold break-words text-slate-900">{c.text || 'Heading'}</p>;
+      return <p className="text-lg leading-snug font-semibold break-words text-slate-900">{c.text || 'Heading'}</p>;
     case 'subheading':
       return <p className="text-base font-semibold break-words text-slate-800">{c.text || 'Sub-heading'}</p>;
     case 'caption':
@@ -192,7 +192,7 @@ export function ElementView({ c, answers, onChange }: { c: FormComponent; answer
                 <input
                   type={multi ? 'checkbox' : 'radio'}
                   name={`${c.id}-choice`}
-                  className="accent-emerald-600"
+                  className="accent-brand-600"
                   disabled={!live}
                   checked={picked.includes(o.id)}
                   onChange={(e) => set(multi ? (e.target.checked ? [...picked, o.id] : picked.filter((x) => x !== o.id)) : o.id)}
@@ -228,7 +228,7 @@ export function ElementView({ c, answers, onChange }: { c: FormComponent; answer
     case 'opt_in':
       return (
         <label className="flex items-start gap-2 text-sm text-slate-700">
-          <input type="checkbox" className="mt-0.5 accent-emerald-600" disabled={!live} checked={value === true} onChange={(e) => set(e.target.checked)} />
+          <input type="checkbox" className="mt-0.5 accent-brand-600" disabled={!live} checked={value === true} onChange={(e) => set(e.target.checked)} />
           <span>
             {c.label || 'Opt-in'}
             {!c.required && <span className="text-slate-400"> (optional)</span>}

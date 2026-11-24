@@ -92,7 +92,7 @@ function Card({ step, title, hint, children }: { step: number; title: string; hi
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
-        <span className="flex size-7 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold text-white">{step}</span>
+        <span className="flex size-7 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">{step}</span>
         <div>
           <h2 className="font-semibold text-ink">{title}</h2>
           <p className="text-xs text-slate-500">{hint}</p>
@@ -112,7 +112,7 @@ function Label({ children, htmlFor, required }: { children: ReactNode; htmlFor?:
   );
 }
 
-const textareaClass = 'block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none';
+const textareaClass = 'block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm  focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none';
 
 function Editor({ rule }: { rule?: AutoReply }) {
   const { workspace } = useWorkspace();
@@ -163,7 +163,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
   const isFieldError = err instanceof ApiError && err.code === 'VALIDATION_ERROR';
   const action = { type: draft.actionType, config };
   const names = useActionNames(action);
-  const sample = draft.match === 'event' ? (draft.event === 'first_message' ? 'Hi! 👋' : 'Hello') : (draft.keywords[0] ?? 'your keyword');
+  const sample = draft.match === 'event' ? (draft.event === 'first_message' ? 'Hi' : 'Hello') : (draft.keywords[0] ?? 'your keyword');
 
   return (
     <div className="-mx-4 -my-6 min-h-full bg-white sm:-mx-6 lg:-mx-8">
@@ -171,7 +171,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
         <Link to={listPath} className="inline-flex items-center gap-1 text-slate-500 hover:text-ink">
           <ChevronLeft className="size-4" /> Back
         </Link>
-        <h1 className="font-semibold text-ink">{rule ? 'Edit Auto Reply' : 'Create Auto Reply'}</h1>
+        <h1 className="font-semibold text-ink">{rule ? 'Edit auto reply' : 'Create auto reply'}</h1>
       </div>
 
       <div className="space-y-4 p-4 sm:p-6">
@@ -179,7 +179,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
           <div className="space-y-5">
-            <Card step={1} title="Trigger Condition" hint="When should this auto reply fire?">
+            <Card step={1} title="Trigger condition" hint="When should this auto reply fire?">
               <div>
                 <Label>Match type</Label>
                 <div className="flex flex-wrap gap-2">
@@ -194,7 +194,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
                       key={value}
                       type="button"
                       onClick={() => set({ match: value })}
-                      className={cn('rounded-lg border px-3.5 py-1.5 text-sm font-medium', draft.match === value ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50')}
+                      className={cn('rounded-lg border px-3.5 py-1.5 text-sm font-medium', draft.match === value ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50')}
                     >
                       {label}
                     </button>
@@ -211,7 +211,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
 
               <div>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={showSources} onChange={(e) => setShowSources(e.target.checked)} /> Add Source
+                  <input type="checkbox" checked={showSources} onChange={(e) => setShowSources(e.target.checked)} /> Add source
                   <span title="Only fire for messages from certain places, e.g. people who clicked your Click-to-WhatsApp ad.">
                     <Info className="size-4 text-slate-400" />
                   </span>
@@ -279,7 +279,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
                       />
                     ) : (
                       <button type="button" onClick={() => setAddingKeyword(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-50">
-                        <Plus className="size-3.5" /> Add Keyword
+                        <Plus className="size-3.5" /> Add keyword
                       </button>
                     )}
                   </div>
@@ -312,12 +312,12 @@ function Editor({ rule }: { rule?: AutoReply }) {
             </Card>
 
             <div className="hidden lg:block">
-              <p className="mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase">Preview</p>
+              <p className="mb-2 text-xs font-semibold text-slate-500">Preview</p>
               <PhonePreview customerText={sample} trigger={draft.match === 'event' ? EVENT_LABEL[draft.event] : sample} action={action} names={names} />
             </div>
           </div>
 
-          <Card step={2} title="Add Action" hint="What should happen when triggered?">
+          <Card step={2} title="Add action" hint="What should happen when triggered?">
             <div>
               <Label>Response type</Label>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
@@ -335,7 +335,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
                   >
                     <a.icon className="size-5" />
                     {a.label}
-                    {a.soon && <span className="absolute top-1 right-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">Soon</span>}
+                    {a.soon && <span className="absolute top-1 right-1 rounded bg-slate-100 px-1 text-[11px] text-slate-500">Soon</span>}
                   </button>
                 ))}
               </div>
@@ -347,7 +347,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
         </div>
 
         <div className="lg:hidden">
-          <p className="mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase">Preview</p>
+          <p className="mb-2 text-xs font-semibold text-slate-500">Preview</p>
           <PhonePreview customerText={sample} trigger={sample} action={action} names={names} />
         </div>
       </div>
@@ -356,7 +356,7 @@ function Editor({ rule }: { rule?: AutoReply }) {
         <Button variant="secondary" onClick={() => navigate(listPath)}>
           Cancel
         </Button>
-        <Button onClick={() => save.mutate()} loading={save.isPending} className="bg-slate-700 hover:bg-slate-800">
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
           {rule ? 'Save changes' : 'Create auto reply'}
         </Button>
       </div>
@@ -610,7 +610,7 @@ function ChatbotFields({ config, setConfig }: { config: Config; setConfig: (p: C
       <p className="mt-1 text-xs text-slate-500">
         The flow starts for the customer as if they triggered it. Build flows in{' '}
         <Link to={`/w/${workspace.id}/flows`} className="underline">
-          Flow Builder
+          Flow builder
         </Link>
         .
       </p>

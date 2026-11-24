@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
 import { Check, ChevronLeft, ChevronRight, Code2, Copy, Download, Send, Table2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
-import { Alert, Button, EmptyState, Field, Input, Spinner, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Field, Input, Spinner, errorMessage, LoadError } from '../../components/ui';
 import { api, type FormCategory, type WaForm } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -76,8 +76,8 @@ export function FlowJsonDialog({ form, onClose }: { form: Pick<WaForm, 'id' | 'n
       {query.isPending ? (
         <Spinner />
       ) : query.error ? (
-        <Alert>{errorMessage(query.error)}</Alert>
-      ) : (
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
+        ) : (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
             {query.data.published != null && (
@@ -95,7 +95,7 @@ export function FlowJsonDialog({ form, onClose }: { form: Pick<WaForm, 'id' | 'n
               </span>
             )}
           </div>
-          <pre className="max-h-[55vh] overflow-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-emerald-100">{text}</pre>
+          <pre className="max-h-[55vh] overflow-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-brand-100">{text}</pre>
         </>
       )}
     </Dialog>
@@ -157,8 +157,8 @@ export function SubmissionsDialog({ form, onClose }: { form: Pick<WaForm, 'id' |
       {query.isPending ? (
         <Spinner />
       ) : query.error ? (
-        <Alert>{errorMessage(query.error)}</Alert>
-      ) : query.data.submissions.length === 0 ? (
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
+        ) : query.data.submissions.length === 0 ? (
         <EmptyState title="No submissions yet">Published forms collect answers here as customers submit them in WhatsApp.</EmptyState>
       ) : (
         <>

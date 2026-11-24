@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, FlaskConical, MessageSquare, Network, Pencil, Plus, Search, SlidersHorizontal, Trash2, X, Zap } from 'lucide-react';
-import { useDeferredValue, useState, type ReactNode } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Dialog } from '../../components/Dialog';
-import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
+import { SectionNav } from '../../components/SectionNav';
+import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type AutoReply, type FlowSummary, type MessageSource, type MessageTemplate, type TryResult, type WaForm } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -28,30 +29,18 @@ export function useActionNames(action: AutoReply['action'] | undefined) {
   };
 }
 
-/** Top tabs of the auto-reply area; only Keyword Triggers is live for now. */
+/** The auto-reply area; only keyword triggers are live for now. */
 function AreaTabs() {
-  const tab = (icon: ReactNode, title: string, hint: string, active: boolean, tint: string) => (
-    <div
-      className={cn('flex items-center gap-3 rounded-xl border px-4 py-3', active ? 'border-slate-300 bg-slate-100' : 'cursor-not-allowed border-slate-200 bg-white opacity-70')}
-      title={active ? undefined : 'Coming soon'}
-      aria-disabled={!active}
-    >
-      <span className={cn('rounded-lg p-2', tint)}>{icon}</span>
-      <span>
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
-          {title}
-          {!active && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Soon</span>}
-        </span>
-        <span className="block text-xs text-slate-500">{hint}</span>
-      </span>
-    </div>
-  );
   return (
-    <div className="mb-6 flex flex-wrap gap-3">
-      {tab(<Zap className="size-4" />, 'Keyword Triggers', 'Reply when a keyword matches', true, 'bg-amber-50 text-amber-600')}
-      {tab(<SlidersHorizontal className="size-4" />, 'Default Actions', 'Working hours & event replies', false, 'bg-sky-50 text-sky-600')}
-      {tab(<Network className="size-4" />, 'Chat Distribution', 'Route chats to the right agent', false, 'bg-emerald-50 text-emerald-600')}
-    </div>
+    <SectionNav
+      label="Automatic replies"
+      className="-mx-4 -mt-6 mb-6 sm:-mx-6 lg:-mx-8 lg:px-8"
+      items={[
+        { label: 'Keyword triggers', icon: Zap, active: true, onSelect: () => undefined },
+        { label: 'Default actions', icon: SlidersHorizontal },
+        { label: 'Chat distribution', icon: Network },
+      ]}
+    />
   );
 }
 
@@ -104,12 +93,9 @@ export function AutoRepliesPage() {
       <AreaTabs />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Auto Reply</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Total: <strong>{list.data?.total ?? 0}</strong> auto replies
-          </p>
-          <p className="mt-0.5 max-w-xl text-sm text-slate-500">
-            When more than one trigger matches, an exact match (Equals) wins over Contains, and Contains wins over event triggers (first / any message).
+          <h1 className="text-2xl leading-8 font-medium text-ink">Keyword triggers</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
+            {list.data?.total ?? 0} set up. When more than one trigger matches, an exact match (Equals) wins over Contains, and Contains wins over event triggers (first / any message).
           </p>
         </div>
         <div className="flex gap-2">
@@ -117,8 +103,8 @@ export function AutoRepliesPage() {
             <FlaskConical className="size-4" /> Try a message
           </Button>
           {canManage && (
-            <Button onClick={() => navigate('new')} className="bg-slate-700 hover:bg-slate-800">
-              <Plus className="size-4" /> Create Keyword Trigger
+            <Button onClick={() => navigate('new')}>
+              <Plus className="size-4" /> Create keyword trigger
             </Button>
           )}
         </div>
@@ -145,7 +131,7 @@ export function AutoRepliesPage() {
         </div>
         <div className="relative min-w-60 flex-1">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" />
-          <Input aria-label="Search keywords" placeholder="Search keywords..." value={q} onChange={(e) => setQ(e.target.value)} className="rounded-full pl-9" />
+          <Input aria-label="Search keywords" placeholder="Search keywords" value={q} onChange={(e) => setQ(e.target.value)} className="rounded-full pl-9" />
         </div>
       </div>
 
@@ -171,10 +157,8 @@ export function AutoRepliesPage() {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : rows.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : rows.length === 0 ? (
           <EmptyState icon={<Zap className="size-5" />} title={status || q ? 'No auto replies match' : 'No keyword triggers yet'}>
             {status || q ? 'Try another filter or search.' : 'Create one to answer common questions instantly, like “price list” or “timings”.'}
           </EmptyState>
@@ -187,10 +171,10 @@ export function AutoRepliesPage() {
                     <input type="checkbox" aria-label="Select all" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))} />
                   </th>
                   <th className="px-3 py-3 font-medium">Condition</th>
-                  <th className="px-3 py-3 font-medium">Flow Name</th>
+                  <th className="px-3 py-3 font-medium">Flow name</th>
                   <th className="px-3 py-3 font-medium">Type</th>
                   <th className="px-3 py-3 font-medium">Created</th>
-                  <th className="px-3 py-3 font-medium">Last Updated</th>
+                  <th className="px-3 py-3 font-medium">Last updated</th>
                   <th className="px-3 py-3 font-medium">Status</th>
                   <th className="px-3 py-3 text-right font-medium">Actions</th>
                 </tr>
@@ -214,7 +198,7 @@ export function AutoRepliesPage() {
                     <td className="px-3 py-3">
                       <p className="flex items-center gap-1.5 text-slate-500">
                         {r.match === 'event' ? 'On event' : 'If message'}
-                        <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200">{MATCH_LABEL[r.match]}</span>
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">{MATCH_LABEL[r.match]}</span>
                       </p>
                       <p className="mt-0.5 max-w-xs truncate font-medium text-slate-800" title={triggerText(r)}>
                         {triggerText(r)}
@@ -292,7 +276,7 @@ export function Toggle({ checked, onChange, disabled, label }: { checked: boolea
       aria-label={label}
       disabled={disabled}
       onClick={onChange}
-      className={cn('relative h-6 w-11 rounded-full transition-colors disabled:opacity-60', checked ? 'bg-emerald-500' : 'bg-slate-300')}
+      className={cn('relative h-6 w-11 rounded-full transition-colors disabled:opacity-60', checked ? 'bg-brand-500' : 'bg-slate-300')}
     >
       <span className={cn('absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform', checked && 'translate-x-5')} />
     </button>
@@ -301,11 +285,11 @@ export function Toggle({ checked, onChange, disabled, label }: { checked: boolea
 
 function PreviewModal({ rule, onClose }: { rule: AutoReply; onClose: () => void }) {
   const names = useActionNames(rule.action);
-  const sampleMessage = rule.match === 'event' ? (rule.event === 'first_message' ? 'Hi! 👋' : 'Hello') : (rule.keywords[0] ?? '');
+  const sampleMessage = rule.match === 'event' ? (rule.event === 'first_message' ? 'Hi' : 'Hello') : (rule.keywords[0] ?? '');
   return (
     <Dialog
       icon={<MessageSquare className="size-4" />}
-      title="Auto Reply Preview"
+      title="Auto reply preview"
       subtitle={rule.match === 'event' ? `Event: ${EVENT_LABEL[rule.event ?? 'any_message']}` : `Keyword: ${rule.keywords.join(', ')}`}
       onClose={onClose}
     >
@@ -340,7 +324,7 @@ function TryModal({ onClose, onPreview }: { onClose: () => void; onPreview: (r: 
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={() => run.mutate()} loading={run.isPending} className="bg-slate-700 hover:bg-slate-800">
+          <Button onClick={() => run.mutate()} loading={run.isPending}>
             Test
           </Button>
         </>
@@ -366,7 +350,7 @@ function TryModal({ onClose, onPreview }: { onClose: () => void; onPreview: (r: 
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={kind === 'button' ? 'e.g. Book now' : 'e.g. price list'}
-            className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none"
+            className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none"
           />
         </div>
         <div>
@@ -394,7 +378,7 @@ function TryModal({ onClose, onPreview }: { onClose: () => void; onPreview: (r: 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" role="status">
             {r.outcome === 'auto_reply' && r.autoReply ? (
               <>
-                <p className="font-medium text-ink">✅ “{r.autoReply.name}” would answer</p>
+                <p className="font-medium text-ink">“{r.autoReply.name}” would answer</p>
                 <p className="mt-1 text-slate-600">
                   {r.matchedKeyword ? (
                     <>

@@ -1,6 +1,6 @@
 /** Small display helpers shared by the Contacts List views. */
 
-const AVATAR_TONES = ['bg-rose-50 text-rose-600', 'bg-violet-50 text-violet-600', 'bg-emerald-50 text-emerald-600', 'bg-sky-50 text-sky-600', 'bg-amber-50 text-amber-700', 'bg-indigo-50 text-indigo-600'];
+const AVATAR_TONES = ['bg-slate-200/70 text-slate-700'];
 export const toneFor = (id: string) => AVATAR_TONES[parseInt(id.slice(-4), 16) % AVATAR_TONES.length];
 export const initialsOf = (name: string) =>
   name

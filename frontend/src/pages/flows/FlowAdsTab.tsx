@@ -24,7 +24,7 @@ export function FlowAdsTab() {
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Ads</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Ads</h1>
           <p className="mt-1 text-sm text-slate-500">Leads from your Click-to-WhatsApp ads and the automations that answered them.</p>
         </div>
         <RangeSelect value={range} onChange={setRange} />

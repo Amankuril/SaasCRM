@@ -59,10 +59,10 @@ export function FlowDocsTab({ onOpenBuilder }: { onOpenBuilder: () => void }) {
       <div>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-ink">Documentation</h1>
+            <h1 className="text-2xl leading-8 font-medium text-ink">Documentation</h1>
             <p className="mt-1 text-sm text-slate-500">How to build, publish and measure automations.</p>
           </div>
-          <Button onClick={onOpenBuilder}>Open Flow Builder</Button>
+          <Button onClick={onOpenBuilder}>Open flow builder</Button>
         </div>
         <Card className="divide-y divide-slate-100">
           {GUIDES.map((g, i) => (
@@ -86,7 +86,7 @@ export function FlowDocsTab({ onOpenBuilder }: { onOpenBuilder: () => void }) {
         <h2 className="text-sm font-semibold text-ink">Step reference</h2>
         {PALETTE_GROUPS.map((group) => (
           <div key={group} className="mt-4">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">{group}</p>
+            <p className="mb-2 text-xs font-semibold text-slate-400">{group}</p>
             <ul className="space-y-2">
               {steps
                 .filter((t) => NODE_META[t].group === group && !NODE_META[t].hidden)

@@ -7,16 +7,15 @@ import { useWorkspace } from '../../layouts/workspaceContext';
 const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'overview', label: 'Overview', icon: Info },
   { id: 'contacts', label: 'Contacts', icon: Users },
-  { id: 'create-campaign', label: 'Create Campaign', icon: Megaphone },
-  { id: 'campaign-list', label: 'Campaign List', icon: ListChecks },
-  { id: 'retarget', label: 'Retarget Campaign', icon: Repeat },
+  { id: 'create-campaign', label: 'Create campaign', icon: Megaphone },
+  { id: 'campaign-list', label: 'Campaign list', icon: ListChecks },
+  { id: 'retarget', label: 'Retarget campaign', icon: Repeat },
 ];
 
-function Section({ id, n, title, intro, children }: { id: string; n: number; title: string; intro: string; children: ReactNode }) {
+function Section({ id, title, intro, children }: { id: string; title: string; intro: string; children: ReactNode }) {
   return (
     <section id={id} className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-      <p className="text-sm font-semibold text-indigo-600">{String(n).padStart(2, '0')}</p>
-      <h2 className="mt-1 text-2xl font-bold text-ink">{title}</h2>
+      <h2 className="text-xl font-medium text-ink">{title}</h2>
       <p className="mt-3 text-slate-600">{intro}</p>
       <div className="mt-6 space-y-6">{children}</div>
     </section>
@@ -24,9 +23,9 @@ function Section({ id, n, title, intro, children }: { id: string; n: number; tit
 }
 
 function Callout({ tone = 'amber', icon: Icon = Lightbulb, children }: { tone?: 'amber' | 'sky' | 'emerald'; icon?: LucideIcon; children: ReactNode }) {
-  const styles = { amber: 'border-amber-300 bg-amber-50 text-amber-950', sky: 'border-sky-200 bg-sky-50 text-sky-950', emerald: 'border-emerald-200 bg-emerald-50 text-emerald-950' }[tone];
+  const styles = { amber: 'border-amber-300 bg-amber-50 text-amber-950', sky: 'border-sky-200 bg-sky-50 text-sky-950', emerald: 'border-emerald-200 bg-brand-50 text-emerald-950' }[tone];
   return (
-    <div className={cn('flex gap-3 rounded-xl border-2 p-4 text-sm', styles)}>
+    <div className={cn('flex gap-3 rounded-xl border p-4 text-sm', styles)}>
       <Icon className="mt-0.5 size-5 shrink-0" />
       <div>{children}</div>
     </div>
@@ -38,7 +37,7 @@ function Steps({ items }: { items: { title: string; body: ReactNode }[] }) {
     <ol className="space-y-3">
       {items.map((s, i) => (
         <li key={s.title} className="flex gap-3">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white">{i + 1}</span>
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-medium text-slate-700">{i + 1}</span>
           <div className="pt-0.5 text-sm text-slate-700">
             <strong className="text-ink">{s.title}</strong> {s.body}
           </div>
@@ -52,7 +51,7 @@ function Card({ title, children, icon: Icon }: { title: string; children: ReactN
   return (
     <div className="rounded-xl border border-slate-200 p-4">
       <p className="flex items-center gap-2 font-semibold text-ink">
-        {Icon && <Icon className="size-4 text-indigo-600" />}
+        {Icon && <Icon className="size-4 text-slate-600" />}
         {title}
       </p>
       <div className="mt-1.5 text-sm text-slate-600">{children}</div>
@@ -105,7 +104,7 @@ export function BroadcastGuidePage() {
               setActive(s.id);
               document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
-            className={cn('flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium', active === s.id ? 'bg-indigo-500 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50')}
+            className={cn('flex items-center gap-3 h-9 rounded-lg px-3 text-sm font-medium', active === s.id ? 'bg-slate-100 text-ink' : 'text-slate-600 hover:bg-slate-50')}
           >
             <s.icon className="size-4" /> {s.label}
           </a>
@@ -113,12 +112,12 @@ export function BroadcastGuidePage() {
       </nav>
 
       <div className="space-y-6">
-        <header className="border-b-4 border-indigo-500 pb-6">
-          <h1 className="text-3xl font-bold text-ink sm:text-4xl">Broadcast User Guide</h1>
-          <p className="mt-2 text-lg text-slate-500">Master mass communication with WhatsApp Business</p>
+        <header className="pb-2">
+          <h1 className="text-2xl leading-8 font-medium text-ink">Broadcast user guide</h1>
+          <p className="mt-1 text-sm text-slate-500">From a contact list to a finished campaign report</p>
         </header>
 
-        <Section id="overview" n={1} title="Overview" intro="Broadcast sends an approved WhatsApp template to many contacts at once — ideal for offers, announcements and customer updates.">
+        <Section id="overview" title="Overview" intro="Broadcast sends an approved WhatsApp template to many contacts at once — ideal for offers, announcements and customer updates.">
           <Callout>
             <strong>Important:</strong> you need an approved WhatsApp template before creating a campaign. Create one under{' '}
             <Link to={`${base}/templates/new`} className="font-medium underline">
@@ -127,44 +126,44 @@ export function BroadcastGuidePage() {
             ; WhatsApp usually reviews it within minutes, sometimes up to 24–48 hours.
           </Callout>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Card title="Track Performance" icon={BarChart3}>
+            <Card title="Track performance" icon={BarChart3}>
               Delivery, read, reply and failure counts update live from WhatsApp.
             </Card>
-            <Card title="Target Precisely" icon={Target}>
+            <Card title="Target precisely" icon={Target}>
               Send to contact lists, tags or segments — or retarget by what happened last time.
             </Card>
             <Card title="Send or Schedule" icon={Clock}>
               Launch immediately or pick a date and time in your workspace's timezone.
             </Card>
           </div>
-          <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white p-5 ring-1 ring-indigo-100">
-            <p className="flex items-center gap-2 text-lg font-semibold text-ink">
-              <Rocket className="size-5 text-indigo-600" /> Quick Start: your first broadcast in 3 minutes
+          <div className="rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
+            <p className="text-base font-medium text-ink">
+              Your first broadcast in 3 minutes
             </p>
             <p className="mt-1 mb-4 text-sm text-slate-600">Goal: send a WhatsApp campaign to a list of contacts.</p>
             <Steps
               items={[
-                { title: 'Create Campaign', body: '→ click "Create Campaign" in the Broadcast menu → enter a campaign name.' },
-                { title: 'Select Audience', body: '→ pick one or more contact lists (create a list and upload a CSV first if you have none).' },
-                { title: 'Choose Template', body: '→ select an approved WhatsApp template.' },
-                { title: 'Fill Variables', body: '→ map {{1}}, {{2}}… to contact fields or fixed text (only if the template has variables).' },
-                { title: 'Send or Schedule', body: '→ choose Send Now or a date and time, then Review & Send → Publish.' },
+                { title: 'Create campaign', body: 'click "Create Campaign" in the Broadcast menu and enter a campaign name.' },
+                { title: 'Select audience', body: 'pick one or more contact lists (create a list and upload a CSV first if you have none).' },
+                { title: 'Choose template', body: 'select an approved WhatsApp template.' },
+                { title: 'Fill variables', body: 'map {{1}}, {{2}}… to contact fields or fixed text (only if the template has variables).' },
+                { title: 'Send or Schedule', body: 'choose Send Now or a date and time, then Review & Send, then Publish.' },
               ]}
             />
             <p className="mt-4 text-sm text-slate-700">
-              ✨ <strong>Done!</strong> Track it in{' '}
+              Track it in{' '}
               <Link to={`${base}/broadcast/campaigns`} className="font-medium underline">
-                Campaign List
+                Campaign list
               </Link>
               .
             </p>
           </div>
         </Section>
 
-        <Section id="contacts" n={2} title="Contact Management" intro="Organize your audience into lists. One person can be in several lists but is stored only once.">
+        <Section id="contacts" title="Contact management" intro="Organize your audience into lists. One person can be in several lists but is stored only once.">
           <div className="grid gap-3 sm:grid-cols-3">
             <Card title="1 · All Lists">Your contact lists with their size, creation date and the tags most of their members carry.</Card>
-            <Card title="2 · All Contacts">Everyone across your lists. Search by name or number, tick people and use Assign Lists.</Card>
+            <Card title="2 · All Contacts">Everyone across your lists. Search by name or number, tick people and use Assign lists.</Card>
             <Card title="3 · Unsubscribers">People who opted out (e.g. replied STOP). They are always skipped by campaigns.</Card>
           </div>
           <div>
@@ -172,25 +171,25 @@ export function BroadcastGuidePage() {
             <Bullets
               items={[
                 <>
-                  <strong>List Name</strong> — the name you gave the list
+                  <strong>List name</strong> — the name you gave the list
                 </>,
                 <>
                   <strong>Count</strong> — how many contacts are in it
                 </>,
                 <>
-                  <strong>Created On</strong> — when the list was created
+                  <strong>Created on</strong> — when the list was created
                 </>,
                 <>
                   <strong>Tags</strong> — the most common tags among its contacts
                 </>,
                 <>
-                  <strong>Actions</strong> — 👁 view the list (search, remove people, rename, delete) and ➕ add contacts
+                  <strong>Actions</strong> — view the list (search, remove people, rename, delete) and add contacts
                 </>,
               ]}
             />
           </div>
           <div>
-            <p className="mb-2 font-semibold text-ink">Add contacts to a list (➕ icon)</p>
+            <p className="mb-2 font-semibold text-ink">Add contacts to a list</p>
             <div className="grid gap-3 md:grid-cols-3">
               <Card title="Option 1 · One by One">
                 <Bullets items={['Select the country code', 'Enter the WhatsApp number', 'Enter the customer name', 'Click Save Contact']} />
@@ -208,13 +207,13 @@ export function BroadcastGuidePage() {
             separated by “;”. If your numbers have no country code, untick “Every number already includes its country code” and choose the country.
           </Callout>
           <p className="text-sm">
-            <Link to={`${base}/broadcast`} className="font-medium text-indigo-600 hover:underline">
+            <Link to={`${base}/broadcast`} className="font-medium text-slate-600 hover:underline">
               Open Contacts List →
             </Link>
           </p>
         </Section>
 
-        <Section id="create-campaign" n={3} title="Create Campaign" intro="Launch a broadcast with a guided, step-by-step form and a live preview.">
+        <Section id="create-campaign" title="Create campaign" intro="Launch a broadcast with a guided, step-by-step form and a live preview.">
           <div className="space-y-4">
             <Card title="Step 1 · Business Info">
               <Bullets items={['Profile name: your WhatsApp business name, filled in automatically', 'Campaign name: a descriptive name for tracking, e.g. “Diwali Sale 2026”']} />
@@ -259,7 +258,7 @@ export function BroadcastGuidePage() {
           </Callout>
         </Section>
 
-        <Section id="campaign-list" n={4} title="Campaign List" intro="Track all campaigns and their performance in real time.">
+        <Section id="campaign-list" title="Campaign list" intro="Track all campaigns and their performance in real time.">
           <div className="grid gap-3 sm:grid-cols-4">
             <Card title="Sent">Accepted by WhatsApp</Card>
             <Card title="Delivered">Reached the phone</Card>
@@ -294,7 +293,7 @@ export function BroadcastGuidePage() {
           </div>
         </Section>
 
-        <Section id="retarget" n={5} title="Retarget Campaign" intro="Follow up with people based on what happened to an earlier campaign. It's separate from Create Campaign.">
+        <Section id="retarget" title="Retarget campaign" intro="Follow up with people based on what happened to an earlier campaign. It's separate from Create Campaign.">
           <Callout tone="sky" icon={Info}>
             <strong>How it works:</strong> open Retarget Campaign, choose a previous campaign and who to target, then finish the same steps as Create Campaign. Statuses come from WhatsApp's delivery receipts.
           </Callout>
@@ -308,7 +307,7 @@ export function BroadcastGuidePage() {
             <strong>Best practice:</strong> wait 24–48 hours after the original campaign before retargeting, so people have time to read it.
           </Callout>
           <p className="text-sm">
-            <Link to={`${base}/broadcast/retarget`} className="font-medium text-indigo-600 hover:underline">
+            <Link to={`${base}/broadcast/retarget`} className="font-medium text-slate-600 hover:underline">
               Open Retarget Campaign →
             </Link>
           </p>

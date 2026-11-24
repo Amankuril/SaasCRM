@@ -64,8 +64,8 @@ export function NewListDialog({ onClose, onCreated }: { onClose: () => void; onC
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => create.mutate()} disabled={!name.trim()} loading={create.isPending} className="bg-slate-700 hover:bg-slate-800">
-            Create List
+          <Button onClick={() => create.mutate()} disabled={!name.trim()} loading={create.isPending}>
+            Create list
           </Button>
         </>
       }
@@ -95,11 +95,11 @@ export function AddContactDialog({ list, onClose }: { list: ContactList; onClose
   const [mode, setMode] = useState<Mode>('one');
   const tabs: { key: Mode; label: string; icon: typeof Users }[] = [
     { key: 'one', label: 'One by One', icon: UserPlus },
-    { key: 'bulk', label: 'Bulk Upload', icon: Upload },
+    { key: 'bulk', label: 'Bulk upload', icon: Upload },
     { key: 'tags', label: 'Bulk (with Tags)', icon: Tags },
   ];
   return (
-    <Dialog icon={<UserPlus className="size-4" />} title="Add Contact" subtitle={`List: ${list.name}`} onClose={onClose} width="max-w-2xl">
+    <Dialog icon={<UserPlus className="size-4" />} title="Add contact" subtitle={`List: ${list.name}`} onClose={onClose} width="max-w-2xl">
       <div className="-mx-5 -mt-5 mb-5 flex flex-wrap gap-2 border-b border-slate-200 px-5 py-3">
         {tabs.map((t) => (
           <button
@@ -170,8 +170,8 @@ function OneByOne({ list, onClose }: { list: ContactList; onClose: () => void })
         <Button type="button" variant="secondary" onClick={onClose}>
           {done ? 'Close' : 'Cancel'}
         </Button>
-        <Button type="submit" disabled={!phone.trim() || !country} loading={save.isPending} className="bg-slate-700 hover:bg-slate-800">
-          Save Contact
+        <Button type="submit" disabled={!phone.trim() || !country} loading={save.isPending}>
+          Save contact
         </Button>
       </FormFooter>
     </form>
@@ -278,7 +278,7 @@ function BulkUpload({ list, withTags, onClose }: { list: ContactList; withTags: 
             )}
           </button>
           <Button type="button" variant="secondary" className="w-full" onClick={() => downloadSample(withTags)}>
-            <Download className="size-4" /> Download Sample CSV
+            <Download className="size-4" /> Download sample CSV
           </Button>
           {parseError && <Alert>{parseError}</Alert>}
           {file && !report && (
@@ -301,7 +301,7 @@ function BulkUpload({ list, withTags, onClose }: { list: ContactList; withTags: 
           )}
         </div>
         <div className="border-t border-slate-200 bg-slate-50 sm:border-t-0 sm:border-l">
-          <p className="border-b border-slate-200 px-4 py-2.5 text-xs font-semibold tracking-wider text-slate-500 uppercase">CSV format guide</p>
+          <p className="border-b border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500">CSV format guide</p>
           <div className="space-y-2 p-4 text-xs">
             <p className="text-slate-600">No header row — data starts from the first line:</p>
             <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
@@ -346,8 +346,8 @@ function BulkUpload({ list, withTags, onClose }: { list: ContactList; withTags: 
         <Button type="button" variant="secondary" onClick={onClose}>
           {report ? 'Done' : 'Cancel'}
         </Button>
-        <Button onClick={() => upload.mutate()} disabled={!file || (!international && !country) || !!report} loading={upload.isPending} className="bg-slate-700 hover:bg-slate-800">
-          Import Contacts
+        <Button onClick={() => upload.mutate()} disabled={!file || (!international && !country) || !!report} loading={upload.isPending}>
+          Import contacts
         </Button>
       </FormFooter>
     </div>
@@ -371,7 +371,7 @@ export function AssignListsDialog({ contactIds, onClose, onDone }: { contactIds:
     <>
       <Dialog
         icon={<Users className="size-4" />}
-        title="Assign Lists"
+        title="Assign lists"
         subtitle={`${contactIds.length} contact${contactIds.length === 1 ? '' : 's'} selected`}
         onClose={onClose}
         footer={
@@ -379,7 +379,7 @@ export function AssignListsDialog({ contactIds, onClose, onDone }: { contactIds:
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={() => assign.mutate()} disabled={!chosen.size} loading={assign.isPending} className="bg-slate-700 hover:bg-slate-800">
+            <Button onClick={() => assign.mutate()} disabled={!chosen.size} loading={assign.isPending}>
               Add to {chosen.size || ''} list{chosen.size === 1 ? '' : 's'}
             </Button>
           </>

@@ -4,7 +4,7 @@ import { useDeferredValue, useState } from 'react';
 import { Link } from 'react-router';
 import { SkeletonRows, StatusBadge } from '../../components/feedback';
 import { NODE_META } from '../../components/flow/meta';
-import { Alert, Badge, Card, EmptyState, Input, Select, cn, errorMessage } from '../../components/ui';
+import { Badge, Card, EmptyState, Input, Select, cn, LoadError } from '../../components/ui';
 import { api, type FlowNodeType, type FlowRun } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -38,7 +38,7 @@ export function FlowRunsTab() {
   return (
     <>
       <div className="mb-5">
-        <h1 className="text-xl font-semibold text-ink">Conversations</h1>
+        <h1 className="text-2xl leading-8 font-medium text-ink">Conversations</h1>
         <p className="mt-1 text-sm text-slate-500">Every conversation an automation handled: how far the customer got and where it was handed to your team.</p>
       </div>
       <Card>
@@ -61,10 +61,8 @@ export function FlowRunsTab() {
         {query.isPending ? (
           <SkeletonRows rows={6} />
         ) : query.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(query.error)}</Alert>
-          </div>
-        ) : query.data.runs.length === 0 ? (
+            <LoadError error={query.error} what="this list" onRetry={() => void query.refetch()} />
+          ) : query.data.runs.length === 0 ? (
           <EmptyState icon={<MessagesSquare className="size-5" />} title="No flow conversations yet">
             When an active automation replies to a customer, the conversation shows up here.
           </EmptyState>

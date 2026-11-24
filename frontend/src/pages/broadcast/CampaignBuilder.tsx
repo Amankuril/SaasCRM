@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, CircleHelp, Eye, Megaphone, Repeat, Search, Send, Trash2, Users } from 'lucide-react';
+import { Check, ChevronDown, CircleHelp, Eye, Repeat, Search, Send, Trash2, Users } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Dialog } from '../../components/Dialog';
@@ -155,16 +155,13 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-4">
-        <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600 ring-1 ring-emerald-100">
-          <Megaphone className="size-5" />
-        </span>
+      <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div>
-          <h1 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-ink">
-            {a.type === 'retarget' ? 'Retarget Campaign' : 'Create Campaign'}
+          <h1 className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xl leading-8 font-medium text-ink">
+            {a.type === 'retarget' ? 'Retarget campaign' : 'Create campaign'}
             <Link
               to={`/w/${workspace.id}/broadcast/guide#create-campaign`}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 text-sm font-normal text-slate-500 hover:text-ink"
             >
               <CircleHelp className="size-3.5" /> How it works
             </Link>
@@ -176,7 +173,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
       {/* The step rail sits outside the scrolling form, so it never moves. */}
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 lg:block" aria-label="Campaign steps">
-          <p className="mb-4 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+          <p className="mb-4 text-xs font-semibold text-slate-400">
             Steps · {STEPS.filter((x) => done[x.id]).length}/{STEPS.length} done
           </p>
           <ol>
@@ -187,7 +184,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
                   <span
                     className={cn(
                       'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold',
-                      done[s.id] ? 'border-emerald-500 bg-emerald-500 text-white' : active === s.id ? 'border-brand-600 bg-white text-brand-700' : 'border-slate-200 bg-white text-slate-500',
+                      done[s.id] ? 'border-brand-500 bg-brand-500 text-white' : active === s.id ? 'border-brand-600 bg-white text-brand-700' : 'border-slate-200 bg-white text-slate-500',
                       active === s.id && 'ring-4 ring-brand-100',
                     )}
                   >
@@ -206,7 +203,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
           {STEPS.map((s, i) => (
             <li key={s.id}>
               <button type="button" onClick={() => goTo(s.id)} className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap', active === s.id ? 'bg-brand-50 text-brand-800 ring-1 ring-brand-200' : 'text-slate-500')}>
-                <span className={cn('flex size-5 items-center justify-center rounded-full text-[10px]', done[s.id] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600')}>{done[s.id] ? <Check className="size-3" /> : i + 1}</span>
+                <span className={cn('flex size-5 items-center justify-center rounded-full text-[11px]', done[s.id] ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-600')}>{done[s.id] ? <Check className="size-3" /> : i + 1}</span>
                 {s.label}
               </button>
             </li>
@@ -389,7 +386,7 @@ export function CampaignBuilder({ campaign }: { campaign: Campaign }) {
               <ul className="space-y-2 text-sm">
                 {STEPS.slice(0, 5).map((x) => (
                   <li key={x.id} className="flex items-center gap-2">
-                    <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full', done[x.id] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500')}>{done[x.id] ? <Check className="size-3" /> : <span className="size-1.5 rounded-full bg-slate-400" />}</span>
+                    <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full', done[x.id] ? 'bg-brand-500 text-white' : 'bg-slate-200 text-slate-500')}>{done[x.id] ? <Check className="size-3" /> : <span className="size-1.5 rounded-full bg-slate-400" />}</span>
                     <button type="button" onClick={() => goTo(x.id)} className={cn('hover:underline', done[x.id] ? 'text-slate-700' : 'font-medium text-amber-700')}>
                       {x.label}
                       {!done[x.id] && ' — needs attention'}
@@ -560,7 +557,6 @@ function ListMultiSelect({ selected, onChange, disabled }: { selected: string[];
                 onChange(pending);
                 setOpen(false);
               }}
-              className="bg-slate-700 hover:bg-slate-800"
             >
               OK
             </Button>
@@ -592,7 +588,7 @@ function RetargetPicker({ audience, onChange, disabled }: { audience: Campaign['
     onChange({ ...audience, retarget: { campaignId: audience.retarget?.campaignId ?? null, outcomes: outcomes.includes(o) ? outcomes.filter((x) => x !== o) : [...outcomes, o] } });
   return (
     <div className="space-y-3 text-sm">
-      <p className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-indigo-800">
+      <p className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-slate-600">
         <Repeat className="size-4" /> Retargeting <strong>{source.data?.campaign.name ?? '…'}</strong>
         <Link to={`/w/${workspace.id}/broadcast/retarget`} className="ml-auto text-xs underline">
           Change
@@ -699,7 +695,7 @@ function ReviewDialog({
   return (
     <Dialog
       icon={<Send className="size-4" />}
-      title="Review & Send"
+      title="Review & send"
       subtitle="Check everything once more. Nothing is sent until you publish."
       onClose={onClose}
       width="max-w-2xl"
@@ -708,7 +704,7 @@ function ReviewDialog({
           <Button variant="secondary" onClick={onClose}>
             Back to edit
           </Button>
-          <Button onClick={() => launch.mutate()} loading={launch.isPending} disabled={!p || p.eligible === 0 || (large && !ack)} className="bg-slate-700 hover:bg-slate-800">
+          <Button onClick={() => launch.mutate()} loading={launch.isPending} disabled={!p || p.eligible === 0 || (large && !ack)}>
             {scheduledAt ? 'Schedule' : 'Publish'}
           </Button>
         </>
@@ -729,7 +725,7 @@ function ReviewDialog({
             {launch.error != null && <Alert>{errorMessage(launch.error)}</Alert>}
             {p && (
               <>
-                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-900">
+                <p className="rounded-lg bg-brand-50 px-3 py-2 text-emerald-900">
                   <strong>{p.eligible}</strong> of {p.matched} contact(s) will receive this message.
                 </p>
                 {Object.keys(p.skipped).length > 0 && (

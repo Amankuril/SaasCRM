@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Database, Download, Search } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { SkeletonRows, useToast } from '../../components/feedback';
-import { Alert, Button, Card, EmptyState, Input, errorMessage } from '../../components/ui';
+import { Button, Card, EmptyState, Input, LoadError } from '../../components/ui';
 import { api, type FlowDataRow } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -46,7 +46,7 @@ export function FlowDataTab() {
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Collected Data</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Collected data</h1>
           <p className="mt-1 text-sm text-slate-500">Answers customers gave inside your automations.</p>
         </div>
         <Button variant="secondary" loading={exporting} disabled={!query.data?.rows.length} onClick={exportCsv}>
@@ -65,10 +65,8 @@ export function FlowDataTab() {
         {query.isPending ? (
           <SkeletonRows rows={6} />
         ) : query.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(query.error)}</Alert>
-          </div>
-        ) : query.data.rows.length === 0 ? (
+            <LoadError error={query.error} what="this list" onRetry={() => void query.refetch()} />
+          ) : query.data.rows.length === 0 ? (
           <EmptyState icon={<Database className="size-5" />} title="No data collected yet">
             Add a Question, Form or Custom Field step to an automation. Every answer is saved here.
           </EmptyState>

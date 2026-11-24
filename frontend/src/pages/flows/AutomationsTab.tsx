@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Dialog } from '../../components/Dialog';
 import { ConfirmDialog, SkeletonRows, StatusBadge, useToast } from '../../components/feedback';
-import { Alert, Button, Card, EmptyState, Field, Input, Select, cn, errorMessage } from '../../components/ui';
+import { Button, Card, EmptyState, Field, Input, Select, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type FlowDetail, type FlowSummary } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -102,16 +102,16 @@ export function AutomationsTab() {
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Automations</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Automations</h1>
           <p className="mt-1 text-sm text-slate-500">Chatbots and automations that reply, ask, tag and hand off for you.</p>
         </div>
         {canManage && (
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setTemplates(true)}>
-              <LayoutTemplate className="size-4" /> Browse Templates
+              <LayoutTemplate className="size-4" /> Browse templates
             </Button>
             <Button loading={create.isPending && !templates} onClick={() => create.mutate(undefined)}>
-              <Plus className="size-4" /> New Automation
+              <Plus className="size-4" /> New automation
             </Button>
           </div>
         )}
@@ -161,19 +161,17 @@ export function AutomationsTab() {
         {list.isPending ? (
           <SkeletonRows rows={6} />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : flows.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : flows.length === 0 ? (
           <EmptyState icon={<Workflow className="size-5" />} title="No automations yet">
             <p>Start from a template or build your own: a customer sends a keyword, the bot asks, answers and hands over to your team.</p>
             {canManage && (
               <div className="mt-4 flex justify-center gap-2">
                 <Button variant="secondary" onClick={() => setTemplates(true)}>
-                  Browse Templates
+                  Browse templates
                 </Button>
                 <Button loading={create.isPending} onClick={() => create.mutate(undefined)}>
-                  <Plus className="size-4" /> New Automation
+                  <Plus className="size-4" /> New automation
                 </Button>
               </div>
             )}
@@ -191,7 +189,7 @@ export function AutomationsTab() {
                   <th className={th}>Automation name</th>
                   <th className={th}>Status</th>
                   <th className={th}>Created</th>
-                  <th className={th}>Last Modified</th>
+                  <th className={th}>Last modified</th>
                   <th className={cn(th, 'text-right')}>Actions</th>
                 </tr>
               </thead>
@@ -262,7 +260,7 @@ export function AutomationsTab() {
         </ConfirmDialog>
       )}
       {templates && (
-        <Dialog icon={<LayoutTemplate className="size-4" />} title="Browse Templates" subtitle="Start from a ready-made automation and edit it" onClose={() => setTemplates(false)} width="max-w-2xl">
+        <Dialog icon={<LayoutTemplate className="size-4" />} title="Browse templates" subtitle="Start from a ready-made automation and edit it" onClose={() => setTemplates(false)} width="max-w-2xl">
           <div className="grid gap-3 sm:grid-cols-2">
             {FLOW_TEMPLATES.map((t) => (
               <button

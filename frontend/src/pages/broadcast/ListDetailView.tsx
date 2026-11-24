@@ -3,7 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, 
 import { useEffect, useRef, useState } from 'react';
 import { TagChip } from '../../components/crm';
 import { Dialog } from '../../components/Dialog';
-import { Alert, Button, Input, Select, Spinner, cn, errorMessage, fieldError } from '../../components/ui';
+import { Alert, Button, Input, Select, Spinner, cn, errorMessage, fieldError, LoadError } from '../../components/ui';
 import { ApiError, api, type ConsentStatus, type Contact, type ContactList } from '../../lib/api';
 import { useTags } from '../../lib/hooks';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -132,13 +132,13 @@ export function ListDetailView({ list, onBack }: { list: ContactList; onBack: ()
           <RefreshCw className={cn('size-4', members.isFetching && 'animate-spin')} />
         </Button>
         {canManage && (
-          <Button onClick={() => setAdding(true)} className="bg-slate-700 hover:bg-slate-800">
-            <UserPlus className="size-4" /> Add Contact
+          <Button onClick={() => setAdding(true)}>
+            <UserPlus className="size-4" /> Add contact
           </Button>
         )}
         {can('contacts:export') && (
           <Button variant="secondary" onClick={() => exportAll.mutate()} loading={exportAll.isPending}>
-            <Download className="size-4" /> Export All
+            <Download className="size-4" /> Export all
           </Button>
         )}
       </div>
@@ -173,10 +173,8 @@ export function ListDetailView({ list, onBack }: { list: ContactList; onBack: ()
         {members.isPending ? (
           <Spinner />
         ) : members.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(members.error)}</Alert>
-          </div>
-        ) : rows.length === 0 ? (
+            <LoadError error={members.error} what="this list" onRetry={() => void members.refetch()} />
+          ) : rows.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-12 text-center">
             <span className="mb-3 rounded-full bg-slate-100 p-3 text-slate-500">
               <Users className="size-5" />
@@ -199,7 +197,7 @@ export function ListDetailView({ list, onBack }: { list: ContactList; onBack: ()
                     <SortHeader k="phone" label="Number" />
                   </th>
                   <th className="px-3 py-3">
-                    <SortHeader k="createdAt" label="Created On" />
+                    <SortHeader k="createdAt" label="Created on" />
                   </th>
                   <th className="px-3 py-3 font-medium">Tags</th>
                   <th className="px-3 py-3 text-right font-medium">Actions</th>
@@ -229,7 +227,7 @@ export function ListDetailView({ list, onBack }: { list: ContactList; onBack: ()
                           <span className="max-w-64 truncate font-medium text-slate-800" title={display}>
                             {display}
                           </span>
-                          {c.consent.status === 'opted_out' && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">Unsubscribed</span>}
+                          {c.consent.status === 'opted_out' && <span className="rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-600">Unsubscribed</span>}
                         </div>
                       </td>
                       <td className="px-3 py-3 font-mono text-xs text-slate-700">{c.phone}</td>
@@ -342,7 +340,7 @@ function EditContactDialog({ contact, onClose, onSaved }: { contact: Contact; on
   return (
     <Dialog
       icon={<UserPen className="size-4" />}
-      title="Edit Contact"
+      title="Edit contact"
       subtitle={contact.profileName ? `WhatsApp name: ${contact.profileName}` : contact.phone}
       onClose={onClose}
       width="max-w-lg"
@@ -351,8 +349,8 @@ function EditContactDialog({ contact, onClose, onSaved }: { contact: Contact; on
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending} className="bg-slate-700 hover:bg-slate-800">
-            Save Changes
+          <Button onClick={() => save.mutate()} loading={save.isPending}>
+            Save changes
           </Button>
         </>
       }
@@ -396,7 +394,7 @@ function EditContactDialog({ contact, onClose, onSaved }: { contact: Contact; on
                     key={t.id}
                     type="button"
                     onClick={() => set({ tags: on ? form.tags.filter((x) => x !== t.id) : [...form.tags, t.id] })}
-                    className={cn('rounded-full border px-2.5 py-0.5 text-xs', on ? 'border-slate-600 bg-slate-700 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}
+                    className={cn('rounded-full border px-2.5 py-0.5 text-xs', on ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}
                   >
                     {t.name}
                   </button>

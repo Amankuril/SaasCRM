@@ -12,7 +12,7 @@ type Data = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 const textarea =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-100';
+  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm  focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-100';
 
 const PLACEHOLDERS = ['{{contact.first_name}}', '{{contact.name}}', '{{contact.phone}}', '{{last_reply}}'];
 
@@ -79,7 +79,7 @@ export function NodeEditor({
         )}
         {node.type === 'ai_answer' && (
           <>
-            <p className="rounded-lg bg-fuchsia-50 p-2 text-xs text-fuchsia-800">
+            <p className="rounded-lg bg-slate-100 p-2 text-xs text-slate-600">
               Answers the customer&apos;s latest message using the AI Agent&apos;s knowledge base. If the AI isn&apos;t sure, the flow follows &ldquo;Needs human&rdquo;.
             </p>
             <label className="flex items-center gap-2">
@@ -623,7 +623,7 @@ function MessageText({ label, value, onChange }: { label: string; value: string;
       <textarea rows={4} className={textarea} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
       <div className="flex flex-wrap gap-1">
         {PLACEHOLDERS.map((p) => (
-          <button key={p} type="button" onClick={() => onChange(`${value ?? ''}${p}`)} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600 hover:bg-slate-200">
+          <button key={p} type="button" onClick={() => onChange(`${value ?? ''}${p}`)} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600 hover:bg-slate-200">
             {p}
           </button>
         ))}

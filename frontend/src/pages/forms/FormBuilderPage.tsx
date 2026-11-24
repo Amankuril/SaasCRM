@@ -226,7 +226,7 @@ function Builder({ initial }: { initial: WaForm }) {
           ) : (
             <fieldset disabled={!editable} className="divide-y divide-slate-100">
               <PaletteSection title="Containers">
-                <PaletteButton icon={<PanelTop className="size-4" />} label="Add New Screen" disabled={screens.length >= MAX_SCREENS} onClick={addScreen} />
+                <PaletteButton icon={<PanelTop className="size-4" />} label="Add new screen" disabled={screens.length >= MAX_SCREENS} onClick={addScreen} />
               </PaletteSection>
               {PALETTE_GROUPS.map((g) => (
                 <PaletteSection key={g.title} title={g.title}>
@@ -325,10 +325,10 @@ function Builder({ initial }: { initial: WaForm }) {
                   <section
                     key={s.id}
                     onClick={() => setSelected({ screen: s.id })}
-                    className={cn('rounded-xl border bg-white shadow-sm transition', selected?.screen === s.id && !selected.component ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200')}
+                    className={cn('rounded-xl border bg-white shadow-sm transition', selected?.screen === s.id && !selected.component ? 'border-brand-500 ring-2 ring-brand-500/20' : 'border-slate-200')}
                   >
                     <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
-                      <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">SCREEN {si + 1}</span>
+                      <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-700">SCREEN {si + 1}</span>
                       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{s.title || 'Untitled screen'}</p>
                       {editable && (
                         <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
@@ -365,7 +365,7 @@ function Builder({ initial }: { initial: WaForm }) {
                                 e.stopPropagation();
                                 setSelected({ screen: s.id, component: c.id });
                               }}
-                              className={cn('group relative flex gap-2 rounded-lg border px-2 py-2.5', active ? 'border-emerald-500 bg-emerald-50/30' : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60')}
+                              className={cn('group relative flex gap-2 rounded-lg border px-2 py-2.5', active ? 'border-brand-500 bg-brand-50/30' : 'border-transparent hover:border-slate-200 hover:bg-slate-50/60')}
                             >
                               <GripVertical className={cn('mt-0.5 size-4 shrink-0 text-slate-300', editable && 'cursor-grab')} />
                               <div className="pointer-events-none min-w-0 flex-1">
@@ -373,7 +373,7 @@ function Builder({ initial }: { initial: WaForm }) {
                               </div>
                               {editable && (
                                 <div className={cn('absolute -top-3 right-2 items-center rounded-md border border-slate-200 bg-white shadow-sm', active ? 'flex' : 'hidden group-hover:flex')} onClick={(e) => e.stopPropagation()}>
-                                  <span className="px-1.5 text-[10px] font-medium text-slate-500">{ELEMENT[c.type].label}</span>
+                                  <span className="px-1.5 text-[11px] font-medium text-slate-500">{ELEMENT[c.type].label}</span>
                                   <MiniButton label="Duplicate" onClick={() => duplicateComponent(s.id, c.id)}>
                                     <Copy className="size-3.5" />
                                   </MiniButton>
@@ -390,13 +390,13 @@ function Builder({ initial }: { initial: WaForm }) {
                       {!s.components.length && <p className="py-6 text-center text-xs text-slate-400">Drag elements here, or click one in the left sidebar.</p>}
                     </div>
                     <footer className="border-t border-slate-100 px-4 py-3">
-                      <div className="rounded-full bg-emerald-600 py-2 text-center text-sm font-medium text-white">{s.footerLabel || 'Continue'}</div>
+                      <div className="rounded-full bg-brand-600 py-2 text-center text-sm font-medium text-white">{s.footerLabel || 'Continue'}</div>
                       <p className="mt-1.5 text-center text-[11px] text-slate-400">{si === screens.length - 1 ? 'Submits the form' : `Goes to screen ${si + 2}`}</p>
                     </footer>
                   </section>
                 ))}
                 {editable && screens.length < MAX_SCREENS && (
-                  <button type="button" onClick={addScreen} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-6 text-sm font-semibold tracking-wide text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/40 hover:text-emerald-700">
+                  <button type="button" onClick={addScreen} className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-6 text-sm font-semibold text-slate-500 hover:border-emerald-400 hover:bg-brand-50/40 hover:text-brand-700">
                     <Plus className="size-4" /> ADD A SCREEN
                   </button>
                 )}
@@ -411,7 +411,7 @@ function Builder({ initial }: { initial: WaForm }) {
         {/* ---- Properties ---- */}
         <aside className="shrink-0 border-t border-slate-200 bg-white lg:w-80 lg:overflow-y-auto lg:border-t-0 lg:border-l">
           <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-semibold text-ink">Edit Properties</h2>
+            <h2 className="text-sm font-semibold text-ink">Edit properties</h2>
           </div>
           <fieldset disabled={!editable} className="space-y-4 p-4">
             {selComponent && selScreen ? (
@@ -429,7 +429,7 @@ function Builder({ initial }: { initial: WaForm }) {
                 <div className="flex gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200">
                   <Info className="mt-0.5 size-4 shrink-0" />
                   <p>
-                    <span className="font-semibold">Note!</span> You need to select a Component to edit properties.
+                    Select a component to edit its properties
                   </p>
                 </div>
                 <FormSettings form={form} onChange={setMeta} />
@@ -450,7 +450,7 @@ function PaletteSection({ title, children }: { title: string; children: ReactNod
   const [open, setOpen] = useState(true);
   return (
     <div className="px-3 py-2.5">
-      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between py-1 text-xs font-semibold tracking-wide text-slate-500 uppercase hover:text-slate-700">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between py-1 text-xs font-semibold text-slate-500 hover:text-slate-700">
         {title}
         <ChevronDown className={cn('size-3.5 transition-transform', !open && '-rotate-90')} />
       </button>
@@ -468,7 +468,7 @@ function PaletteButton({ icon, label, disabled, onClick, onDragStart, onDragEnd 
       onDragEnd={onDragEnd}
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-emerald-800 disabled:opacity-40"
+      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left text-sm text-slate-700 transition hover:border-emerald-300 hover:bg-brand-50/50 hover:text-emerald-800 disabled:opacity-40"
     >
       <span className="text-slate-400">{icon}</span>
       {label}
@@ -484,7 +484,7 @@ function MiniButton({ label, danger, disabled, onClick, children }: { label: str
   );
 }
 
-const DropLine = () => <div className="my-0.5 h-0.5 rounded-full bg-emerald-500" />;
+const DropLine = () => <div className="my-0.5 h-0.5 rounded-full bg-brand-500" />;
 
 // ---- Properties panel ----
 
@@ -508,7 +508,7 @@ const textareaClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-
 function FormSettings({ form, onChange }: { form: WaForm; onChange: (p: Partial<WaForm>) => void }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Form settings</h3>
+      <h3 className="text-xs font-semibold text-slate-500">Form settings</h3>
       <Prop label="Category" htmlFor="fs-category">
         <Select id="fs-category" value={form.category} onChange={(e) => onChange({ category: e.target.value as FormCategory })}>
           {FORM_CATEGORIES.map((c) => (
@@ -548,7 +548,7 @@ function ScreenProps({ screen, index, last, onChange }: { screen: FormScreen; in
 function PropsTitle({ icon, title, onRemove }: { icon: ReactNode; title: string; onRemove?: () => void }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="rounded-md bg-emerald-50 p-1.5 text-emerald-700">{icon}</span>
+      <span className="rounded-md bg-brand-50 p-1.5 text-brand-700">{icon}</span>
       <p className="flex-1 text-sm font-semibold text-ink">{title}</p>
       {onRemove && (
         <button type="button" onClick={onRemove} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove element" title="Remove element">
@@ -676,7 +676,7 @@ function ComponentProps({ c, screens, onChange, onRemove }: { c: FormComponent; 
       {isInput && (
         <>
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" className="accent-emerald-600" checked={!!c.required} onChange={(e) => onChange({ required: e.target.checked })} /> Required
+            <input type="checkbox" className="accent-brand-600" checked={!!c.required} onChange={(e) => onChange({ required: e.target.checked })} /> Required
           </label>
           <Prop label="Answer key" htmlFor="cp-key" hint={<>Column in submission data; use {'{{' + (c.key || 'key') + '}}'} in the reply.</>}>
             <Input id="cp-key" className="font-mono text-xs" value={c.key ?? ''} onChange={(e) => onChange({ key: slug(e.target.value) })} />
@@ -717,7 +717,7 @@ function RawJsonEditor({ value, error, editable, onChange, onStartOver }: { valu
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
         rows={24}
-        className={cn('w-full rounded-lg border bg-slate-900 p-3 font-mono text-xs leading-relaxed text-emerald-100 focus:outline-none', error ? 'border-red-400' : 'border-slate-700')}
+        className={cn('w-full rounded-lg border bg-slate-900 p-3 font-mono text-xs leading-relaxed text-brand-100 focus:outline-none', error ? 'border-red-400' : 'border-slate-700')}
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
       {editable && (

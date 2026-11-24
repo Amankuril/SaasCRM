@@ -45,7 +45,7 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
           <Icon className="size-3.5" />
         </span>
         <span className="text-xs font-semibold text-slate-800">{meta.label}</span>
-        {ctx.activeNodes.has(id) && <span className="ml-auto size-2 animate-pulse rounded-full bg-emerald-500" title="Contacts are here right now" />}
+        {ctx.activeNodes.has(id) && <span className="ml-auto size-2 animate-pulse rounded-full bg-brand-500" title="Contacts are here right now" />}
         {issues && <AlertTriangle className="ml-auto size-3.5 text-red-500" />}
       </div>
       <p className="line-clamp-3 px-3 py-2 text-xs whitespace-pre-wrap text-slate-600">
@@ -58,7 +58,7 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
         <div className="border-t border-slate-100 py-1">
           {outputs.map((o) => (
             <div key={o.id} className="relative px-3 py-1 text-right">
-              <span className="block truncate text-[10px] font-medium text-slate-500">{o.label}</span>
+              <span className="block truncate text-[11px] font-medium text-slate-500">{o.label}</span>
               <Handle type="source" id={o.id} position={Position.Right} className={cn('!size-3 !border-2 !border-white', o.id === 'no_reply' ? '!bg-slate-400' : '!bg-brand-600')} />
             </div>
           ))}
@@ -67,7 +67,7 @@ export const StepNode = memo(function StepNode({ id, type, data, selected }: Nod
         <div className={cn('flex border-t border-slate-100', outputs.length === 1 && 'justify-center')}>
           {outputs.map((o) => (
             <div key={o.id} className="relative flex-1 px-1 pt-1 pb-3 text-center">
-              {o.label && <span className="block truncate text-[10px] font-medium text-slate-500">{o.label}</span>}
+              {o.label && <span className="block truncate text-[11px] font-medium text-slate-500">{o.label}</span>}
               <Handle
                 type="source"
                 id={o.id}

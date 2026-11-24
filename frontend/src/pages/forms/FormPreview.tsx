@@ -23,7 +23,7 @@ export function FormPreviewDialog({ form, screens, onClose }: { form: WaForm; sc
         <button onClick={onClose} className="absolute -top-2 -right-12 rounded-full bg-white p-1.5 text-slate-600 shadow hover:bg-slate-100" aria-label="Close preview">
           <X className="size-4" />
         </button>
-        <div className="flex h-[640px] max-h-[85vh] w-[340px] flex-col overflow-hidden rounded-[2.2rem] border-[10px] border-slate-900 bg-[#efe7de] shadow-2xl">
+        <div className="flex h-[640px] max-h-[85vh] w-[340px] flex-col overflow-hidden rounded-[2.2rem] border-[10px] border-slate-900 bg-[#efe7de] shadow-xl">
           <div className="flex items-center gap-2 bg-[#075e54] px-4 py-3 text-white">
             <span className="flex size-7 items-center justify-center rounded-full bg-white/20 text-xs font-semibold">Z</span>
             <span className="text-sm font-medium">Your business</span>
@@ -39,7 +39,7 @@ export function FormPreviewDialog({ form, screens, onClose }: { form: WaForm; sc
               {step === screens.length && screens.length > 0 && (
                 <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#d9fdd3] p-2.5 text-sm shadow-sm">
                   <p className="flex items-center gap-1.5 font-medium text-slate-700">
-                    <CheckCircle2 className="size-4 text-emerald-600" /> Response sent
+                    <CheckCircle2 className="size-4 text-brand-600" /> Response sent
                   </p>
                 </div>
               )}
@@ -55,7 +55,7 @@ export function FormPreviewDialog({ form, screens, onClose }: { form: WaForm; sc
                     {step === 0 ? <X className="size-4" /> : <ArrowLeft className="size-4" />}
                   </button>
                   <p className="flex-1 truncate text-center text-sm font-semibold text-slate-800">{screen.title || 'Untitled screen'}</p>
-                  <span className="w-6 text-right text-[10px] text-slate-400">
+                  <span className="w-6 text-right text-[11px] text-slate-400">
                     {step + 1}/{screens.length}
                   </span>
                 </div>
@@ -70,11 +70,11 @@ export function FormPreviewDialog({ form, screens, onClose }: { form: WaForm; sc
                     type="button"
                     disabled={missing}
                     onClick={() => setStep(step + 1)}
-                    className="w-full rounded-full bg-emerald-600 py-2.5 text-sm font-medium text-white disabled:bg-slate-200 disabled:text-slate-400"
+                    className="w-full rounded-full bg-brand-600 py-2.5 text-sm font-medium text-white disabled:bg-slate-200 disabled:text-slate-400"
                   >
                     {screen.footerLabel || 'Continue'}
                   </button>
-                  <p className="mt-2 text-center text-[10px] text-slate-400">Managed by the business. Learn more</p>
+                  <p className="mt-2 text-center text-[11px] text-slate-400">Managed by the business. Learn more</p>
                 </div>
               </div>
             )}

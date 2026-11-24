@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ClipboardList, Code2, Download, FileJs
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Dialog } from '../../components/Dialog';
-import { Alert, Badge, Button, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, fieldError } from '../../components/ui';
+import { Alert, Badge, Button, EmptyState, Field, Input, Select, Spinner, cn, errorMessage, fieldError, LoadError } from '../../components/ui';
 import { FORM_CATEGORIES, api, type FormCategory, type WaForm } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -55,13 +55,10 @@ export function FormsListPage() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start gap-3">
-        <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600 ring-1 ring-emerald-100">
-          <ClipboardList className="size-5" />
-        </span>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex-1">
-          <h1 className="text-xl font-semibold text-ink">WhatsApp Form Builder</h1>
-          <p className="text-sm text-slate-500">Native forms that open inside WhatsApp: sign-ups, bookings, lead capture, surveys.</p>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Forms</h1>
+          <p className="text-sm text-slate-500">Open inside WhatsApp for sign-ups, bookings, leads and surveys</p>
         </div>
         {canManage && (
           <Button variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} title="Import forms made in Meta's Flow Builder and refresh statuses">
@@ -77,14 +74,14 @@ export function FormsListPage() {
 
       {canManage && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-ink">Create New WhatsApp Forms</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Create new WhatsApp forms</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <StartCard icon={<FilePlus2 className="size-6" />} title="Blank Form" hint="Start from scratch" onClick={() => setCreating('blank')} />
+            <StartCard icon={<FilePlus2 className="size-6" />} title="Blank form" hint="Start from scratch" onClick={() => setCreating('blank')} />
             <StartCard icon={<FileJson className="size-6" />} title="Paste Flow JSON" hint="Bring a flow from elsewhere" onClick={() => setCreating('json')} />
             {recent.map((f) => (
-              <div key={f.id} className="group relative flex h-32 flex-col rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-emerald-300 hover:shadow">
+              <div key={f.id} className="group relative flex h-32 flex-col rounded-xl border border-slate-200 bg-white p-3 text-left transition-colors hover:border-slate-400">
                 <Link to={`/w/${workspace.id}/forms/${f.id}`} className="absolute inset-0 rounded-xl" aria-label={`Open ${f.name}`} />
-                <Badge tone="green">PUBLISHED</Badge>
+                <Badge tone="green">Published</Badge>
                 <p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800">{f.name}</p>
                 <p className="mt-auto text-xs text-slate-500">{CATEGORY_LABEL[f.category]}</p>
                 <button type="button" onClick={() => setCode(f)} className="absolute right-2 bottom-2 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="View Flow JSON" title="View Flow JSON">
@@ -98,10 +95,10 @@ export function FormsListPage() {
 
       <section>
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="mr-auto text-sm font-semibold text-ink">All WhatsApp Forms</h2>
+          <h2 className="mr-auto text-sm font-semibold text-ink">All WhatsApp forms</h2>
           <div className="w-full sm:w-52">
             <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
-              <option value="all">Filter by Status: All</option>
+              <option value="all">All statuses</option>
               <option value="draft">Draft</option>
               <option value="published">Published</option>
               <option value="failed">Publish failed</option>
@@ -116,9 +113,7 @@ export function FormsListPage() {
           {list.isPending ? (
             <Spinner />
           ) : list.error ? (
-            <div className="p-4">
-              <Alert>{errorMessage(list.error)}</Alert>
-            </div>
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
           ) : rows.length === 0 ? (
             <EmptyState icon={<ClipboardList className="size-5" />} title={forms.length ? 'No forms match' : 'No forms yet'}>
               {forms.length ? 'Try another status or search.' : 'Create a blank form or paste Flow JSON, publish it to WhatsApp, then send it from a flow, a campaign template or here.'}
@@ -130,11 +125,11 @@ export function FormsListPage() {
                   <tr>
                     <th className="px-4 py-3 font-medium">
                       <button type="button" onClick={() => setSort(sort === 'asc' ? 'desc' : sort === 'desc' ? null : 'asc')} className="inline-flex items-center gap-1 hover:text-ink">
-                        Form Name <SortIcon className="size-3.5" />
+                        Form name <SortIcon className="size-3.5" />
                       </button>
                     </th>
-                    <th className="px-4 py-3 font-medium">Submission Data</th>
-                    <th className="px-4 py-3 font-medium">Last Updated On</th>
+                    <th className="px-4 py-3 font-medium">Submission data</th>
+                    <th className="px-4 py-3 font-medium">Last updated on</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Flow ID</th>
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -154,7 +149,7 @@ export function FormsListPage() {
                       </td>
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => setData(f)} className="font-medium text-brand-700 hover:underline">
-                          View Data
+                          View data
                         </button>
                         <span className="ml-1.5 text-xs text-slate-400">({f.submissions ?? 0})</span>
                       </td>
@@ -202,8 +197,8 @@ export function FormsListPage() {
 
 function StartCard({ icon, title, hint, onClick }: { icon: React.ReactNode; title: string; hint: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex h-32 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white p-3 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40">
-      <span className="text-emerald-600">{icon}</span>
+    <button type="button" onClick={onClick} className="flex h-32 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white p-3 text-center transition hover:border-emerald-400 hover:bg-brand-50/40">
+      <span className="text-brand-600">{icon}</span>
       <span className="text-sm font-medium text-slate-800">{title}</span>
       <span className="text-xs text-slate-500">{hint}</span>
     </button>
@@ -235,7 +230,7 @@ function CreateFormDialog({ mode, onClose }: { mode: 'blank' | 'json'; onClose: 
   return (
     <Dialog
       icon={mode === 'blank' ? <FilePlus2 className="size-5" /> : <FileJson className="size-5" />}
-      title={mode === 'blank' ? 'Create WhatsApp Form' : 'Paste Flow JSON'}
+      title={mode === 'blank' ? 'Create WhatsApp form' : 'Paste Flow JSON'}
       subtitle={mode === 'blank' ? 'Name it and pick what it is for' : 'Import a flow built in Meta’s Flow Builder or another tool'}
       width={mode === 'blank' ? 'max-w-md' : 'max-w-2xl'}
       onClose={onClose}
@@ -258,10 +253,10 @@ function CreateFormDialog({ mode, onClose }: { mode: 'blank' | 'json'; onClose: 
         }}
       >
         {create.error != null && !fieldError(create.error, 'flowJson') && <Alert>{errorMessage(create.error)}</Alert>}
-        <Field label="Form Name" htmlFor="form-name" hint="Only you see this name.">
+        <Field label="Form name" htmlFor="form-name" hint="Only you see this name.">
           <Input id="form-name" autoFocus maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Clinic appointment request" />
         </Field>
-        <Field label="Select Category" htmlFor="form-category" hint="WhatsApp asks for the form's purpose when it is published.">
+        <Field label="Select category" htmlFor="form-category" hint="WhatsApp asks for the form's purpose when it is published.">
           <Select id="form-category" value={category} onChange={(e) => setCategory(e.target.value as FormCategory)}>
             <option value="" disabled>
               Select category

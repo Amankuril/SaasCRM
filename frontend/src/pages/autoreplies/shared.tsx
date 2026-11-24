@@ -29,19 +29,19 @@ import type { AutoReply, AutoReplyActionType, MessageTemplate } from '../../lib/
 export const ACTION_INFO: { type: AutoReplyActionType | 'order_gateway' | 'order_link' | 'order_status'; label: string; icon: LucideIcon; soon?: boolean }[] = [
   { type: 'text', label: 'Text', icon: Type },
   { type: 'file', label: 'File', icon: FileText },
-  { type: 'quick_reply', label: 'Quick Reply', icon: Reply },
+  { type: 'quick_reply', label: 'Quick reply', icon: Reply },
   { type: 'cta_url', label: 'CTA URL', icon: ExternalLink },
   { type: 'form', label: 'Flow / Form', icon: LayoutList },
   { type: 'chatbot', label: 'Chatbot', icon: Bot },
-  { type: 'ai_chatbot', label: 'AI Chatbot', icon: BotMessageSquare },
+  { type: 'ai_chatbot', label: 'AI chatbot', icon: BotMessageSquare },
   { type: 'location', label: 'Location', icon: MapPin },
   { type: 'address', label: 'Address', icon: Navigation },
   { type: 'template', label: 'Template', icon: LayoutList },
-  { type: 'unsubscribe', label: 'Unsubscribe Message', icon: BellOff },
+  { type: 'unsubscribe', label: 'Unsubscribe message', icon: BellOff },
   // India payments: shown for parity, not available yet.
   { type: 'order_gateway', label: 'Order Details (Gateway)', icon: CreditCard, soon: true },
   { type: 'order_link', label: 'Order Details (Link)', icon: Link2, soon: true },
-  { type: 'order_status', label: 'Order Status', icon: Package, soon: true },
+  { type: 'order_status', label: 'Order status', icon: Package, soon: true },
 ];
 
 export const actionLabel = (type: AutoReplyActionType) => {
@@ -50,9 +50,9 @@ export const actionLabel = (type: AutoReplyActionType) => {
 };
 
 const ACTION_TONE: Partial<Record<AutoReplyActionType, string>> = {
-  ai_chatbot: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
-  chatbot: 'bg-violet-50 text-violet-700 ring-violet-200',
-  template: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  ai_chatbot: 'bg-slate-100 text-slate-600 ring-slate-200',
+  chatbot: 'bg-slate-100 text-slate-600 ring-slate-200',
+  template: 'bg-brand-50 text-brand-700 ring-emerald-200',
   unsubscribe: 'bg-red-50 text-red-700 ring-red-200',
 };
 
@@ -98,7 +98,7 @@ function SystemChip({ children }: { children: ReactNode }) {
   return <div className="mx-auto rounded-md bg-white/80 px-2.5 py-1 text-center text-xs text-slate-600 shadow-sm">{children}</div>;
 }
 
-const time = <p className="mt-0.5 text-right text-[10px] text-slate-500">10:30 AM</p>;
+const time = <p className="mt-0.5 text-right text-[11px] text-slate-500">10:30 AM</p>;
 
 /** How the business's automatic answer looks in WhatsApp. */
 export function ReplyPreview({ action, names }: { action: AutoReply['action']; names?: { form?: string; flow?: string; template?: MessageTemplate } }) {
@@ -175,7 +175,7 @@ export function ReplyPreview({ action, names }: { action: AutoReply['action']; n
     case 'location':
       return (
         <Bubble>
-          <div className="mb-1 flex h-24 items-center justify-center rounded bg-emerald-100/70 text-emerald-700">
+          <div className="mb-1 flex h-24 items-center justify-center rounded bg-brand-100/70 text-brand-700">
             <MapPin className="size-7" />
           </div>
           <p className="font-medium">{c.name || 'Location'}</p>
@@ -186,7 +186,7 @@ export function ReplyPreview({ action, names }: { action: AutoReply['action']; n
     case 'chatbot':
       return <SystemChip>▶ Starts the chatbot flow “{names?.flow ?? 'chosen flow'}”</SystemChip>;
     case 'ai_chatbot':
-      return <SystemChip>🤖 Your AI agent writes the answer from your knowledge base</SystemChip>;
+      return <SystemChip>Your AI agent writes the answer from your knowledge base</SystemChip>;
     case 'template':
       return names?.template ? (
         <div className="ml-auto w-[85%]">
@@ -207,7 +207,7 @@ export function PhonePreview({ customerText, trigger, action, names }: { custome
           <Bot className="size-4" />
         </span>
         <div className="flex-1">
-          <p className="text-sm font-semibold">Your Business</p>
+          <p className="text-sm font-semibold">Your business</p>
           <p className="text-[11px] opacity-80">online</p>
         </div>
         <Signal className="size-3.5 opacity-80" />

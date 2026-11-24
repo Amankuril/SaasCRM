@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Copy, FileText, Megaphone, Pause, Pencil, Play, Plus, Repeat, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Alert, Button, Card, EmptyState, PageHeader, Spinner, errorMessage } from '../components/ui';
+import { Ticks } from '../components/Ticks';
+import { Button, Card, EmptyState, PageHeader, Spinner, LoadError } from '../components/ui';
 import { ConfirmDialog, SkeletonRows, StatusBadge, useToast } from '../components/feedback';
 import { Dialog } from '../components/Dialog';
 import { TemplatePreview } from '../components/TemplatePreview';
@@ -109,12 +110,12 @@ export function CampaignsPage() {
   return (
     <>
       <PageHeader
-        title="Campaign List"
-        description="Track every broadcast and how it performed. Statuses update live from WhatsApp delivery receipts."
+        title="Campaigns"
+        description="Every broadcast and how it performed, updated live by WhatsApp delivery receipts"
         actions={
           manage && (
             <Button onClick={() => navigate(`/w/${workspace.id}/broadcast/campaigns/new`)}>
-              <Plus className="size-4" /> Create Campaign
+              <Plus className="size-4" /> Create campaign
             </Button>
           )
         }
@@ -122,16 +123,16 @@ export function CampaignsPage() {
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(
           [
-            ['Sent', totals.sent, 'Total messages sent', 'text-slate-700'],
-            ['Delivered', totals.delivered, 'Successfully delivered', 'text-sky-700'],
-            ['Read', totals.read, 'Opened by recipients', 'text-emerald-700'],
-            ['Failed', totals.failed, 'Delivery failures', 'text-red-600'],
+            ['sent', totals.sent, 'Across all campaigns'],
+            ['delivered', totals.delivered, 'Reached the phone'],
+            ['read', totals.read, 'Opened by the customer'],
+            ['failed', totals.failed, 'Open a campaign for the reason'],
           ] as const
-        ).map(([label, value, hint, tone]) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p>
-            <p className="text-xs text-slate-400">{hint}</p>
+        ).map(([status, value, hint]) => (
+          <div key={status} className="rounded-xl border border-slate-200 bg-white p-4">
+            <Ticks status={status} withLabel className="text-sm text-slate-500" />
+            <p className="mt-2 text-2xl leading-8 font-medium text-ink tabular-nums">{value.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-slate-500">{hint}</p>
           </div>
         ))}
       </div>
@@ -150,15 +151,13 @@ export function CampaignsPage() {
         {list.isPending ? (
           <SkeletonRows rows={6} />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
+          <LoadError error={list.error} what="campaigns" onRetry={() => void list.refetch()} />
         ) : list.data.campaigns.length === 0 ? (
           <EmptyState icon={<Megaphone className="size-5" />} title="No campaigns yet">
             Create one to send offers, reminders or updates to your contact lists at once.
             {manage && (
               <Button className="mt-4" onClick={() => navigate(`/w/${workspace.id}/broadcast/campaigns/new`)}>
-                <Plus className="size-4" /> Create Campaign
+                <Plus className="size-4" /> Create campaign
               </Button>
             )}
           </EmptyState>
@@ -202,7 +201,7 @@ export function CampaignsPage() {
                           {c.name}
                         </Link>
                         <p className="text-xs text-slate-500">
-                          {c.audience.type === 'retarget' && <span className="mr-1 rounded bg-indigo-50 px-1 text-indigo-700">Retarget</span>}
+                          {c.audience.type === 'retarget' && <span className="mr-1 rounded bg-slate-100 px-1 text-slate-600">Retarget</span>}
                           {c.templateName ?? (draft ? 'Draft — not sent yet' : '')}
                         </p>
                       </td>

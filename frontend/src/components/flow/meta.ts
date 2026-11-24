@@ -48,12 +48,12 @@ export interface NodeMeta {
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 
-const SKY = 'bg-sky-50 text-sky-700 ring-sky-200';
-const VIOLET = 'bg-violet-50 text-violet-700 ring-violet-200';
-const PINK = 'bg-pink-50 text-pink-700 ring-pink-200';
-const ORANGE = 'bg-orange-50 text-orange-700 ring-orange-200';
-const TEAL = 'bg-teal-50 text-teal-700 ring-teal-200';
-const SLATE = 'bg-slate-100 text-slate-700 ring-slate-200';
+const SKY = 'bg-slate-50 text-slate-600 ring-slate-200';
+const VIOLET = 'bg-slate-50 text-slate-600 ring-slate-200';
+const PINK = 'bg-slate-50 text-slate-600 ring-slate-200';
+const ORANGE = 'bg-slate-50 text-slate-600 ring-slate-200';
+const TEAL = 'bg-slate-50 text-slate-600 ring-slate-200';
+const SLATE = 'bg-slate-50 text-slate-600 ring-slate-200';
 
 /** Palette order follows the key order inside each group. */
 export const NODE_META: Record<FlowNodeType, NodeMeta> = {
@@ -61,14 +61,14 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'Trigger',
     description: 'What starts the flow',
     icon: Zap,
-    accent: 'bg-amber-50 text-amber-700 ring-amber-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Trigger',
     defaults: () => ({ event: 'keyword', keywords: [], match: 'exact' }),
   },
 
   // ---- Messages ----
   send_text: {
-    label: 'Send Message',
+    label: 'Send message',
     description: 'Free text (within 24h of their last message)',
     icon: MessageSquareText,
     accent: SKY,
@@ -76,10 +76,10 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ text: '' }),
   },
   send_cta: {
-    label: 'CTA URL Button',
+    label: 'CTA URL button',
     description: 'Message with a link button',
     icon: Link2,
-    accent: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ text: '', buttonText: '', url: 'https://' }),
   },
@@ -92,10 +92,10 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ question: '', saveTo: 'custom.answer', validation: 'any', retryMessage: "That doesn't look right. Please try again.", timeoutMinutes: 1440 }),
   },
   send_template: {
-    label: 'Template Msg',
+    label: 'Template msg',
     description: 'Approved template, works any time',
     icon: FileText,
-    accent: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ templateId: '', headerVariables: [], bodyVariables: [] }),
   },
@@ -103,20 +103,20 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'WhatsApp Flow/Form',
     description: 'WhatsApp form; waits for the submission',
     icon: ClipboardList,
-    accent: 'bg-cyan-50 text-cyan-700 ring-cyan-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ formId: '', text: '', timeoutMinutes: 1440 }),
   },
   send_catalog: {
-    label: 'Send Catalogue',
+    label: 'Send catalogue',
     description: 'Show your WhatsApp catalogue',
     icon: ShoppingBag,
-    accent: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ text: 'Have a look at our catalogue.' }),
   },
   send_list: {
-    label: 'Interactive List',
+    label: 'Interactive list',
     description: 'Menu of up to 10 options, branch on the choice',
     icon: List,
     accent: VIOLET,
@@ -124,7 +124,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ text: '', buttonText: 'View options', rows: [{ id: uid(), title: 'Option 1' }, { id: uid(), title: 'Option 2' }], timeoutMinutes: 1440 }),
   },
   send_media: {
-    label: 'Media Carousel',
+    label: 'Media carousel',
     description: 'Images, videos or documents, one after another',
     icon: Images,
     accent: SKY,
@@ -135,7 +135,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'Location',
     description: 'Send a map pin',
     icon: MapPin,
-    accent: 'bg-rose-50 text-rose-700 ring-rose-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ latitude: null, longitude: null, name: '', address: '' }),
   },
@@ -143,12 +143,12 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'Feedback/Rating',
     description: 'Ask for a 1 to 5 star rating',
     icon: Star,
-    accent: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Messages',
     defaults: () => ({ question: 'How would you rate your experience with us?', saveAs: 'rating', timeoutMinutes: 1440 }),
   },
   send_contacts: {
-    label: 'Contact List',
+    label: 'Contact list',
     description: 'Share contact cards',
     icon: Contact,
     accent: TEAL,
@@ -156,7 +156,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ contacts: [{ name: '', phone: '', organization: '' }] }),
   },
   send_buttons: {
-    label: 'Quick Reply',
+    label: 'Quick reply',
     description: 'Up to 3 buttons, branch on the tap',
     icon: MousePointerClick,
     accent: VIOLET,
@@ -164,7 +164,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ text: '', buttons: [{ id: uid(), title: 'Yes' }, { id: uid(), title: 'No' }], timeoutMinutes: 1440 }),
   },
   ask_address: {
-    label: 'Address Msg',
+    label: 'Address msg',
     description: 'Ask for a delivery address',
     icon: MapPinned,
     accent: PINK,
@@ -172,7 +172,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ text: 'Please share your delivery address.', country: 'IN', timeoutMinutes: 1440 }),
   },
   wait_reply: {
-    label: 'No Response Sequence',
+    label: 'No response sequence',
     description: "Follow up when the customer doesn't reply",
     icon: TimerOff,
     accent: SLATE,
@@ -198,7 +198,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ amount: 1, unit: 'hours' }),
   },
   time_check: {
-    label: 'Time Check',
+    label: 'Time check',
     description: 'Branch on business hours',
     icon: CalendarClock,
     accent: ORANGE,
@@ -206,7 +206,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ days: [1, 2, 3, 4, 5, 6], from: '09:00', to: '18:00' }),
   },
   add_tags: {
-    label: 'Add Tags',
+    label: 'Add tags',
     description: 'Tag the contact',
     icon: Tags,
     accent: TEAL,
@@ -214,7 +214,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ tagIds: [] }),
   },
   loop: {
-    label: 'Loop Items',
+    label: 'Loop items',
     description: 'Repeat steps for each item in a list',
     icon: Repeat,
     accent: ORANGE,
@@ -225,7 +225,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'Book Appt.',
     description: 'Let the customer pick a date and time',
     icon: CalendarCheck,
-    accent: 'bg-blue-50 text-blue-700 ring-blue-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Logic & Flow',
     defaults: () => ({
       service: 'Appointment',
@@ -240,7 +240,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     }),
   },
   set_stage: {
-    label: 'Set Stage',
+    label: 'Set stage',
     description: "Move the contact's lifecycle stage",
     icon: Layers,
     accent: TEAL,
@@ -248,7 +248,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ stage: 'contacted' }),
   },
   set_field: {
-    label: 'Custom Field',
+    label: 'Custom field',
     description: 'Save a value on the contact',
     icon: PencilLine,
     accent: TEAL,
@@ -256,15 +256,15 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     defaults: () => ({ field: 'custom.field', value: '{{last_reply}}' }),
   },
   create_ticket: {
-    label: 'Smart Ticket',
+    label: 'Smart ticket',
     description: 'Open a ticket for your team',
     icon: Ticket,
-    accent: 'bg-red-50 text-red-700 ring-red-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Logic & Flow',
     defaults: () => ({ title: 'Request from {{contact.name}}', description: '{{last_reply}}', priority: 'medium' }),
   },
   exit: {
-    label: 'End Flow',
+    label: 'End flow',
     description: 'Finish the flow (optionally count a goal)',
     icon: Flag,
     accent: 'bg-slate-800 text-white ring-slate-700',
@@ -283,34 +283,34 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
 
   // ---- Advanced ----
   ai_answer: {
-    label: 'AI Agent',
+    label: 'AI agent',
     description: 'Answer the last message from your knowledge base',
     icon: Bot,
-    accent: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Advanced',
     defaults: () => ({ sendAnswer: true }),
   },
   handoff: {
-    label: 'Transfer Agent',
+    label: 'Transfer agent',
     description: 'Send to the team inbox, pause the bot',
     icon: UserCog,
-    accent: 'bg-red-50 text-red-700 ring-red-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Advanced',
     defaults: () => ({ assigneeId: null, message: '', note: '' }),
   },
   resolve_chat: {
-    label: 'Resolve Chat',
+    label: 'Resolve chat',
     description: 'Mark the conversation resolved and end',
     icon: CircleCheckBig,
-    accent: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Advanced',
     defaults: () => ({ message: '' }),
   },
   http_request: {
-    label: 'Webhook Request',
+    label: 'Webhook request',
     description: 'Call your API or CRM and use the response',
     icon: Webhook,
-    accent: 'bg-lime-50 text-lime-700 ring-lime-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Advanced',
     defaults: () => ({ method: 'POST', url: 'https://', headers: [], body: '{\n  "phone": "{{contact.phone}}"\n}', saveResponse: [], timeoutSeconds: 10 }),
   },
@@ -318,7 +318,7 @@ export const NODE_META: Record<FlowNodeType, NodeMeta> = {
     label: 'Google Sheets',
     description: 'Add a row to a Google Sheet',
     icon: Table2,
-    accent: 'bg-green-50 text-green-700 ring-green-200',
+    accent: 'bg-slate-50 text-slate-600 ring-slate-200',
     group: 'Advanced',
     defaults: () => ({ googleAccountId: '', sheetUrl: '', tab: 'Sheet1', values: ['{{contact.name}}', '{{contact.phone}}'] }),
   },

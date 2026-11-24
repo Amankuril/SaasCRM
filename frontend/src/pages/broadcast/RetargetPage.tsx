@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { CircleHelp, Repeat } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { Alert, Button, EmptyState, Spinner, cn, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type Campaign, type RetargetOutcome } from '../../lib/api';
 import { formatInZone } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -40,15 +40,12 @@ export function RetargetPage() {
   return (
     <>
       <div className="mb-6 flex items-start gap-3">
-        <span className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 ring-1 ring-indigo-100">
-          <Repeat className="size-5" />
-        </span>
         <div>
-          <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-ink">
-            Retarget Campaign
+          <h1 className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xl leading-8 font-medium text-ink">
+            Retarget campaign
             <Link
               to={`/w/${workspace.id}/broadcast/guide#retarget`}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 text-sm font-normal text-slate-500 hover:text-ink"
             >
               <CircleHelp className="size-3.5" /> How it works
             </Link>
@@ -60,8 +57,8 @@ export function RetargetPage() {
       {list.isPending ? (
         <Spinner />
       ) : list.error ? (
-        <Alert>{errorMessage(list.error)}</Alert>
-      ) : sent.length === 0 ? (
+          <LoadError error={list.error} onRetry={() => void list.refetch()} />
+        ) : sent.length === 0 ? (
         <EmptyState icon={<Repeat className="size-5" />} title="No sent campaigns yet">
           Send a campaign first; you can retarget its audience once WhatsApp reports how it went.
         </EmptyState>
@@ -115,7 +112,7 @@ export function RetargetPage() {
             <Alert tone="info">Best practice: wait 24–48 hours after the original campaign before retargeting.</Alert>
             {create.error != null && <Alert>{errorMessage(create.error)}</Alert>}
             {can('campaigns:manage') && (
-              <Button className="w-full bg-slate-700 hover:bg-slate-800" disabled={!source || !outcomes.length} loading={create.isPending} onClick={() => create.mutate()}>
+              <Button className="w-full" disabled={!source || !outcomes.length} loading={create.isPending} onClick={() => create.mutate()}>
                 Continue to Create Campaign
               </Button>
             )}

@@ -3,7 +3,7 @@ import { ArrowLeft, Ban, ChevronLeft, ChevronRight, Pause, Play, Users } from 'l
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { useStageOptions, TagChip } from '../components/crm';
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage } from '../components/ui';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, cn, errorMessage, LoadError } from '../components/ui';
 import { api, type AudienceFilter, type Campaign, type ContactList, type Segment, type VariableSpec } from '../lib/api';
 import { useTags } from '../lib/hooks';
 import { formatInZone } from '../lib/options';
@@ -346,7 +346,7 @@ function CampaignReport({ campaign }: { campaign: Campaign }) {
             </span>
           </div>
           <div className="flex h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="bg-emerald-500" style={{ width: `${(f.read / f.total) * 100}%` }} />
+            <div className="bg-brand-500" style={{ width: `${(f.read / f.total) * 100}%` }} />
             <div className="bg-sky-400" style={{ width: `${((f.delivered - f.read) / f.total) * 100}%` }} />
             <div className="bg-slate-400" style={{ width: `${((f.sent - f.delivered) / f.total) * 100}%` }} />
             <div className="bg-red-400" style={{ width: `${(f.failed / f.total) * 100}%` }} />
@@ -379,10 +379,8 @@ function CampaignReport({ campaign }: { campaign: Campaign }) {
         {recipients.isPending ? (
           <Spinner />
         ) : recipients.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(recipients.error)}</Alert>
-          </div>
-        ) : recipients.data.recipients.length === 0 ? (
+            <LoadError error={recipients.error} what="this list" onRetry={() => void recipients.refetch()} />
+          ) : recipients.data.recipients.length === 0 ? (
           <EmptyState icon={<Users className="size-5" />} title="No recipients with this status" />
         ) : (
           <>
@@ -430,7 +428,7 @@ function BackLink() {
   const { workspace } = useWorkspace();
   return (
     <Link to={`/w/${workspace.id}/broadcast/campaigns`} className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-      <ArrowLeft className="size-4" /> Campaign List
+      <ArrowLeft className="size-4" /> Campaign list
     </Link>
   );
 }

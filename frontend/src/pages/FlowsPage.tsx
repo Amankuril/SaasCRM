@@ -1,6 +1,6 @@
 import { BarChart3, BookOpen, CalendarCheck, Database, Megaphone, MessagesSquare, Workflow, type LucideIcon } from 'lucide-react';
 import { useSearchParams } from 'react-router';
-import { cn } from '../components/ui';
+import { SectionNav } from '../components/SectionNav';
 import { AutomationsTab } from './flows/AutomationsTab';
 import { FlowAdsTab } from './flows/FlowAdsTab';
 import { FlowAppointmentsTab } from './flows/FlowAppointmentsTab';
@@ -13,10 +13,10 @@ export { FLOW_STATUS } from './flows/shared';
 
 const TABS: { key: string; label: string; icon: LucideIcon }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { key: 'builder', label: 'Flow Builder', icon: Workflow },
+  { key: 'builder', label: 'Automations', icon: Workflow },
   { key: 'appointments', label: 'Appointments', icon: CalendarCheck },
   { key: 'conversations', label: 'Conversations', icon: MessagesSquare },
-  { key: 'data', label: 'Collected Data', icon: Database },
+  { key: 'data', label: 'Collected data', icon: Database },
   { key: 'ads', label: 'Ads', icon: Megaphone },
   { key: 'docs', label: 'Documentation', icon: BookOpen },
 ];
@@ -28,22 +28,11 @@ export function FlowsPage() {
 
   return (
     <>
-      <nav aria-label="Flow Builder sections" className="no-scrollbar -mx-1 mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-200 px-1">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setParams(t.key === 'builder' ? {} : { tab: t.key })}
-            aria-current={tab === t.key ? 'page' : undefined}
-            className={cn(
-              '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition',
-              tab === t.key ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800',
-            )}
-          >
-            <t.icon className="size-4" /> {t.label}
-          </button>
-        ))}
-      </nav>
+      <SectionNav
+        label="Flow builder"
+        className="-mx-4 -mt-6 mb-6 sm:-mx-6 lg:-mx-8 lg:px-8"
+        items={TABS.map((t) => ({ label: t.label, icon: t.icon, active: tab === t.key, onSelect: () => setParams(t.key === 'builder' ? {} : { tab: t.key }) }))}
+      />
       {tab === 'dashboard' && <FlowDashboardTab />}
       {tab === 'builder' && <AutomationsTab />}
       {tab === 'appointments' && <FlowAppointmentsTab />}

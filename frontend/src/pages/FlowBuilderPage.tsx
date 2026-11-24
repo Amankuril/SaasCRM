@@ -385,7 +385,7 @@ function Builder({ flow }: { flow: FlowDetail }) {
               <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3 md:block" aria-label="Steps">
                 {PALETTE_GROUPS.map((group) => (
                   <div key={group} className="mb-4">
-                    <p className="mb-1.5 text-xs font-medium tracking-wide text-slate-400 uppercase">{group}</p>
+                    <p className="mb-1.5 text-xs font-medium text-slate-400">{group}</p>
                     <div className="space-y-1.5">
                       {paletteItems(group).map((t) => {
                           const m = NODE_META[t];

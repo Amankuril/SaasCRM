@@ -3,7 +3,7 @@ import { CircleHelp, Eye, FilePlus2, ListChecks, Plus, RefreshCw, Search, Trash2
 import { useDeferredValue, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { TagChip } from '../../components/crm';
-import { Alert, Button, EmptyState, Input, Spinner, cn, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Input, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type Contact, type ContactList } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -84,17 +84,14 @@ export function ContactListsPage() {
   return (
     <>
       <div className="mb-6 flex items-start gap-3">
-        <span className="rounded-xl bg-sky-50 p-2.5 text-sky-600 ring-1 ring-sky-100">
-          <Users className="size-5" />
-        </span>
         <div className="relative">
-          <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold text-ink">
-            Contacts List
-            <button type="button" onClick={() => setHowOpen(!howOpen)} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+          <h1 className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xl leading-8 font-medium text-ink">
+            Contact lists
+            <button type="button" onClick={() => setHowOpen(!howOpen)} className="inline-flex items-center gap-1.5 text-sm font-normal text-slate-500 hover:text-ink">
               <CircleHelp className="size-3.5" /> How it works
             </button>
           </h1>
-          <p className="text-sm text-slate-500">Organize your audience into lists, contacts and tags.</p>
+          <p className="text-sm text-slate-500">Groups of people you send broadcasts to</p>
           {howOpen && (
             <div className="absolute top-full left-0 z-20 mt-2 w-96 max-w-[90vw] rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-lg">
               <ol className="list-decimal space-y-1.5 pl-4">
@@ -121,8 +118,8 @@ export function ContactListsPage() {
       ) : (
         <div className={cameBack ? 'animate-slide-in-left' : undefined}>
         <div className="mb-4 inline-flex gap-1 rounded-xl bg-slate-100 p-1">
-          <TabButton value="lists" icon={ListChecks} label="All Lists" />
-          <TabButton value="contacts" icon={Users} label="All Contacts" />
+          <TabButton value="lists" icon={ListChecks} label="All lists" />
+          <TabButton value="contacts" icon={Users} label="All contacts" />
           <TabButton value="unsubscribed" icon={UserMinus} label="Unsubscribers" />
         </div>
 
@@ -145,24 +142,24 @@ export function ContactListsPage() {
           )}
           {canManage && (
             <>
-              <Button onClick={() => setCreating(true)} className="bg-slate-700 hover:bg-slate-800">
-                <Plus className="size-4" /> New List
+              <Button onClick={() => setCreating(true)}>
+                <Plus className="size-4" /> New list
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => {
                   if (tab !== 'contacts' || !selected.size) {
                     setTab('contacts');
-                    setNotice('Tick the contacts you want, then click Assign Lists again.');
+                    setNotice('Tick the contacts you want, then click Assign lists again.');
                   } else setAssigning(true);
                 }}
               >
-                <Users className="size-4" /> Assign Lists{tab === 'contacts' && selected.size ? ` (${selected.size})` : ''}
+                <Users className="size-4" /> Assign lists{tab === 'contacts' && selected.size ? ` (${selected.size})` : ''}
               </Button>
             </>
           )}
           <Button variant="secondary" onClick={() => navigate(`/w/${workspace.id}/templates/new`)}>
-            <FilePlus2 className="size-4" /> Create Template
+            <FilePlus2 className="size-4" /> Create template
           </Button>
         </div>
         {deleteLists.error != null && (
@@ -181,10 +178,8 @@ export function ContactListsPage() {
             lists.isPending ? (
               <Spinner />
             ) : lists.error ? (
-              <div className="p-4">
-                <Alert>{errorMessage(lists.error)}</Alert>
-              </div>
-            ) : lists.data.lists.length === 0 ? (
+            <LoadError error={lists.error} what="this list" onRetry={() => void lists.refetch()} />
+          ) : lists.data.lists.length === 0 ? (
               <EmptyState icon={<ListChecks className="size-5" />} title={q ? 'No lists match' : 'No contact lists yet'}>
                 {q ? 'Try another search.' : 'Create a list, then add contacts to it one by one or from a CSV.'}
               </EmptyState>
@@ -196,9 +191,9 @@ export function ContactListsPage() {
                       <th className="w-12 px-4 py-3">
                         <input type="checkbox" aria-label="Select all lists" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))} />
                       </th>
-                      <th className="px-3 py-3 font-medium">List Name</th>
+                      <th className="px-3 py-3 font-medium">List name</th>
                       <th className="px-3 py-3 font-medium">Count</th>
-                      <th className="px-3 py-3 font-medium">Created On</th>
+                      <th className="px-3 py-3 font-medium">Created on</th>
                       <th className="px-3 py-3 font-medium">Tags</th>
                       <th className="px-3 py-3 text-right font-medium">Actions</th>
                     </tr>
@@ -249,9 +244,7 @@ export function ContactListsPage() {
           ) : contacts.isPending ? (
             <Spinner />
           ) : contacts.error ? (
-            <div className="p-4">
-              <Alert>{errorMessage(contacts.error)}</Alert>
-            </div>
+            <LoadError error={contacts.error} what="this list" onRetry={() => void contacts.refetch()} />
           ) : contacts.data.contacts.length === 0 ? (
             <EmptyState icon={<Users className="size-5" />} title={tab === 'unsubscribed' ? 'No unsubscribers' : q ? 'No contacts match' : 'No contacts yet'}>
               {tab === 'unsubscribed' ? 'People who reply STOP or are unsubscribed by an auto reply show up here. They never receive broadcasts.' : 'Add contacts to a list to see them here.'}

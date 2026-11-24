@@ -49,7 +49,7 @@ export function FlowDashboardTab() {
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Flow dashboard</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Flow dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">How your automations are performing.</p>
         </div>
         <RangeSelect value={range} onChange={setRange} />
@@ -97,8 +97,8 @@ export function FlowDashboardTab() {
               title="Replies sent by flows"
               days={points.map((p) => p.date)}
               series={[
-                { key: 'replies', label: 'Replies sent', color: '#2a78d6', values: points.map((p) => p.replies) },
-                { key: 'runs', label: 'Runs started', color: '#eb6834', values: points.map((p) => p.runs) },
+                { key: 'replies', label: 'Replies sent', color: '#0a7d55', values: points.map((p) => p.replies) },
+                { key: 'runs', label: 'Runs started', color: '#2a78d6', values: points.map((p) => p.runs) },
               ]}
             />
           </Card>
@@ -109,7 +109,7 @@ export function FlowDashboardTab() {
               <EmptyState icon={<Workflow className="size-5" />} title="No automations yet">
                 <p>Create your first automation to see its numbers here.</p>
                 <Link to={`/w/${workspace.id}/flows`} className="mt-3 inline-block">
-                  <Button>Open Flow Builder</Button>
+                  <Button>Open flow builder</Button>
                 </Link>
               </EmptyState>
             ) : (

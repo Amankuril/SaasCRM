@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { CalendarCheck, CalendarDays, Download, Search, Table2 } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
 import { SkeletonRows, StatusBadge, useToast } from '../../components/feedback';
-import { Alert, Button, Card, EmptyState, Input, Select, cn, errorMessage } from '../../components/ui';
+import { Button, Card, EmptyState, Input, Select, cn, LoadError } from '../../components/ui';
 import { api, type Appointment, type AppointmentStatus } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 import { MonthCalendar } from '../audience/AppointmentsPage';
@@ -66,7 +66,7 @@ export function FlowAppointmentsTab() {
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Appointments</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Appointments</h1>
           <p className="mt-1 text-sm text-slate-500">Bookings customers made inside your automations.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -116,10 +116,8 @@ export function FlowAppointmentsTab() {
         {list.isPending ? (
           <SkeletonRows rows={6} />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : view === 'calendar' ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : view === 'calendar' ? (
           <div className="px-3 pb-3">
             <MonthCalendar month={month} onMonth={setMonth} items={items} onOpen={() => setView('list')} />
           </div>
