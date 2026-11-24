@@ -3,7 +3,7 @@ import { BookOpen, Search, Trash2, Users } from 'lucide-react';
 import { useDeferredValue, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { TemplatePreview } from '../../components/TemplatePreview';
-import { Alert, Button, EmptyState, Input, Select, Spinner, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Input, Select, Spinner, errorMessage, LoadError } from '../../components/ui';
 import { api, type CommunityTemplate } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 import { CATEGORY_LABEL, TYPE_INFO, componentsToForm } from './templateForm';
@@ -45,7 +45,7 @@ export function CommunityLibraryPage() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <TemplatesHeader title="Community Library" description="Approved templates shared by other businesses. Use one as a starting point — it is submitted under your own account." />
+      <TemplatesHeader title="Community library" description="Approved templates shared by other businesses. Use one as a starting point — it is submitted under your own account." />
       <div className="space-y-4 px-4 py-4 sm:px-6">
         {actionError != null && <Alert>{errorMessage(actionError)}</Alert>}
         <div className="flex flex-wrap gap-2">
@@ -54,7 +54,7 @@ export function CommunityLibraryPage() {
             <Input aria-label="Search community templates" placeholder="Search templates..." value={q} onChange={(e) => setQ(e.target.value)} className="rounded-full pl-9" />
           </div>
           <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="w-40!">
-            <option value="">All Categories</option>
+            <option value="">All categories</option>
             {Object.entries(CATEGORY_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -62,7 +62,7 @@ export function CommunityLibraryPage() {
             ))}
           </Select>
           <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)} className="w-40!">
-            <option value="">All Types</option>
+            <option value="">All types</option>
             {TYPE_INFO.map((t) => (
               <option key={t.type} value={t.type}>
                 {t.type === 'CUSTOM' ? 'Custom' : t.label}
@@ -74,7 +74,7 @@ export function CommunityLibraryPage() {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <Alert>{errorMessage(list.error)}</Alert>
+          <LoadError error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.templates.length === 0 ? (
           <EmptyState icon={<BookOpen className="size-5" />} title="Nothing shared yet">
             Share one of your approved templates from All Templates → ⋯ → Contribute to library.
@@ -108,7 +108,7 @@ export function CommunityLibraryPage() {
                       </Button>
                     )}
                     {canManage && (
-                      <Button onClick={() => use.mutate(t)} loading={use.isPending && use.variables?.id === t.id} className="bg-slate-700 hover:bg-slate-800">
+                      <Button onClick={() => use.mutate(t)} loading={use.isPending && use.variables?.id === t.id}>
                         Use template
                       </Button>
                     )}

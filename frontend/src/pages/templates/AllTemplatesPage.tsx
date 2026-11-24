@@ -1,26 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Code2, Copy, Eye, FileText, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Share2, Star, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Code2, Copy, Eye, FileText, MoreHorizontal, Pencil, Plus, Search, Share2, Star, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Modal } from '../../components/crm';
 import { TemplatePreview } from '../../components/TemplatePreview';
-import { Alert, Button, EmptyState, Input, Select, Spinner, cn, errorMessage } from '../../components/ui';
+import { SkeletonRows } from '../../components/feedback';
+import { Alert, Button, EmptyState, Input, LoadError, Select, cn, errorMessage } from '../../components/ui';
 import { api, type MessageTemplate, type TemplatePage } from '../../lib/api';
 import { formatDate } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
 import { CATEGORY_LABEL, TYPE_INFO, languageLabel } from './templateForm';
-import { NotConnectedAlert, StatusPill, TemplatesHeader, TypePill, useConnection } from './shared';
+import { SyncBar } from './SyncBar';
+import { NotConnectedAlert, humanize, StatusPill, TemplatesHeader, TypePill, useConnection } from './shared';
 
 const TABS: { key: string; label: string }[] = [
-  { key: '', label: 'All Templates' },
+  { key: '', label: 'All' },
   { key: 'FAVORITES', label: 'Favorites' },
   { key: 'APPROVED', label: 'Approved' },
   { key: 'REJECTED', label: 'Rejected' },
   { key: 'PENDING', label: 'Pending' },
+  { key: 'IN_APPEAL', label: 'In appeal' },
   { key: 'PAUSED', label: 'Paused' },
   { key: 'DRAFT', label: 'Draft' },
   { key: 'DISABLED', label: 'Disabled' },
-  { key: 'PENDING_DELETION', label: 'Pending Deletion' },
+  { key: 'PENDING_DELETION', label: 'Pending deletion' },
 ];
 
 /** Meta lets you edit approved, rejected and paused templates; drafts are edited locally. */
@@ -64,18 +67,11 @@ export function AllTemplatesPage() {
       return api.get<TemplatePage>(`/workspaces/${workspace.id}/templates?${params}`);
     },
     placeholderData: (prev) => prev,
-    // Reviews finish via webhook; poll gently while any are pending.
-    refetchInterval: (query) => (query.state.data?.templates.some((t) => t.status === 'PENDING') ? 5_000 : false),
+    // Decisions are pushed live; polling covers a dropped connection while anything is in review.
+    refetchInterval: (query) => (query.state.data?.templates.some((t) => ['PENDING', 'IN_APPEAL', 'PENDING_DELETION'].includes(t.status)) ? 10_000 : false),
   });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['templates', workspace.id] });
 
-  const sync = useMutation({
-    mutationFn: () => api.post<{ synced: number; removed: number }>(`/workspaces/${workspace.id}/templates/sync`),
-    onSuccess: (r) => {
-      setFlash(`Synced ${r.synced} template(s) from WhatsApp${r.removed ? `, removed ${r.removed} deleted there` : ''}.`);
-      void invalidate();
-    },
-  });
   const favorite = useMutation({
     mutationFn: (t: MessageTemplate) => api.post(`/workspaces/${workspace.id}/templates/${t.id}/favorite`, { favorite: !t.isFavorite }),
     onSuccess: () => void invalidate(),
@@ -89,9 +85,9 @@ export function AllTemplatesPage() {
   });
   const contribute = useMutation({
     mutationFn: (t: MessageTemplate) => api.post(`/workspaces/${workspace.id}/templates/${t.id}/contribute`),
-    onSuccess: () => setFlash('Shared with the Community Library. Thank you!'),
+    onSuccess: () => setFlash('Shared with the community library.'),
   });
-  const actionError = sync.error ?? duplicate.error ?? contribute.error ?? favorite.error;
+  const actionError = duplicate.error ?? contribute.error ?? favorite.error;
 
   const data = list.data;
   const totalPages = data ? Math.max(1, Math.ceil(data.total / limit)) : 1;
@@ -100,24 +96,20 @@ export function AllTemplatesPage() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <TemplatesHeader
-        title="All Templates"
-        description="View, search and manage all your WhatsApp message templates"
+        title="Templates"
+        description="Messages approved by Meta, ready to send at any time"
         actions={
           canManage && (
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => sync.mutate()} loading={sync.isPending} disabled={!connection.connected} title="Sync from WhatsApp" aria-label="Sync from WhatsApp">
-                {!sync.isPending && <RefreshCw className="size-4" />}
-              </Button>
-              <Button onClick={() => navigate('new')} className="bg-slate-700 hover:bg-slate-800">
-                <Plus className="size-4" /> New Template
-              </Button>
-            </div>
+            <Button onClick={() => navigate('new')}>
+              <Plus className="size-4" /> New template
+            </Button>
           )
         }
       />
 
       <div className="space-y-3 px-4 py-4 sm:px-6">
         {connection.loaded && !connection.connected && <NotConnectedAlert />}
+        <SyncBar canManage={canManage} onSynced={setFlash} />
         {flash && (
           <Alert tone="success">
             <span className="flex items-center justify-between gap-2">
@@ -130,7 +122,7 @@ export function AllTemplatesPage() {
         )}
         {actionError != null && <Alert>{errorMessage(actionError)}</Alert>}
 
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
+        <div className="no-scrollbar flex gap-1 overflow-x-auto p-px" role="tablist">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -138,8 +130,8 @@ export function AllTemplatesPage() {
               aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                'shrink-0 rounded-full border px-3 py-1 text-sm transition-colors',
-                tab === t.key ? 'border-slate-300 bg-slate-100 font-medium text-ink' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                'h-8 shrink-0 rounded-lg px-3 text-sm transition-colors',
+                tab === t.key ? 'bg-white font-medium text-ink ring-1 ring-slate-300' : 'text-slate-600 hover:bg-slate-200/50',
               )}
             >
               {t.label}
@@ -150,10 +142,10 @@ export function AllTemplatesPage() {
         <div className="flex flex-wrap gap-2">
           <div className="relative w-full sm:w-80">
             <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" />
-            <Input aria-label="Search templates" placeholder="Search templates..." value={q} onChange={(e) => setQ(e.target.value)} className="rounded-full pl-9" />
+            <Input aria-label="Search templates" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
           </div>
           <Select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="w-40!">
-            <option value="">All Categories</option>
+            <option value="">All categories</option>
             {Object.entries(CATEGORY_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -161,7 +153,7 @@ export function AllTemplatesPage() {
             ))}
           </Select>
           <Select aria-label="Type" value={type} onChange={(e) => setType(e.target.value)} className="w-40!">
-            <option value="">All Types</option>
+            <option value="">All types</option>
             {TYPE_INFO.map((t) => (
               <option key={t.type} value={t.type}>
                 {t.type === 'CUSTOM' ? 'Custom' : t.label}
@@ -172,11 +164,9 @@ export function AllTemplatesPage() {
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           {list.isPending ? (
-            <Spinner />
+            <SkeletonRows />
           ) : list.error ? (
-            <div className="p-4">
-              <Alert>{errorMessage(list.error)}</Alert>
-            </div>
+            <LoadError error={list.error} what="templates" onRetry={() => void list.refetch()} />
           ) : data!.templates.length === 0 ? (
             <EmptyState icon={<FileText className="size-5" />} title={filtered ? 'No templates match these filters' : 'No templates yet'}>
               {filtered ? 'Try another tab or search.' : connection.connected ? 'Sync your existing templates from WhatsApp or create a new one.' : 'Templates appear here once WhatsApp is connected.'}
@@ -185,7 +175,7 @@ export function AllTemplatesPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  <tr className="border-b border-slate-200 text-left text-xs text-slate-500 [&>th]:font-normal">
                     <th className="px-4 py-3">Name</th>
                     <th className="px-3 py-3">Category</th>
                     <th className="px-3 py-3">Language</th>
@@ -213,7 +203,7 @@ export function AllTemplatesPage() {
                             {t.name}
                           </button>
                         </div>
-                        {t.rejectedReason && <p className="mt-0.5 ml-7 text-xs text-red-600">{t.rejectedReason.replace(/_/g, ' ').toLowerCase()}</p>}
+                        {t.rejectedReason && t.status !== 'APPROVED' && <p className="mt-0.5 ml-7 max-w-72 text-xs text-red-600">{reasonText(t.rejectedReason)}</p>}
                       </td>
                       <td className="px-3 py-3 text-slate-600">{CATEGORY_LABEL[t.category] ?? t.category}</td>
                       <td className="px-3 py-3 text-slate-600">{t.language}</td>
@@ -313,21 +303,9 @@ function DateBy({ date, by }: { date: string; by: string | null }) {
 }
 
 function UsedIn({ usage }: { usage: MessageTemplate['usage'] }) {
-  if (!usage || (!usage.campaigns && !usage.flows)) return <span className="text-slate-400">—</span>;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {usage.campaigns > 0 && (
-        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-indigo-700 ring-1 ring-indigo-200">
-          {usage.campaigns} campaign{usage.campaigns > 1 ? 's' : ''}
-        </span>
-      )}
-      {usage.flows > 0 && (
-        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-violet-700 ring-1 ring-violet-200">
-          {usage.flows} flow{usage.flows > 1 ? 's' : ''}
-        </span>
-      )}
-    </div>
-  );
+  const part = (n: number, word: string) => (n ? [`${n} ${word}${n === 1 ? '' : 's'}`] : []);
+  const list = usage ? [...part(usage.campaigns, 'campaign'), ...part(usage.flows, 'flow'), ...part(usage.reminders, 'reminder')] : [];
+  return <span className={list.length ? 'text-slate-600' : 'text-slate-400'}>{list.length ? list.join(', ') : 'Not used'}</span>;
 }
 
 function IconButton({ label, children, ...props }: { label: string; children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
@@ -400,7 +378,7 @@ function RowMenu({ template, onDuplicate, onContribute, onDelete }: { template: 
 function Pager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
   // First, last, and a window around the current page.
   const pages = [...new Set([1, page - 1, page, page + 1, totalPages])].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-  const btn = 'flex size-8 items-center justify-center rounded-full text-sm disabled:opacity-40';
+  const btn = 'flex size-8 items-center justify-center rounded-lg text-sm disabled:opacity-40';
   return (
     <div className="flex items-center gap-1">
       <button className={cn(btn, 'border border-slate-200 hover:bg-slate-50')} disabled={page <= 1} onClick={() => onChange(page - 1)} aria-label="Previous page">
@@ -410,7 +388,7 @@ function Pager({ page, totalPages, onChange }: { page: number; totalPages: numbe
         <span key={p} className="flex items-center gap-1">
           {i > 0 && p - pages[i - 1]! > 1 && <span className="px-1 text-slate-400">…</span>}
           <button
-            className={cn(btn, p === page ? 'bg-slate-700 font-medium text-white' : 'border border-slate-200 hover:bg-slate-50')}
+            className={cn(btn, p === page ? 'bg-slate-900 font-medium text-white' : 'border border-slate-200 hover:bg-slate-50')}
             onClick={() => onChange(p)}
             aria-current={p === page ? 'page' : undefined}
           >
@@ -436,7 +414,7 @@ function ViewModal({ template: t, onClose }: { template: MessageTemplate; onClos
           </Row>
           {t.rejectedReason && (
             <Row label="Rejection reason">
-              <span className="text-red-600">{t.rejectedReason}</span>
+              <span className="text-red-600">{reasonText(t.rejectedReason)}</span>
             </Row>
           )}
           <Row label="Type">
@@ -452,10 +430,25 @@ function ViewModal({ template: t, onClose }: { template: MessageTemplate; onClos
           )}
           {t.libraryTemplateName && <Row label="From Meta library">{t.libraryTemplateName}</Row>}
           {t.providerTemplateId && <Row label="WhatsApp template ID">{t.providerTemplateId}</Row>}
-          {t.syncedAt && <Row label="Last synced">{formatDate(t.syncedAt, true)}</Row>}
+          {t.syncedAt && <Row label="Last confirmed by Meta">{formatDate(t.syncedAt, true)}</Row>}
+          {t.wabaId && <Row label="WhatsApp Business Account">{t.wabaId}</Row>}
+          {t.statusHistory.length > 0 && (
+            <Row label="Status history">
+              <ol className="space-y-1">
+                {t.statusHistory.map((h, i) => (
+                  <li key={i} className="flex flex-wrap justify-between gap-x-4">
+                    <span>
+                      {humanize(h.status)} <span className="text-slate-500">{HISTORY_SOURCE[h.source] ?? ''}</span>
+                    </span>
+                    <span className="text-slate-500 tabular-nums">{formatDate(h.at, true)}</span>
+                  </li>
+                ))}
+              </ol>
+            </Row>
+          )}
           {t.status === 'APPROVED' && (
-            <Link to={`/w/${workspace.id}/broadcast/campaigns`} className="inline-block pt-2 text-sm font-medium text-brand-700 hover:underline">
-              Use in a broadcast →
+            <Link to={`/w/${workspace.id}/broadcast/campaigns/new`} className="inline-block pt-2 text-sm font-medium text-brand-700 hover:underline">
+              Use in a broadcast
             </Link>
           )}
         </dl>
@@ -464,6 +457,11 @@ function ViewModal({ template: t, onClose }: { template: MessageTemplate; onClos
     </Modal>
   );
 }
+
+const HISTORY_SOURCE: Record<string, string> = { submit: 'when submitted', webhook: 'pushed by Meta', reconcile: 'found by automatic check', manual: 'found by sync', connect: 'found after connecting' };
+
+/** "INVALID_FORMAT: Variables are not numbered." in plain words. */
+const reasonText = (reason: string) => reason.replace(/^[A-Z][A-Z_]+/, (code) => code.charAt(0) + code.slice(1).toLowerCase().replace(/_/g, ' '));
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -524,15 +522,15 @@ function CodeModal({ template: t, onClose }: { template: MessageTemplate; onClos
 function DeleteModal({ template: t, onClose, onDeleted }: { template: MessageTemplate; onClose: () => void; onDeleted: () => void }) {
   const { workspace } = useWorkspace();
   const del = useMutation({ mutationFn: () => api.delete(`/workspaces/${workspace.id}/templates/${t.id}`), onSuccess: onDeleted });
-  const used = (t.usage?.campaigns ?? 0) + (t.usage?.flows ?? 0);
+  const used = (t.usage?.campaigns ?? 0) + (t.usage?.flows ?? 0) + (t.usage?.reminders ?? 0);
   return (
-    <Modal title="Delete template?" onClose={onClose}>
+    <Modal title="Delete template" onClose={onClose}>
       <div className="space-y-3 text-sm text-slate-600">
         <p>
           <strong className="text-slate-800">{t.name}</strong> ({t.language}) will be deleted
           {t.providerTemplateId ? ' from WhatsApp as well. Meta does not let you reuse this name for 30 days.' : '.'}
         </p>
-        {used > 0 && <Alert>This template is used in {used} campaign(s)/flow(s). Those will fail to send until you pick another template.</Alert>}
+        {used > 0 && <Alert>This template is used in {used} campaigns, flows or reminders. Those will fail to send until you pick another template.</Alert>}
         {del.error != null && <Alert>{errorMessage(del.error)}</Alert>}
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose}>

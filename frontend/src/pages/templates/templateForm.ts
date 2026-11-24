@@ -64,14 +64,14 @@ export interface TemplateForm {
 }
 
 export const TYPE_INFO: { type: TemplateType; label: string; description: string; icon: LucideIcon; tint: string }[] = [
-  { type: 'CUSTOM', label: 'Custom Message', description: 'Standard template with header, body, footer & buttons', icon: MessageSquare, tint: 'bg-sky-50 text-sky-600' },
-  { type: 'FLOW', label: 'Flows', description: 'WhatsApp form (flow) button template', icon: Workflow, tint: 'bg-indigo-50 text-indigo-600' },
+  { type: 'CUSTOM', label: 'Custom message', description: 'Standard template with header, body, footer & buttons', icon: MessageSquare, tint: 'bg-sky-50 text-sky-600' },
+  { type: 'FLOW', label: 'Flows', description: 'WhatsApp form (flow) button template', icon: Workflow, tint: 'bg-slate-100 text-slate-600' },
   { type: 'AUTHENTICATION', label: 'Authentication/OTP', description: 'One-time password template', icon: KeyRound, tint: 'bg-emerald-50 text-emerald-600' },
-  { type: 'LIMITED_TIME_OFFER', label: 'Limited Time Offer', description: 'Template with expiring offer text', icon: Clock, tint: 'bg-amber-50 text-amber-600' },
-  { type: 'CAROUSEL', label: 'Carousel', description: 'Multiple cards with images & buttons', icon: LayoutGrid, tint: 'bg-violet-50 text-violet-600' },
-  { type: 'CATALOG', label: 'Catalog', description: 'Product catalog template', icon: ShoppingBag, tint: 'bg-orange-50 text-orange-600' },
-  { type: 'MULTI_PRODUCT', label: 'Multi-product', description: 'Multiple product message', icon: Package, tint: 'bg-cyan-50 text-cyan-600' },
-  { type: 'CALL_PERMISSION', label: 'Call Permission', description: 'Request call permission template', icon: PhoneCall, tint: 'bg-rose-50 text-rose-600' },
+  { type: 'LIMITED_TIME_OFFER', label: 'Limited time offer', description: 'Template with expiring offer text', icon: Clock, tint: 'bg-amber-50 text-amber-600' },
+  { type: 'CAROUSEL', label: 'Carousel', description: 'Multiple cards with images & buttons', icon: LayoutGrid, tint: 'bg-slate-100 text-slate-600' },
+  { type: 'CATALOG', label: 'Catalog', description: 'Product catalog template', icon: ShoppingBag, tint: 'bg-slate-100 text-slate-600' },
+  { type: 'MULTI_PRODUCT', label: 'Multi-product', description: 'Multiple product message', icon: Package, tint: 'bg-slate-100 text-slate-600' },
+  { type: 'CALL_PERMISSION', label: 'Call permission', description: 'Request call permission template', icon: PhoneCall, tint: 'bg-slate-100 text-slate-600' },
 ];
 
 export const typeInfo = (type: TemplateType) => TYPE_INFO.find((t) => t.type === type) ?? TYPE_INFO[0]!;

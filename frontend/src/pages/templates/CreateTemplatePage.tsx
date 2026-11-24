@@ -92,7 +92,7 @@ function BackToAll() {
   const { workspace } = useWorkspace();
   return (
     <Link to={`/w/${workspace.id}/templates`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-      <ChevronLeft className="size-4" /> All Templates
+      <ChevronLeft className="size-4" /> All templates
     </Link>
   );
 }
@@ -100,7 +100,7 @@ function BackToAll() {
 function TypePicker({ onPick }: { onPick: (type: TemplateType) => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <TemplatesHeader title="Create Template" description="Design a new template — choose from 8 types including carousel, OTP, and more" actions={<BackToAll />} />
+      <TemplatesHeader title="Create template" description="Design a new template — choose from 8 types including carousel, OTP, and more" actions={<BackToAll />} />
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="mb-4 flex items-center gap-3">
@@ -110,18 +110,18 @@ function TypePicker({ onPick }: { onPick: (type: TemplateType) => void }) {
               <p className="text-xs text-slate-500">Click a type below to get started</p>
             </div>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
             {TYPE_INFO.map((t) => (
               <button
                 key={t.type}
                 onClick={() => onPick(t.type)}
-                className="group flex flex-col items-center rounded-xl border border-slate-200 bg-white p-4 text-center transition hover:border-sky-300 hover:bg-sky-50/40 hover:shadow-sm"
+                className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-400"
               >
-                <span className={cn('mb-3 rounded-xl p-2.5', t.tint)}>
-                  <t.icon className="size-5" />
+                <t.icon className="mt-0.5 size-[18px] shrink-0 text-slate-500" strokeWidth={1.5} />
+                <span>
+                  <span className="block text-sm font-medium text-ink">{t.label}</span>
+                  <span className="mt-0.5 block text-sm text-slate-500">{t.description}</span>
                 </span>
-                <span className="text-sm font-semibold text-slate-800 group-hover:text-sky-700">{t.label}</span>
-                <span className="mt-1 text-xs text-slate-500">{t.description}</span>
               </button>
             ))}
           </div>
@@ -142,7 +142,7 @@ function TypePicker({ onPick }: { onPick: (type: TemplateType) => void }) {
 function PreviewPanel({ children }: { children: ReactNode }) {
   return (
     <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4 lg:block xl:w-80">
-      <p className="mb-3 text-center text-xs font-semibold tracking-wider text-slate-500 uppercase">Preview</p>
+      <p className="mb-3 text-center text-xs font-semibold text-slate-500">Preview</p>
       {children}
       <p className="mt-3 text-center text-xs text-slate-500">This needs to be approved by WhatsApp before sending.</p>
     </aside>
@@ -150,7 +150,7 @@ function PreviewPanel({ children }: { children: ReactNode }) {
 }
 
 function StepNumber({ n }: { n: number }) {
-  return <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-semibold text-white">{n}</span>;
+  return <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">{n}</span>;
 }
 
 function Section({ n, title, optional, children }: { n: number; title: string; optional?: boolean; children: ReactNode }) {
@@ -185,10 +185,10 @@ const HEADER_ICONS: Record<HeaderFormat, LucideIcon | null> = { NONE: null, TEXT
 
 const BUTTON_CHIPS: Record<ButtonType, { label: string; icon: LucideIcon; style: string }> = {
   URL: { label: 'Website URL', icon: ExternalLink, style: 'border-sky-200 bg-sky-50 text-sky-700' },
-  PHONE_NUMBER: { label: 'Phone Number', icon: Phone, style: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  COPY_CODE: { label: 'Copy Code', icon: Copy, style: 'border-orange-200 bg-orange-50 text-orange-700' },
-  QUICK_REPLY: { label: 'Quick Reply', icon: Reply, style: 'border-violet-200 bg-violet-50 text-violet-700' },
-  FLOW: { label: 'Form', icon: Workflow, style: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
+  PHONE_NUMBER: { label: 'Phone number', icon: Phone, style: 'border-emerald-200 bg-brand-50 text-brand-700' },
+  COPY_CODE: { label: 'Copy code', icon: Copy, style: 'border-slate-200 bg-slate-100 text-slate-600' },
+  QUICK_REPLY: { label: 'Quick reply', icon: Reply, style: 'border-slate-200 bg-slate-100 text-slate-600' },
+  FLOW: { label: 'Form', icon: Workflow, style: 'border-slate-200 bg-slate-100 text-slate-600' },
 };
 
 function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; existing?: MessageTemplate; onChangeType?: () => void }) {
@@ -240,7 +240,7 @@ function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; e
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <TemplatesHeader
-        title={existing ? (isDraft ? 'Edit Draft' : 'Edit Template') : 'Create Template'}
+        title={existing ? (isDraft ? 'Edit draft' : 'Edit template') : 'Create Template'}
         description={
           submitted ? 'Edits are sent to WhatsApp for review again. Name and language cannot change.' : 'Design a new template — choose from 8 types including carousel, OTP, and more'
         }
@@ -266,7 +266,7 @@ function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; e
             {err != null && !isFieldError && <Alert>{errorMessage(err)}</Alert>}
             {isFieldError && <Alert>Some fields need attention — see the highlighted sections below.</Alert>}
 
-            <Section n={step++} title="Template Details">
+            <Section n={step++} title="Template details">
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <Label htmlFor="tpl-name">
@@ -396,7 +396,7 @@ function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; e
                         <Label htmlFor="tpl-offer">
                           Offer headline * <span className="float-right font-normal text-slate-400">{form.offerText.length}/16</span>
                         </Label>
-                        <Input id="tpl-offer" maxLength={16} value={form.offerText} onChange={(e) => set({ offerText: e.target.value })} placeholder="e.g. Flash sale!" />
+                        <Input id="tpl-offer" maxLength={16} value={form.offerText} onChange={(e) => set({ offerText: e.target.value })} placeholder="e.g. Flash sale" />
                       </div>
                       <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
                         <input type="checkbox" checked={form.offerHasExpiration} onChange={(e) => set({ offerHasExpiration: e.target.checked })} className="size-4 rounded border-slate-300" />
@@ -451,7 +451,7 @@ function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; e
             )}
 
             <div className="lg:hidden">
-              <p className="mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase">Preview</p>
+              <p className="mb-2 text-xs font-semibold text-slate-500">Preview</p>
               {preview}
             </div>
           </div>
@@ -467,7 +467,6 @@ function Builder({ initial, existing, onChangeType }: { initial: TemplateForm; e
                 onClick={() => submit.mutate()}
                 loading={submit.isPending}
                 disabled={saveDraft.isPending || !connection.connected}
-                className="bg-slate-700 hover:bg-slate-800"
               >
                 {submitted ? 'Save & Resubmit' : 'Submit for Approval'}
               </Button>
@@ -909,7 +908,7 @@ function MediaUpload({
         className={cn(
           'flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-lg border-2 border-dashed text-center text-xs text-slate-500 transition-colors hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60',
           compact ? 'aspect-square' : 'py-6',
-          hasFile ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-300',
+          hasFile ? 'border-emerald-300 bg-brand-50/40' : 'border-slate-300',
         )}
       >
         {upload.isPending ? (
@@ -920,7 +919,7 @@ function MediaUpload({
           <img src={previewUrl} alt="" className="max-h-40 rounded object-contain" />
         ) : hasFile ? (
           <>
-            <FileText className="size-5 text-emerald-600" />
+            <FileText className="size-5 text-brand-600" />
             <span className="font-medium text-slate-700">{fileName ?? 'Sample uploaded'}</span>
             <span>Click to replace</span>
           </>

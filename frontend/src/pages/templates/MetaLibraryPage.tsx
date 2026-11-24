@@ -4,7 +4,7 @@ import { useDeferredValue, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Modal } from '../../components/crm';
 import { TemplatePreview } from '../../components/TemplatePreview';
-import { Alert, Button, EmptyState, Field, Input, Select, Spinner, errorMessage, fieldError } from '../../components/ui';
+import { Alert, Button, EmptyState, Field, Input, Select, Spinner, errorMessage, fieldError, LoadError } from '../../components/ui';
 import { api, type LibraryTemplate, type MessageTemplate, type TemplateComponent } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 import { LANGUAGES } from './templateForm';
@@ -73,7 +73,7 @@ export function MetaLibraryPage() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <TemplatesHeader title="Meta Library" description="Pre-written utility templates from Meta. They are approved instantly once you fill in your links and numbers." />
+      <TemplatesHeader title="Meta library" description="Pre-written utility templates from Meta. They are approved instantly once you fill in your links and numbers." />
       <div className="space-y-4 px-4 py-4 sm:px-6">
         {connection.loaded && !connection.connected && <NotConnectedAlert />}
         <div className="flex flex-wrap gap-2">
@@ -97,7 +97,7 @@ export function MetaLibraryPage() {
         {!connection.connected ? null : list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <Alert>{errorMessage(list.error)}</Alert>
+          <LoadError error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.templates.length === 0 ? (
           <EmptyState icon={<Library className="size-5" />} title="No library templates match">
             Try clearing a filter or searching for something else.
@@ -122,7 +122,7 @@ export function MetaLibraryPage() {
                   <TemplatePreview components={libraryComponents(t)} bodyParams={t.bodyParams} />
                 </div>
                 {can('templates:manage') && (
-                  <Button className="mt-3 w-full bg-slate-700 hover:bg-slate-800" onClick={() => setUsing(t)}>
+                  <Button className="mt-3 w-full" onClick={() => setUsing(t)}>
                     Use template
                   </Button>
                 )}
@@ -210,7 +210,7 @@ function UseLibraryModal({ template, onClose }: { template: LibraryTemplate; onC
           {fieldError(create.error, 'buttonInputs') && <p className="text-xs text-red-600">{fieldError(create.error, 'buttonInputs')}</p>}
           <p className="text-xs text-slate-500">Category: Utility · Language: {template.language}. The text itself cannot be changed.</p>
           <div className="flex gap-2">
-            <Button type="submit" loading={create.isPending} className="bg-slate-700 hover:bg-slate-800">
+            <Button type="submit" loading={create.isPending}>
               Submit template
             </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
