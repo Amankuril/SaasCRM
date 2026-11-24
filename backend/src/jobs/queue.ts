@@ -18,6 +18,9 @@ export interface JobPayloads {
   'integration.webhook': { workspaceId: string; deliveryId: string; token: string };
   'billing.sweep': Record<string, never>;
   'sheets.poll': Record<string, never>;
+  'templates.sync': { workspaceId: string; source: string };
+  'templates.reconcile': Record<string, never>;
+  'reminders.tick': Record<string, never>;
 }
 export type JobName = keyof JobPayloads;
 
@@ -36,6 +39,9 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'integration.webhook': 'integration-webhooks',
   'billing.sweep': 'billing',
   'sheets.poll': 'sheets',
+  'templates.sync': 'templates-sync',
+  'templates.reconcile': 'templates-reconcile',
+  'reminders.tick': 'reminders',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -46,6 +52,9 @@ const CONCURRENCY: Record<JobName, number> = {
   'integration.webhook': 20,
   'billing.sweep': 1,
   'sheets.poll': 1,
+  'templates.sync': 4,
+  'templates.reconcile': 1,
+  'reminders.tick': 1,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

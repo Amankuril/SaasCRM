@@ -16,7 +16,9 @@ export type RealtimeEvent =
   | { type: 'messages.changed'; conversationId: string }
   | { type: 'contacts.changed' }
   | { type: 'tasks.changed' }
-  | { type: 'appointments.changed' };
+  | { type: 'appointments.changed' }
+  | { type: 'templates.changed' }
+  | { type: 'reminders.changed' };
 
 type Handler = (workspaceId: string, event: RealtimeEvent) => void;
 
