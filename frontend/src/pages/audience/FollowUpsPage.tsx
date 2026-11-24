@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AlarmClock, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Alert, EmptyState, Spinner, cn, errorMessage } from '../../components/ui';
+import { Alert, EmptyState, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type FollowUp } from '../../lib/api';
 import { useMembers } from '../../lib/hooks';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -33,7 +33,7 @@ export function FollowUpsPage() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-      <h1 className="text-xl font-semibold text-ink">Follow-ups</h1>
+      <h1 className="text-2xl leading-8 font-medium text-ink">Follow-ups</h1>
       <p className="mt-0.5 mb-4 text-sm text-slate-500">Reminders to get back to customers. Add them from the Follow-up column in Audience.</p>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
@@ -56,11 +56,9 @@ export function FollowUpsPage() {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.followUps.length === 0 ? (
-          <EmptyState icon={<AlarmClock className="size-5" />} title={tab === 'overdue' ? 'Nothing overdue 🎉' : `No ${tab} follow-ups`} />
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.followUps.length === 0 ? (
+          <EmptyState icon={<AlarmClock className="size-5" />} title={tab === 'overdue' ? 'Nothing overdue' : tab === 'today' ? 'No follow-ups today' : `No ${tab} follow-ups`} />
         ) : (
           <ul className="divide-y divide-slate-100">
             {list.data.followUps.map((f) => {

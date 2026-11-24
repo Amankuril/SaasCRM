@@ -39,7 +39,7 @@ type Update = (body: Record<string, unknown>) => void;
 const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   open: { label: 'Open', cls: 'border-sky-200 bg-sky-50 text-sky-700' },
   pending: { label: 'Pending', cls: 'border-amber-200 bg-amber-50 text-amber-700' },
-  resolved: { label: 'Resolved', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  resolved: { label: 'Resolved', cls: 'border-emerald-200 bg-brand-50 text-brand-700' },
 };
 
 export function StatusPill({ status }: { status: string }) {
@@ -63,7 +63,7 @@ export function ContactPanel({ conv, contact, writable, onUpdate, onClose }: { c
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h2 className="font-semibold text-ink">Contact Info</h2>
+        <h2 className="font-semibold text-ink">Contact info</h2>
         <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close contact info">
           <X className="size-5" />
         </button>
@@ -136,7 +136,7 @@ function ActionsTab({ conv, contact, writable, onUpdate }: { conv: ConversationS
     <>
       <section className="rounded-2xl border border-slate-200">
         <div className="flex items-center gap-3 p-4">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-700">{initials(name)}</span>
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700">{initials(name)}</span>
           <div className="min-w-0">
             <p className="truncate font-semibold text-ink" title={name}>
               {name}
@@ -156,14 +156,14 @@ function ActionsTab({ conv, contact, writable, onUpdate }: { conv: ConversationS
                   Reopen
                 </Button>
               ) : (
-                <button type="button" onClick={() => onUpdate({ status: 'resolved' })} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100">
+                <button type="button" onClick={() => onUpdate({ status: 'resolved' })} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-brand-50 px-3 text-sm font-medium text-brand-700 hover:bg-brand-100">
                   <Check className="size-4" /> Resolve
                 </button>
               ))}
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <ActionTile icon={<UserPlus className="size-4" />} label="Assign Chat" disabled={!writable} onClick={(el) => setAssignAnchor(el)} />
-            <ActionTile icon={<Ticket className="size-4" />} label="Create Ticket" disabled={!can('contacts:manage')} onClick={() => setDialog('ticket')} />
+            <ActionTile icon={<UserPlus className="size-4" />} label="Assign chat" disabled={!writable} onClick={(el) => setAssignAnchor(el)} />
+            <ActionTile icon={<Ticket className="size-4" />} label="Create ticket" disabled={!can('contacts:manage')} onClick={() => setDialog('ticket')} />
             <ActionTile icon={<CalendarClock className="size-4" />} label="Follow-up" disabled={!can('contacts:manage')} onClick={() => setDialog('followup')} />
           </div>
           <div className="flex justify-center">
@@ -175,7 +175,7 @@ function ActionsTab({ conv, contact, writable, onUpdate }: { conv: ConversationS
         <div className="flex items-center gap-3 border-t border-slate-100 p-4">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-700">{conv.assignee ? initials(conv.assignee.name) : <UserRound className="size-4" />}</span>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold tracking-wide text-slate-400 uppercase">Assigned to</p>
+            <p className="text-[11px] font-semibold text-slate-400">Assigned to</p>
             <p className="truncate text-sm font-semibold text-ink">{conv.assignee?.name ?? 'Nobody yet'}</p>
           </div>
           {writable && (
@@ -241,12 +241,12 @@ function AiCard({ conv, writable, onUpdate }: { conv: ConversationSummary; writa
     <section className="rounded-2xl border border-slate-200 p-4">
       <div className="mb-3 flex items-center gap-2">
         <Bot className="size-4 text-slate-500" />
-        <span className="font-semibold text-ink">AI Agent</span>
+        <span className="font-semibold text-ink">AI agent</span>
         <span title="Your workspace's AI agent (set it up in AI Agent). This switch applies to this chat only.">
           <Info className="size-3.5 text-slate-400" />
         </span>
-        <span className={cn('ml-auto inline-flex items-center gap-1.5 text-xs font-medium', conv.aiMode === 'off' ? 'text-slate-400' : paused ? 'text-amber-600' : 'text-emerald-600')}>
-          <span className={cn('size-1.5 rounded-full', conv.aiMode === 'off' ? 'bg-slate-300' : paused ? 'bg-amber-500' : 'bg-emerald-500')} />
+        <span className={cn('ml-auto inline-flex items-center gap-1.5 text-xs font-medium', conv.aiMode === 'off' ? 'text-slate-400' : paused ? 'text-amber-600' : 'text-brand-600')}>
+          <span className={cn('size-1.5 rounded-full', conv.aiMode === 'off' ? 'bg-slate-300' : paused ? 'bg-amber-500' : 'bg-brand-500')} />
           {conv.aiMode === 'off' ? 'Off' : paused ? 'Handed over' : 'Active'}
         </span>
       </div>
@@ -257,7 +257,7 @@ function AiCard({ conv, writable, onUpdate }: { conv: ConversationSummary; writa
           </button>
         ))}
       </div>
-      <p className="mt-2.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-center text-xs font-medium text-emerald-700">{mode.hint}</p>
+      <p className="mt-2.5 rounded-lg bg-brand-50 px-3 py-1.5 text-center text-xs font-medium text-brand-700">{mode.hint}</p>
       {paused && writable && (
         <button type="button" onClick={() => onUpdate({ botPaused: false })} className="mt-2 w-full text-center text-xs font-medium text-brand-700 hover:underline">
           The chat was handed to your team. Let the AI and automations answer again
@@ -418,7 +418,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200">
-      <Section icon={<TrendingUp className="size-4" />} title="Lifecycle Stage" defaultOpen>
+      <Section icon={<TrendingUp className="size-4" />} title="Lifecycle stage" defaultOpen>
         <div className="rounded-xl bg-slate-50 px-3 py-2.5">
           <p className="flex items-center gap-2 font-semibold text-ink">
             <span className={cn('size-2 rounded-full', STAGE_TONE[stage?.color ?? 'gray']?.dot ?? 'bg-slate-400')} />
@@ -428,7 +428,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
         </div>
         {(journey.data?.stageHistory.length ?? 0) > 0 && (
           <div className="mt-2">
-            <button type="button" onClick={() => setHistoryOpen(!historyOpen)} className="flex w-full items-center justify-between py-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            <button type="button" onClick={() => setHistoryOpen(!historyOpen)} className="flex w-full items-center justify-between py-1 text-xs font-semibold text-slate-500">
               History ({journey.data!.stageHistory.length}) <ChevronDown className={cn('size-3.5 transition-transform', !historyOpen && '-rotate-90')} />
             </button>
             {historyOpen && (
@@ -452,7 +452,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
         <StageSelect contact={contact} disabled={!canEdit} />
       </Section>
 
-      <Section icon={<Ticket className="size-4" />} title="Support Tickets" count={tickets.data?.tasks.length}>
+      <Section icon={<Ticket className="size-4" />} title="Support tickets" count={tickets.data?.tasks.length}>
         {tickets.isPending ? (
           <Spinner />
         ) : tickets.data?.tasks.length ? (
@@ -480,7 +480,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
               const overdue = f.status === 'open' && new Date(f.dueAt) < new Date();
               return (
                 <li key={f.id} className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                  <button type="button" disabled={f.status === 'done' || !canEdit} onClick={() => markDone.mutate(f.id)} className={cn('mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border', f.status === 'done' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 hover:border-emerald-500')} aria-label="Mark done">
+                  <button type="button" disabled={f.status === 'done' || !canEdit} onClick={() => markDone.mutate(f.id)} className={cn('mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border', f.status === 'done' ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300 hover:border-brand-500')} aria-label="Mark done">
                     {f.status === 'done' && <Check className="size-3" />}
                   </button>
                   <span className="min-w-0 flex-1">
@@ -530,11 +530,11 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
         )}
       </Section>
 
-      <Section icon={<UserRound className="size-4" />} title="Customer Details">
+      <Section icon={<UserRound className="size-4" />} title="Customer details">
         <ContactDetails contact={contact} compact />
       </Section>
 
-      <Section icon={<StickyNote className="size-4" />} title="User Notes" count={notes.data?.length}>
+      <Section icon={<StickyNote className="size-4" />} title="User notes" count={notes.data?.length}>
         {notes.data?.length ? (
           <ul className="space-y-1.5">
             {notes.data.map((n) => (
@@ -565,13 +565,13 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
         )}
       </Section>
 
-      <Section icon={<Phone className="size-4" />} title="Call History">
+      <Section icon={<Phone className="size-4" />} title="Call history">
         <p className="text-sm text-slate-500">WhatsApp calling is coming soon; calls with this customer will be listed here.</p>
       </Section>
 
       <div className="flex items-center gap-3 border-t border-slate-100 px-4 py-3.5">
         <Ban className="size-4 text-slate-500" />
-        <span className="flex-1 text-sm font-medium text-slate-700">Block User</span>
+        <span className="flex-1 text-sm font-medium text-slate-700">Block user</span>
         <button
           type="button"
           role="switch"
@@ -583,7 +583,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
           }}
           className={cn('relative h-6 w-11 rounded-full transition', contact.blocked ? 'bg-red-500' : 'bg-slate-200')}
         >
-          <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-all', contact.blocked ? 'left-[22px]' : 'left-0.5')} />
+          <span className={cn('absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform', contact.blocked ? 'left-[22px]' : 'left-0.5')} />
         </button>
       </div>
       {save.error != null && (
@@ -594,7 +594,7 @@ function DetailsTab({ conv, contact }: { conv: ConversationSummary; contact: Con
 
       <button type="button" onClick={() => setDialog('journey')} className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">
         <History className="size-4 text-slate-500" />
-        <span className="flex-1">View Chat Journey</span>
+        <span className="flex-1">View chat journey</span>
         <ChevronRight className="size-4 text-slate-400" />
       </button>
 

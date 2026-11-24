@@ -26,7 +26,7 @@ const toggle = <T,>(list: T[] | undefined, v: T) => ((list ?? []).includes(v) ? 
 
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs', on ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}>
+    <button type="button" onClick={onClick} className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs', on ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50')}>
       {children}
     </button>
   );
@@ -35,7 +35,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">{title}</p>
+      <p className="mb-2 text-xs font-semibold text-slate-500">{title}</p>
       <div className="flex flex-wrap gap-1.5">{children}</div>
     </div>
   );
@@ -166,7 +166,7 @@ export function FiltersDrawer({ value, onChange, onClose }: { value: AudienceFil
           <Button variant="ghost" onClick={() => onChange({ ...EMPTY_FILTERS, q: value.q, addedPreset: value.addedPreset, addedFrom: value.addedFrom, addedTo: value.addedTo })}>
             Clear all
           </Button>
-          <Button onClick={onClose} className="bg-slate-700 hover:bg-slate-800">
+          <Button onClick={onClose}>
             Done
           </Button>
         </div>
@@ -298,7 +298,7 @@ export function ColumnsMenu({ columns, onChange, fields }: { columns: ColumnStat
                 <GripVertical className="size-4 cursor-grab text-slate-400" />
                 <span className={cn('flex-1 truncate', !c.visible && 'text-slate-400')}>
                   {labelOf(c.id)}
-                  {field && <span className="ml-1 text-[10px] text-slate-400 uppercase">{field.type}</span>}
+                  {field && <span className="ml-1 text-[11px] text-slate-400">{field.type}</span>}
                 </span>
                 {field && can('contacts:manage') && (
                   <button
@@ -375,7 +375,7 @@ export function CreateSegmentDialog({ value, onClose, onSaved }: { value: Audien
   return (
     <Dialog
       icon={<Bookmark className="size-4" />}
-      title="Create Segment"
+      title="Create segment"
       subtitle="Save these filters to reuse them here and as a campaign audience."
       onClose={onClose}
       footer={
@@ -383,7 +383,7 @@ export function CreateSegmentDialog({ value, onClose, onSaved }: { value: Audien
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => save.mutate()} disabled={!name.trim()} loading={save.isPending} className="bg-slate-700 hover:bg-slate-800">
+          <Button onClick={() => save.mutate()} disabled={!name.trim()} loading={save.isPending}>
             Save segment
           </Button>
         </>
@@ -434,7 +434,7 @@ export function AddCustomerDialog({ onClose, onCreated }: { onClose: () => void;
   return (
     <Dialog
       icon={<UserPlus className="size-4" />}
-      title="Add Customer"
+      title="Add customer"
       subtitle="Adds a contact to your audience."
       onClose={onClose}
       footer={
@@ -442,8 +442,8 @@ export function AddCustomerDialog({ onClose, onCreated }: { onClose: () => void;
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => create.mutate()} disabled={!phone.trim()} loading={create.isPending} className="bg-slate-700 hover:bg-slate-800">
-            Save Customer
+          <Button onClick={() => create.mutate()} disabled={!phone.trim()} loading={create.isPending}>
+            Save customer
           </Button>
         </>
       }

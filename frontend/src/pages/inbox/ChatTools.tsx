@@ -13,10 +13,10 @@ type Tool = 'canned' | 'qr' | 'widget';
 export function ChatTools() {
   const [open, setOpen] = useState<Tool | null>(null);
   const cards: { key: Tool | 'subscriber'; icon: typeof Zap; tone: string; title: string; text: string }[] = [
-    { key: 'canned', icon: Zap, tone: 'bg-amber-50 text-amber-600', title: 'Canned Shortcut Message', text: 'Create shortcut messages for quick replies in chat conversations' },
-    { key: 'qr', icon: QrCode, tone: 'bg-sky-50 text-sky-600', title: 'Create QR Code', text: 'Generate QR codes to start WhatsApp conversations instantly' },
-    { key: 'widget', icon: Code2, tone: 'bg-emerald-50 text-emerald-600', title: 'Create Chat Widget', text: 'Embed a WhatsApp chat button directly on your website' },
-    { key: 'subscriber', icon: Users, tone: 'bg-violet-50 text-violet-600', title: 'Create Subscriber Widget', text: 'Build a subscriber opt-in widget for newsletters' },
+    { key: 'canned', icon: Zap, tone: 'bg-amber-50 text-amber-600', title: 'Canned shortcut message', text: 'Create shortcut messages for quick replies in chat conversations' },
+    { key: 'qr', icon: QrCode, tone: 'bg-sky-50 text-sky-600', title: 'Create QR code', text: 'Generate QR codes to start WhatsApp conversations instantly' },
+    { key: 'widget', icon: Code2, tone: 'bg-brand-50 text-brand-600', title: 'Create chat widget', text: 'Embed a WhatsApp chat button directly on your website' },
+    { key: 'subscriber', icon: Users, tone: 'bg-slate-100 text-slate-600', title: 'Create subscriber widget', text: 'Build a subscriber opt-in widget for newsletters' },
   ];
   return (
     <div>
@@ -25,7 +25,7 @@ export function ChatTools() {
           <Wrench className="size-5" />
         </span>
         <div>
-          <h1 className="text-lg font-semibold text-ink">Chat Tools</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Chat tools</h1>
           <p className="text-sm text-slate-500">Manage your chat tools and integrations</p>
         </div>
       </div>
@@ -38,7 +38,7 @@ export function ChatTools() {
               type="button"
               disabled={soon}
               onClick={() => !soon && setOpen(c.key as Tool)}
-              className={cn('flex min-h-52 flex-col rounded-2xl border border-slate-200 p-8 text-left transition', soon ? 'cursor-not-allowed opacity-70' : 'hover:border-slate-300 hover:shadow-md')}
+              className={cn('flex min-h-52 flex-col rounded-2xl border border-slate-200 p-8 text-left transition', soon ? 'cursor-not-allowed opacity-70' : 'hover:border-slate-300 ')}
             >
               <span className={cn('mb-auto flex size-12 items-center justify-center rounded-xl', c.tone)}>
                 <c.icon className="size-6" />
@@ -336,7 +336,7 @@ export function widgetSnippet(c: WidgetConfig): string {
 
 function WidgetDialog({ onClose }: { onClose: () => void }) {
   const biz = useBusinessNumber();
-  const [cfg, setCfg] = useState<WidgetConfig>({ number: '', title: '', greeting: 'Hi there 👋\nHow can we help you today?', message: 'Hi! I have a question.', button: 'Start chat', color: '#075e54', position: 'right' });
+  const [cfg, setCfg] = useState<WidgetConfig>({ number: '', title: '', greeting: 'Hello\nHow can we help you today?', message: 'Hi, I have a question.', button: 'Start chat', color: '#075e54', position: 'right' });
   useEffect(() => {
     if (!biz.loading) setCfg((c) => ({ ...c, number: c.number || biz.number, title: c.title || biz.name }));
   }, [biz.loading, biz.number, biz.name]);
@@ -376,7 +376,7 @@ function WidgetDialog({ onClose }: { onClose: () => void }) {
             <p className="mb-2 text-xs text-slate-500">
               Paste it before <code>&lt;/body&gt;</code> on every page (WordPress: a header/footer code plugin; Shopify: theme.liquid).
             </p>
-            <pre className="max-h-40 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-emerald-100">{snippet || 'Enter a WhatsApp number to get the code.'}</pre>
+            <pre className="max-h-40 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-brand-100">{snippet || 'Enter a WhatsApp number to get the code.'}</pre>
           </div>
         </div>
         <div className="relative flex min-h-96 flex-col justify-end rounded-2xl border border-slate-200 bg-[repeating-linear-gradient(45deg,#f8fafc,#f8fafc_10px,#f1f5f9_10px,#f1f5f9_20px)] p-4" aria-label="Widget preview">

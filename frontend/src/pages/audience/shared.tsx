@@ -11,9 +11,9 @@ import { DIAL_CODES } from '../../lib/options';
 import { useWorkspace } from '../../layouts/workspaceContext';
 
 export const SOURCE_INFO: Record<ChatSource, { label: string; icon: typeof Send; tone: string }> = {
-  broadcast: { label: 'Broadcast', icon: Send, tone: 'bg-violet-50 text-violet-700 ring-violet-200' },
+  broadcast: { label: 'Broadcast', icon: Send, tone: 'bg-slate-100 text-slate-600 ring-slate-200' },
   ad: { label: 'Ad', icon: MousePointerClick, tone: 'bg-sky-50 text-sky-700 ring-sky-200' },
-  direct: { label: 'Direct', icon: Megaphone, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  direct: { label: 'Direct', icon: Megaphone, tone: 'bg-brand-50 text-brand-700 ring-emerald-200' },
 };
 
 export function SourceBadge({ source }: { source: ChatSource }) {
@@ -37,13 +37,13 @@ export function PhoneCell({ phone }: { phone: string }) {
   const { iso, digits } = splitPhone(phone);
   return (
     <span className="inline-flex items-center gap-2 whitespace-nowrap">
-      {iso && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">{iso}</span>}
+      {iso && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">{iso}</span>}
       <span className="font-mono text-[13px] text-slate-700">{digits}</span>
     </span>
   );
 }
 
-const AVATAR_TONES = ['bg-rose-50 text-rose-600', 'bg-violet-50 text-violet-600', 'bg-emerald-50 text-emerald-700', 'bg-sky-50 text-sky-600', 'bg-amber-50 text-amber-700', 'bg-indigo-50 text-indigo-600'];
+const AVATAR_TONES = ['bg-slate-200/70 text-slate-700'];
 export const avatarTone = (id: string) => AVATAR_TONES[parseInt(id.slice(-4), 16) % AVATAR_TONES.length]!;
 export const initials = (name: string) =>
   name
@@ -106,7 +106,7 @@ export function StageSelect({ value, onChange, disabled }: { value: string; onCh
         type="button"
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className={cn('inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold tracking-wide uppercase shadow-sm disabled:cursor-default', tone.text)}
+        className={cn('inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold shadow-sm disabled:cursor-default', tone.text)}
       >
         <span className={cn('size-1.5 rounded-full', tone.dot)} />
         <span className="max-w-32 truncate">{stage?.name ?? value}</span>
@@ -302,18 +302,18 @@ export type ColumnId = 'customer' | 'phone' | 'source' | 'campaign' | 'stage' | 
 
 export const BASE_COLUMNS: { id: ColumnId; label: string; visible: boolean; locked?: boolean }[] = [
   { id: 'customer', label: 'Customer', visible: true, locked: true },
-  { id: 'phone', label: 'Phone Number', visible: true },
-  { id: 'source', label: 'Chat Source', visible: true },
-  { id: 'campaign', label: 'Campaign Name', visible: true },
+  { id: 'phone', label: 'Phone number', visible: true },
+  { id: 'source', label: 'Chat source', visible: true },
+  { id: 'campaign', label: 'Campaign name', visible: true },
   { id: 'stage', label: 'Stage', visible: true },
   { id: 'tags', label: 'Tags', visible: true },
   { id: 'followUp', label: 'Follow-up', visible: true },
-  { id: 'owner', label: 'Assigned To', visible: true },
+  { id: 'owner', label: 'Assigned to', visible: true },
   { id: 'email', label: 'Email', visible: false },
   { id: 'lists', label: 'Lists', visible: false },
   { id: 'subscription', label: 'Subscription', visible: false },
-  { id: 'lastMessage', label: 'Last Message', visible: false },
-  { id: 'added', label: 'Added On', visible: false },
+  { id: 'lastMessage', label: 'Last message', visible: false },
+  { id: 'added', label: 'Added on', visible: false },
 ];
 
 export interface ColumnState {

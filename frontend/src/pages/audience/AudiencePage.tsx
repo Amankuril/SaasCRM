@@ -228,7 +228,7 @@ export function AudiencePage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-slate-200 bg-white px-4 pt-4 pb-3 sm:px-6">
-        <h1 className="text-xl font-semibold text-ink">Audience</h1>
+        <h1 className="text-2xl leading-8 font-medium text-ink">Audience</h1>
         <p className="mt-0.5 text-sm text-slate-500">List view of all customers across lifecycle stages — search, filter &amp; export</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="relative w-40 transition-[width] focus-within:w-64">
@@ -237,11 +237,11 @@ export function AudiencePage() {
           </div>
           <Button variant="secondary" onClick={() => setDrawer(true)}>
             <SlidersHorizontal className="size-4" /> Filters
-            {filterCount > 0 && <span className="rounded-full bg-slate-700 px-1.5 text-xs text-white">{filterCount}</span>}
+            {filterCount > 0 && <span className="rounded-full bg-slate-900 px-1.5 text-xs text-white">{filterCount}</span>}
           </Button>
           {can('campaigns:manage') && (
             <Button variant="secondary" onClick={() => setSavingSegment(true)}>
-              <Bookmark className="size-4" /> Create Segment
+              <Bookmark className="size-4" /> Create segment
             </Button>
           )}
           <AddedMenu value={filters} onChange={setFilters} />
@@ -250,7 +250,7 @@ export function AudiencePage() {
           </Button>
           {editable && (
             <Button variant="secondary" onClick={() => sync.mutate()} loading={sync.isPending} title="Mark people who replied to a broadcast as broadcast leads">
-              {!sync.isPending && <RefreshCw className="size-4" />} Sync Campaigns
+              {!sync.isPending && <RefreshCw className="size-4" />} Sync campaigns
             </Button>
           )}
           <ColumnsMenu columns={columns} onChange={setColumns} fields={fieldList} />
@@ -260,7 +260,7 @@ export function AudiencePage() {
             </Button>
           )}
           {editable && (
-            <Button onClick={() => setAdding(true)} className="bg-slate-700 hover:bg-slate-800">
+            <Button onClick={() => setAdding(true)}>
               <UserPlus className="size-4" /> Customer
             </Button>
           )}
@@ -281,7 +281,7 @@ export function AudiencePage() {
         {(segmentName || filterCount > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             {segmentName && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
                 <Bookmark className="size-3" /> {segmentName}
               </span>
             )}
@@ -328,7 +328,7 @@ export function AudiencePage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
                   <tr>
                     <th className="sticky left-0 z-10 w-10 bg-slate-50 px-3 py-3">
                       <input type="checkbox" aria-label="Select all on this page" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))} />
@@ -348,7 +348,7 @@ export function AudiencePage() {
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="size-3.5 cursor-grab text-slate-300" />
                             {sortKey ? (
-                              <button type="button" onClick={() => toggleSort(c.id)} className="inline-flex items-center gap-1 uppercase hover:text-ink">
+                              <button type="button" onClick={() => toggleSort(c.id)} className="inline-flex items-center gap-1 hover:text-ink">
                                 {header(c.id)}
                                 {sort.sort === sortKey && (sort.dir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
                               </button>
@@ -445,7 +445,7 @@ function Pager({ page, pages, onChange }: { page: number; pages: number; onChang
       {nums.map((p, i) => (
         <span key={p} className="flex items-center gap-1">
           {i > 0 && p - nums[i - 1]! > 1 && <span className="px-1 text-slate-400">…</span>}
-          <button className={cn(btn, p === page && 'border-slate-700 bg-slate-700 font-medium text-white hover:bg-slate-700')} onClick={() => onChange(p)} aria-current={p === page ? 'page' : undefined}>
+          <button className={cn(btn, p === page && 'border-slate-900 bg-slate-900 font-medium text-white hover:bg-slate-900')} onClick={() => onChange(p)} aria-current={p === page ? 'page' : undefined}>
             {p}
           </button>
         </span>

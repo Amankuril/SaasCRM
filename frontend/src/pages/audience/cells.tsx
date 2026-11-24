@@ -232,7 +232,7 @@ export function FollowUpDialog({ contactId, contactName, onClose }: { contactId:
                   </Select>
                 </div>
               )}
-              <Button type="submit" disabled={!due} loading={create.isPending} className="ml-auto bg-slate-700 hover:bg-slate-800">
+              <Button type="submit" disabled={!due} loading={create.isPending} className="ml-auto">
                 <Plus className="size-4" /> Add follow-up
               </Button>
             </div>

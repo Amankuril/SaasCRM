@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Bookmark, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { STAGE_TONE, TagChip } from '../../components/crm';
-import { Alert, Button, EmptyState, Spinner, cn, errorMessage } from '../../components/ui';
+import { Alert, Button, EmptyState, Spinner, cn, errorMessage, LoadError } from '../../components/ui';
 import { api, type Segment } from '../../lib/api';
 import { useStages, useTags } from '../../lib/hooks';
 import { useWorkspace } from '../../layouts/workspaceContext';
@@ -25,7 +25,7 @@ export function SegmentsPage() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-      <h1 className="text-xl font-semibold text-ink">Segments</h1>
+      <h1 className="text-2xl leading-8 font-medium text-ink">Segments</h1>
       <p className="mt-0.5 mb-5 text-sm text-slate-500">Saved filters. Membership updates by itself; use them in Audience or as a campaign audience.</p>
       {remove.error != null && (
         <div className="mb-3">
@@ -35,8 +35,8 @@ export function SegmentsPage() {
       {segments.isPending ? (
         <Spinner />
       ) : segments.error ? (
-        <Alert>{errorMessage(segments.error)}</Alert>
-      ) : segments.data.segments.length === 0 ? (
+          <LoadError error={segments.error} onRetry={() => void segments.refetch()} />
+        ) : segments.data.segments.length === 0 ? (
         <EmptyState icon={<Bookmark className="size-5" />} title="No segments yet">
           In Audience, apply some filters and click Create Segment.
         </EmptyState>
@@ -47,7 +47,7 @@ export function SegmentsPage() {
             return (
               <div key={s.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start gap-2">
-                  <Bookmark className="mt-0.5 size-4 text-indigo-500" />
+                  <Bookmark className="mt-0.5 size-4 text-slate-600" />
                   <p className="flex-1 font-medium text-ink">{s.name}</p>
                   <SegmentCount id={s.id} />
                 </div>

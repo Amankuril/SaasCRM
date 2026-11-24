@@ -182,8 +182,8 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
             <PanelLeft className="size-5" />
           </button>
           <span className="relative hidden shrink-0 @sm:block">
-            <span className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">{initials(name)}</span>
-            {conv.serviceWindowOpen && <span className="absolute right-0 bottom-0 size-3 rounded-full bg-emerald-500 ring-2 ring-white" title="Customer service window is open" />}
+            <span className="flex size-10 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">{initials(name)}</span>
+            {conv.serviceWindowOpen && <span className="absolute right-0 bottom-0 size-3 rounded-full bg-brand-500 ring-2 ring-white" title="Customer service window is open" />}
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -204,13 +204,13 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
               </span>
             )}
             {conv.snoozedUntil && (
-              <button type="button" onClick={() => update.mutate({ snoozedUntil: null })} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100" title="Snoozed. Click to bring it back now">
+              <button type="button" onClick={() => update.mutate({ snoozedUntil: null })} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100" title="Snoozed. Click to bring it back now">
                 <AlarmClock className="size-3.5" /> {snoozeLabel(conv.snoozedUntil)}
               </button>
             )}
           </div>
           <span
-            className={cn('inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold @sm:px-2.5', windowLeft ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700')}
+            className={cn('inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold @sm:px-2.5', windowLeft ? 'border-emerald-200 bg-brand-50 text-brand-700' : 'border-amber-200 bg-amber-50 text-amber-700')}
             title={windowLeft ? 'Time left to reply freely (24-hour customer service window)' : 'The 24-hour window has closed: only approved templates can be sent'}
           >
             {windowLeft ? <Clock className="size-3.5" /> : <Lock className="size-3.5" />}
@@ -274,7 +274,7 @@ export function ConversationPanel({ id, onBack, layout }: { id: string; onBack: 
           <PanelResizeHandle side="right" width={layout.contactWidth} min={300} max={520} fallback={360} onChange={layout.onContactWidth} label="Resize contact info" />
           <aside
             aria-label="Contact info"
-            className="fixed inset-y-3 right-3 z-40 flex w-[min(360px,calc(100vw-1.5rem))] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl xl:static xl:z-auto xl:w-(--contact-w) xl:min-w-[260px] xl:shrink xl:shadow-none"
+            className="fixed inset-y-3 right-3 z-40 flex w-[min(360px,calc(100vw-1.5rem))] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl xl:static xl:z-auto xl:w-(--contact-w) xl:min-w-[260px] xl:shrink xl:shadow-none"
             style={{ '--contact-w': `${layout.contactWidth ?? 360}px` } as CSSProperties}
           >
             <ContactPanel conv={conv} contact={contact} writable={writable} onUpdate={(b) => update.mutate(b)} onClose={layout.onToggleContact} />
@@ -356,7 +356,7 @@ function ActionsPalette({ actions, onClose }: { actions: PaletteAction[]; onClos
   useEffect(() => input.current?.focus(), []);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 p-4 pt-[15vh]" onClick={onClose}>
-      <div role="dialog" aria-label="Chat actions" className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-label="Chat actions" className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-slate-100 px-4">
           <Search className="size-4 text-slate-400" />
           <input
@@ -376,7 +376,7 @@ function ActionsPalette({ actions, onClose }: { actions: PaletteAction[]; onClos
             aria-label="Search actions"
             className="w-full py-3.5 text-sm focus:outline-none"
           />
-          <kbd className="inline-flex items-center gap-0.5 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] text-slate-400">
+          <kbd className="inline-flex items-center gap-0.5 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-400">
             <Command className="size-3" />K
           </kbd>
         </div>

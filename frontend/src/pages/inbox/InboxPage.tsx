@@ -193,7 +193,7 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
     const v = count[k];
     return v ? <span className={cn('rounded-full px-1.5 text-[11px] font-semibold', k === 'mentions' || k === 'waiting' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500')}>{v}</span> : null;
   };
-  const soon = <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Soon</span>;
+  const soon = <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">Soon</span>;
 
   return (
     <nav aria-label="Inbox" className={cn('hidden shrink-0 flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 transition-[width] md:flex', collapsed ? 'w-14' : 'w-60')}>
@@ -201,7 +201,7 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-white">
           <MessageSquare className="size-[18px]" />
         </span>
-        {!collapsed && <span className="flex-1 font-semibold text-ink">Team Inbox</span>}
+        {!collapsed && <span className="flex-1 font-semibold text-ink">Team inbox</span>}
         <button type="button" onClick={onToggle} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={collapsed ? 'Expand inbox menu' : 'Collapse inbox menu'}>
           {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
         </button>
@@ -210,7 +210,7 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
       <div className="space-y-0.5">
         {!collapsed ? (
           <button type="button" onClick={() => setInboxOpen(!inboxOpen)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-ink hover:bg-slate-50">
-            <Inbox className="size-[18px]" /> <span className="flex-1 text-left">Your Inbox</span>
+            <Inbox className="size-[18px]" /> <span className="flex-1 text-left">Your inbox</span>
             <ChevronDown className={cn('size-4 text-slate-400 transition-transform', !inboxOpen && '-rotate-90')} />
           </button>
         ) : null}
@@ -220,11 +220,11 @@ function InboxNav({ section, collapsed, onToggle, onGo, onCallLogs }: { section:
       <div className="my-2 border-t border-slate-100" />
       {item('groups', 'Groups', Users, { badge: soon })}
       <div className="my-2 border-t border-slate-100" />
-      {item('instagram', 'Instagram Chats', InstagramIcon as typeof Inbox, { badge: soon })}
+      {item('instagram', 'Instagram chats', InstagramIcon as typeof Inbox, { badge: soon })}
       {item('ai', NAV_LISTS.ai.label, Bot, { badge: countBadge('ai') })}
       <div className="my-2 border-t border-slate-100" />
-      {item('tools', 'Chat Tools', Wrench)}
-      {item('calls' as Section, 'Call Logs', Phone, { onClick: onCallLogs })}
+      {item('tools', 'Chat tools', Wrench)}
+      {item('calls' as Section, 'Call logs', Phone, { onClick: onCallLogs })}
     </nav>
   );
 }

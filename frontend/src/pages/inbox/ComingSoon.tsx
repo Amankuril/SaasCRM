@@ -8,14 +8,14 @@ export const InstagramIcon = ({ className }: { className?: string }) => <img src
 export function ComingSoonPanel({ kind }: { kind: 'groups' | 'instagram' }) {
   const info =
     kind === 'groups'
-      ? { icon: Users, title: 'WhatsApp Groups', text: 'Reply to customer groups from the same inbox, with the same assignment and notes. Coming soon.' }
-      : { icon: InstagramIcon, title: 'Instagram Chats', text: 'Connect your Instagram business account to answer DMs and story replies next to WhatsApp. Coming soon.' };
+      ? { icon: Users, title: 'WhatsApp groups', text: 'Reply to customer groups from the same inbox, with the same assignment and notes. Coming soon.' }
+      : { icon: InstagramIcon, title: 'Instagram chats', text: 'Connect your Instagram business account to answer DMs and story replies next to WhatsApp. Coming soon.' };
   return (
     <div className="flex h-full min-h-80 flex-col items-center justify-center px-6 text-center">
       <span className="flex size-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
         <info.icon className="size-8" />
       </span>
-      <h2 className="mt-4 text-xl font-bold text-ink">{info.title}</h2>
+      <h2 className="mt-4 text-xl font-semibold text-ink">{info.title}</h2>
       <p className="mt-2 max-w-md text-slate-500">{info.text}</p>
       <span className="mt-4 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Coming soon</span>
     </div>
@@ -25,7 +25,7 @@ export function ComingSoonPanel({ kind }: { kind: 'groups' | 'instagram' }) {
 /** WhatsApp voice calls (Business Calling API) aren't connected yet, so there are no logs to show. */
 export function CallLogsDialog({ onClose }: { onClose: () => void }) {
   return (
-    <Dialog icon={<Phone className="size-5" />} title="Call Logs" subtitle="Incoming, outgoing and missed WhatsApp calls" width="max-w-2xl" onClose={onClose}>
+    <Dialog icon={<Phone className="size-5" />} title="Call logs" subtitle="Incoming, outgoing and missed WhatsApp calls" width="max-w-2xl" onClose={onClose}>
       <div className="flex flex-col items-center py-8 text-center">
         <div className="flex gap-3 text-slate-300">
           <PhoneIncoming className="size-7" />

@@ -222,7 +222,7 @@ export function Composer({ id, windowOpen, contactName, aiMode, onOpenActions }:
         </div>
       )}
       {suggestion && (
-        <p className={cn('mb-2 rounded-lg px-3 py-1.5 text-xs', suggestion.outcome === 'answered' ? 'bg-fuchsia-50 text-fuchsia-800' : 'bg-amber-50 text-amber-800')}>
+        <p className={cn('mb-2 rounded-lg px-3 py-1.5 text-xs', suggestion.outcome === 'answered' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-800')}>
           {suggestion.outcome === 'answered'
             ? `AI draft added below. Review before sending.${suggestion.sources.length ? ` Sources: ${suggestion.sources.map((s) => s.title).join(', ')}` : ''}`
             : `The AI suggests a human answer this: ${suggestion.reason}`}
@@ -238,7 +238,7 @@ export function Composer({ id, windowOpen, contactName, aiMode, onOpenActions }:
           </button>
           {!note && !windowOpen && <span className="text-xs text-amber-700">24-hour window closed: send an approved template</span>}
           {!note && windowOpen && aiMode !== 'off' && (
-            <button type="button" onClick={() => suggest.mutate()} disabled={suggest.isPending} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50 disabled:opacity-60">
+            <button type="button" onClick={() => suggest.mutate()} disabled={suggest.isPending} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-60">
               {suggest.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />} {suggest.isPending ? 'Thinking…' : 'Suggest reply'}
             </button>
           )}
@@ -359,7 +359,7 @@ export function Composer({ id, windowOpen, contactName, aiMode, onOpenActions }:
               {tool('Formatting', <Type className="size-[18px]" />, (el) => setAnchor({ el, kind: 'format' }))}
               {tool(enterToSend ? 'Enter sends (click: Enter adds a new line, Ctrl+Enter sends)' : 'Enter adds a new line (click: Enter sends)', <CornerDownLeft className="size-[18px]" />, toggleEnter, { active: enterToSend })}
               <button type="button" onClick={onOpenActions} className="ml-1 hidden items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 @md:inline-flex" title="All actions (Ctrl+K)">
-                <kbd className="rounded-md bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">Ctrl+K</kbd> actions
+                <kbd className="rounded-md bg-slate-800 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white">Ctrl+K</kbd> actions
               </button>
               <button
                 type="button"
@@ -391,7 +391,7 @@ export function Composer({ id, windowOpen, contactName, aiMode, onOpenActions }:
         <div className="p-1 text-sm">
           {(
             [
-              ['reply', 'WhatsApp', 'Reply to the customer', <MessageCircle key="w" className="size-4 text-emerald-600" />],
+              ['reply', 'WhatsApp', 'Reply to the customer', <MessageCircle key="w" className="size-4 text-brand-600" />],
               ['note', 'Internal note', 'Only your team sees it', <StickyNote key="n" className="size-4 text-amber-600" />],
             ] as const
           ).map(([m, label, hint, icon]) => (
@@ -419,7 +419,7 @@ export function Composer({ id, windowOpen, contactName, aiMode, onOpenActions }:
           <p className="px-3 pt-1.5 pb-1 text-xs text-slate-500">Select text, then pick a style</p>
           {(
             [
-              ['Bold', '*', '*', 'font-bold'],
+              ['Bold', '*', '*', 'font-semibold'],
               ['Italic', '_', '_', 'italic'],
               ['Strikethrough', '~', '~', 'line-through'],
               ['Monospace', '```', '```', 'font-mono'],

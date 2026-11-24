@@ -34,7 +34,7 @@ interface Filters {
   window: '' | WindowTab;
 }
 
-const AVATAR_TONES = ['bg-emerald-100 text-emerald-700', 'bg-lime-100 text-lime-700', 'bg-violet-100 text-violet-700', 'bg-rose-100 text-rose-700', 'bg-fuchsia-100 text-fuchsia-700', 'bg-sky-100 text-sky-700', 'bg-amber-100 text-amber-700'];
+const AVATAR_TONES = ['bg-slate-200/70 text-slate-700'];
 const toneOf = (s: string) => AVATAR_TONES[[...s].reduce((n, ch) => n + ch.charCodeAt(0), 0) % AVATAR_TONES.length]!;
 
 export function ChatList({ list, selected, onSelect }: { list: NavList; selected: string | null; onSelect: (id: string | null) => void }) {
@@ -169,7 +169,7 @@ export function ChatList({ list, selected, onSelect }: { list: NavList; selected
               return (
                 <button key={k} type="button" role="tab" aria-selected={quick === k} onClick={() => setQuick(k)} className={cn('-mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-2 font-medium whitespace-nowrap', quick === k ? 'border-brand-600 text-ink' : 'border-transparent text-slate-500 hover:text-slate-700')}>
                   {QUICK[k].label}
-                  {!!n && <span className="rounded-full bg-brand-600 px-1.5 text-[10px] font-semibold text-white">{n}</span>}
+                  {!!n && <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{n}</span>}
                 </button>
               );
             })}
@@ -247,14 +247,14 @@ function ChatRow({ c, active, checked, selecting, onToggle, onOpen, ai }: { c: C
         {checked ? <Check className="size-5" /> : <span className={cn(selecting ? 'hidden' : 'group-hover:hidden')}>{initials(name)}</span>}
         {!checked && <span className={cn('size-5 rounded-md border-2 border-slate-300 bg-white', selecting ? 'block' : 'hidden group-hover:block')} />}
         {ai && !checked && (
-          <span className="absolute -right-0.5 -bottom-0.5 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white">
+          <span className="absolute -right-0.5 -bottom-0.5 flex size-5 items-center justify-center rounded-full bg-brand-500 text-white ring-2 ring-white">
             <Bot className="size-3" />
           </span>
         )}
       </button>
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <span className="flex items-baseline justify-between gap-2">
-          <span className={cn('truncate text-sm', c.unreadCount ? 'font-bold text-ink' : 'font-semibold text-slate-800')}>{name}</span>
+          <span className={cn('truncate text-sm', c.unreadCount ? 'font-semibold text-ink' : 'font-semibold text-slate-800')}>{name}</span>
           <span className={cn('shrink-0 text-xs', c.unreadCount ? 'font-semibold text-brand-700' : 'text-slate-400')}>{relativeTime(c.lastMessageAt)}</span>
         </span>
         <span className="mt-0.5 flex items-center gap-2">
@@ -293,9 +293,9 @@ function ChatRow({ c, active, checked, selecting, onToggle, onOpen, ai }: { c: C
 
 const CHIP: Record<string, string> = {
   slate: 'bg-slate-100 text-slate-600',
-  emerald: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  emerald: 'bg-brand-50 text-brand-700 ring-1 ring-emerald-200',
   amber: 'bg-amber-50 text-amber-700',
-  violet: 'bg-violet-50 text-violet-700',
+  violet: 'bg-slate-100 text-slate-600',
   red: 'bg-red-50 text-red-600',
 };
 function Chip({ tone, children }: { tone: keyof typeof CHIP; children: React.ReactNode }) {
@@ -366,10 +366,10 @@ function FilterPopover({ anchor, onClose, value, defaults, onChange, showStatus,
           </label>
         )}
         <label className="flex items-center gap-2">
-          <input type="checkbox" className="accent-emerald-600" checked={value.unread} onChange={(e) => set({ unread: e.target.checked })} /> Unread only
+          <input type="checkbox" className="accent-brand-600" checked={value.unread} onChange={(e) => set({ unread: e.target.checked })} /> Unread only
         </label>
         <label className="flex items-center gap-2">
-          <input type="checkbox" className="accent-emerald-600" checked={value.priority === 'high'} onChange={(e) => set({ priority: e.target.checked ? 'high' : '' })} /> High priority only
+          <input type="checkbox" className="accent-brand-600" checked={value.priority === 'high'} onChange={(e) => set({ priority: e.target.checked ? 'high' : '' })} /> High priority only
         </label>
       </div>
     </Popover>
@@ -456,7 +456,7 @@ function MobileViewPicker({ list }: { list: NavList }) {
             {NAV_LISTS[k].label}
           </option>
         ))}
-        <option value="tools">Chat Tools</option>
+        <option value="tools">Chat tools</option>
       </Select>
     </div>
   );

@@ -74,7 +74,7 @@ export function PipelinePage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-6">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Sales Pipeline</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Sales pipeline</h1>
           <p className="mt-0.5 max-w-md text-sm text-slate-500">Drag customers across lifecycle stages to track your sales pipeline</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +232,7 @@ function PipelineColumn({
               onDragStart={() => onCardDragStart(row)}
               onDragEnd={onCardDragEnd}
               onClick={() => onOpen(row.id)}
-              className={cn('cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300 hover:shadow', moved[row.id] && 'opacity-70')}
+              className={cn('cursor-pointer rounded-xl border border-slate-200 bg-white p-3  transition hover:border-slate-300 hover:shadow', moved[row.id] && 'opacity-70')}
             >
               <div className="flex items-start gap-2.5">
                 <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold', avatarTone(row.id))}>{initials(row.displayName)}</span>

@@ -2,7 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { AlertCircle, Check, CheckCheck, ChevronDown, Clock, FileText, Lock, StickyNote } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { initials } from '../../components/crm';
-import { Alert, Button, Spinner, cn, errorMessage } from '../../components/ui';
+import { Button, Spinner, cn, LoadError } from '../../components/ui';
 import { api, type TimelineItem } from '../../lib/api';
 import { useWorkspace } from '../../layouts/workspaceContext';
 
@@ -68,7 +68,7 @@ export function Timeline({ id, contactName }: { id: string; contactName: string 
         {query.isPending ? (
           <Spinner />
         ) : query.error ? (
-          <Alert>{errorMessage(query.error)}</Alert>
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
         ) : (
           <ol className="space-y-2">
             {items.map((item, i) => {
@@ -111,12 +111,12 @@ function MessageBubble({ item, contactName, showAvatar }: { item: Extract<Timeli
   const c = item.content as { text?: string; preview?: string; caption?: string; title?: string; filename?: string; mediaType?: string; template?: { name: string } };
   const isFormReply = item.type === 'interactive' && item.content.interactiveType === 'nfm_reply';
   const isMedia = item.type === 'media' || ['image', 'video', 'document', 'audio', 'sticker'].includes(item.type);
-  const body = item.type === 'template' ? c.preview : isFormReply ? '📝 Form submitted' : (c.text ?? c.caption ?? c.title ?? (isMedia ? null : `[${item.type} message]`));
+  const body = item.type === 'template' ? c.preview : isFormReply ? 'Form submitted' : (c.text ?? c.caption ?? c.title ?? (isMedia ? null : `[${item.type} message]`));
 
   return (
     <div className={cn('flex items-end gap-2', out ? 'justify-end' : 'justify-start')}>
       {!out && (
-        <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700', !showAvatar && 'invisible')} aria-hidden>
+        <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700', !showAvatar && 'invisible')} aria-hidden>
           {initials(contactName)}
         </span>
       )}
@@ -140,7 +140,7 @@ function MessageBubble({ item, contactName, showAvatar }: { item: Extract<Timeli
           )}
           {item.type === 'flow' && (
             <span className="mt-1.5 inline-block rounded-md border border-emerald-300 bg-white/70 px-2 py-0.5 text-xs text-sky-700">
-              📝 {String(item.content.formName ?? 'Form')} · {String(item.content.ctaText ?? 'Open form')}
+              {String(item.content.formName ?? 'Form')} · {String(item.content.ctaText ?? 'Open form')}
             </span>
           )}
           {item.type === 'cta_url' && (

@@ -101,7 +101,7 @@ export function TaskBoardPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Ticket / Task Board</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Ticket / Task Board</h1>
           <p className="mt-0.5 text-sm text-slate-500">Manage tickets &amp; tasks together — drag to change stage, click to view details</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -142,8 +142,8 @@ export function TaskBoardPage() {
             ))}
           </div>
           {editable && (
-            <Button onClick={() => (setNewIn(undefined), setEditing('new'))} className="bg-slate-700 hover:bg-slate-800">
-              <ListPlus className="size-4" /> New Task
+            <Button onClick={() => (setNewIn(undefined), setEditing('new'))}>
+              <ListPlus className="size-4" /> New task
             </Button>
           )}
           <Button ref={setRangeAnchor} variant="secondary" onClick={() => setRangeOpen(!rangeOpen)}>
@@ -199,7 +199,7 @@ export function TaskBoardPage() {
                     <header className={cn('flex items-center gap-2 rounded-t-xl border-b border-slate-200/70 px-3 py-2.5', tone.soft)}>
                       <span className={cn('size-2 rounded-full', tone.dot)} />
                       <h2 className="flex-1 truncate text-sm font-semibold text-ink">{col.name}</h2>
-                      {col.isDone && <Check className="size-3.5 text-emerald-600" aria-label="Counts as done" />}
+                      {col.isDone && <Check className="size-3.5 text-brand-600" aria-label="Counts as done" />}
                       <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{items.length}</span>
                     </header>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
@@ -297,11 +297,11 @@ export function TaskBoardPage() {
 
 function TypeChip({ type }: { type: TaskType }) {
   return type === 'ticket' ? (
-    <span className="ml-1 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-violet-700 uppercase">
+    <span className="ml-1 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-violet-700">
       <Ticket className="size-3" /> Ticket
     </span>
   ) : (
-    <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-slate-600 uppercase">Task</span>
+    <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-slate-600">Task</span>
   );
 }
 
@@ -340,12 +340,12 @@ function TaskCard({
           onDragOverCard();
         }}
         onClick={onOpen}
-        className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-slate-300 hover:shadow"
+        className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow"
       >
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <span>#{t.number}</span>
           <TypeChip type={t.type} />
-          <span className={cn('ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold', PRIORITY[t.priority].tone)}>{PRIORITY[t.priority].label}</span>
+          <span className={cn('ml-auto rounded px-1.5 py-0.5 text-[11px] font-semibold', PRIORITY[t.priority].tone)}>{PRIORITY[t.priority].label}</span>
         </div>
         <p className={cn('mt-1.5 text-sm font-medium text-slate-800', t.completedAt && 'text-slate-500 line-through')}>{t.title}</p>
         {t.contact && (
@@ -356,7 +356,7 @@ function TaskCard({
         <div className="mt-2.5 flex items-center justify-between">
           {t.dueAt ? <DueChip task={t} /> : <span className="text-xs text-slate-400">{timeAgo(t.createdAt)}</span>}
           {t.assignee ? (
-            <span className="flex size-6 items-center justify-center rounded-full bg-slate-700 text-[10px] font-semibold text-white" title={t.assignee.name}>
+            <span className="flex size-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white" title={t.assignee.name}>
               {initials(t.assignee.name)}
             </span>
           ) : (
@@ -438,7 +438,7 @@ function TaskDialog({ task, defaultStatus, columns, onClose }: { task: BoardTask
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={() => save.mutate()} disabled={!form.title.trim()} loading={save.isPending} className="bg-slate-700 hover:bg-slate-800">
+            <Button onClick={() => save.mutate()} disabled={!form.title.trim()} loading={save.isPending}>
               {task ? 'Save changes' : 'Create task'}
             </Button>
           </>
@@ -469,7 +469,7 @@ function TaskDialog({ task, defaultStatus, columns, onClose }: { task: BoardTask
           placeholder="Details, steps, links…"
           value={form.description}
           onChange={(e) => set({ description: e.target.value })}
-          className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-50"
+          className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-50"
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field id="t-status" title="Status">

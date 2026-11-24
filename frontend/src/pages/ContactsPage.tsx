@@ -6,7 +6,7 @@ import { ContactDetails } from '../components/ContactDetails';
 import { ImportContactsModal } from '../components/ImportContactsModal';
 import { TagsModal } from '../components/TagsModal';
 import { CONSENT_LABEL, Modal, useStageOptions, StageBadge, TagChip } from '../components/crm';
-import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError } from '../components/ui';
+import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner, errorMessage, fieldError, LoadError } from '../components/ui';
 import { ApiError, api, type Contact } from '../lib/api';
 import { useTags } from '../lib/hooks';
 import { formatDate } from '../lib/options';
@@ -121,10 +121,8 @@ export function ContactsPage() {
         {list.isPending ? (
           <Spinner />
         ) : list.error ? (
-          <div className="p-4">
-            <Alert>{errorMessage(list.error)}</Alert>
-          </div>
-        ) : list.data.contacts.length === 0 ? (
+            <LoadError error={list.error} what="this list" onRetry={() => void list.refetch()} />
+          ) : list.data.contacts.length === 0 ? (
           <EmptyState icon={<Users className="size-5" />} title={q || tag || stage ? 'No contacts match these filters' : 'No contacts yet'}>
             {!q && !tag && !stage && 'Contacts are created automatically when customers message you, or you can add and import them.'}
           </EmptyState>
@@ -222,8 +220,8 @@ function ContactDrawer({ contactId, onClose }: { contactId: string; onClose: () 
           {query.isPending ? (
             <Spinner />
           ) : query.error ? (
-            <Alert>{errorMessage(query.error)}</Alert>
-          ) : (
+          <LoadError error={query.error} onRetry={() => void query.refetch()} />
+        ) : (
             <div className="space-y-5">
               {query.data.conversation && (
                 <Link to={`/w/${workspace.id}/inbox?c=${query.data.conversation.id}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">

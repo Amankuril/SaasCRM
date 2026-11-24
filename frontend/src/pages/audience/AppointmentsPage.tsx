@@ -13,8 +13,8 @@ import { Popover, avatarTone, initials } from './shared';
 const SOURCE_LABEL: Record<AppointmentSource, string> = { ai_assistant: 'AI assistant', flow: 'Flow', manual: 'Added by team', api: 'API' };
 const STATUS: Record<AppointmentStatus, { label: string; tone: string }> = {
   scheduled: { label: 'Scheduled', tone: 'bg-sky-50 text-sky-700 ring-sky-200' },
-  confirmed: { label: 'Confirmed', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  completed: { label: 'Done', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  confirmed: { label: 'Confirmed', tone: 'bg-brand-50 text-brand-700 ring-emerald-200' },
+  completed: { label: 'Done', tone: 'bg-brand-50 text-brand-700 ring-emerald-200' },
   cancelled: { label: 'Cancelled', tone: 'bg-red-50 text-red-700 ring-red-200' },
   no_show: { label: 'No-show', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
 };
@@ -90,19 +90,19 @@ export function AppointmentsPage() {
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Appointments</h1>
+          <h1 className="text-2xl leading-8 font-medium text-ink">Appointments</h1>
           <p className="mt-0.5 text-sm text-slate-500">All appointments booked by customers through your AI assistant, flows or your team</p>
         </div>
         {editable && (
-          <Button onClick={() => (setNewAt(null), setEditing('new'))} className="bg-slate-700 hover:bg-slate-800">
+          <Button onClick={() => (setNewAt(null), setEditing('new'))}>
             <CalendarPlus className="size-4" /> New appointment
           </Button>
         )}
       </div>
 
       <div className="mt-5 grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3">
-        <Stat icon={<CalendarDays className="size-5" />} tone="bg-sky-50 text-sky-600" label="Coming Up" value={stats?.upcoming} />
-        <Stat icon={<CheckCircle2 className="size-5" />} tone="bg-emerald-50 text-emerald-600" label="Done This Month" value={stats?.doneThisMonth} />
+        <Stat icon={<CalendarDays className="size-5" />} tone="bg-sky-50 text-sky-600" label="Coming up" value={stats?.upcoming} />
+        <Stat icon={<CheckCircle2 className="size-5" />} tone="bg-brand-50 text-brand-600" label="Done this month" value={stats?.doneThisMonth} />
         <Stat icon={<XCircle className="size-5" />} tone="bg-red-50 text-red-500" label="Cancelled" value={stats?.cancelled} />
       </div>
 
@@ -314,7 +314,7 @@ export function MonthCalendar({ month, onMonth, items, onOpen, onDay }: { month:
               className={cn('min-h-24 border-r border-b border-slate-100 p-1.5 text-xs [&:nth-child(7n)]:border-r-0', !inMonth && 'bg-slate-50/60 text-slate-400')}
               title={onDay ? 'Double-click to book' : undefined}
             >
-              <p className={cn('mb-1 flex size-6 items-center justify-center rounded-full', d.toDateString() === todayKey && 'bg-slate-700 font-semibold text-white')}>{d.getDate()}</p>
+              <p className={cn('mb-1 flex size-6 items-center justify-center rounded-full', d.toDateString() === todayKey && 'bg-slate-900 font-semibold text-white')}>{d.getDate()}</p>
               <div className="space-y-0.5">
                 {list.slice(0, 3).map((a) => (
                   <button
@@ -389,7 +389,7 @@ function AppointmentDialog({ appointment, defaultAt, onClose }: { appointment: A
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!service.trim() || !at} className="bg-slate-700 hover:bg-slate-800">
+            <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!service.trim() || !at}>
               {appointment ? 'Save changes' : 'Book appointment'}
             </Button>
           </>
@@ -503,7 +503,7 @@ function AppointmentDialog({ appointment, defaultAt, onClose }: { appointment: A
             maxLength={2000}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-50"
+            className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:outline-none disabled:bg-slate-50"
           />
         </div>
       </form>
