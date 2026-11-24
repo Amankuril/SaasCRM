@@ -13,6 +13,7 @@ import { credentialsOf, getConnection, markConnectionAuthError } from '../whatsa
 import { ProviderError, whatsappProvider, type OutboundMessage, type StatusEvent, type TemplateComponent } from '../whatsapp/provider/index.js';
 import type { WorkspaceDoc } from '../workspaces/workspace.model.js';
 import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } from '../inbox/conversation.service.js';
+import { ReminderSend } from '../reminders/reminder.model.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
 import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
@@ -175,6 +176,16 @@ async function syncCampaignRecipient(message: MessageDoc) {
   );
 }
 
+/** A date reminder WhatsApp could not deliver counts as failed, with Meta's reason. */
+async function syncReminder(message: MessageDoc) {
+  if (message.status !== 'failed' || !message.idempotencyKey?.startsWith('reminder:')) return;
+  const error = message.error as { code?: string; title?: string; message?: string } | null;
+  await ReminderSend.updateOne(
+    { workspaceId: message.workspaceId, messageId: message._id, status: 'sent' },
+    { status: 'failed', errorCode: error?.code ?? 'DELIVERY_FAILED', error: error?.message || error?.title || 'WhatsApp could not deliver this message.' },
+  );
+}
+
 /** Snapshot of the template + rendered parameters, so history stays accurate if the template changes. */
 export function buildTemplateContent(template: TemplateDoc, headerParams: string[], bodyParams: string[], buttonParams: string[] = [], rawExtras: TemplateExtras = {}) {
   const extras = pinOfferExpiry(rawExtras);
@@ -229,6 +240,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
     message.set({ status: 'failed', failedAt: new Date(), error: { code, title, message: text } });
     await message.save();
     await syncCampaignRecipient(message);
+    await syncReminder(message);
     await notifyMessagesChanged(message.workspaceId, message.contactId);
   };
 
@@ -362,6 +374,7 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
   if (message.isModified()) {
     await message.save();
     await syncCampaignRecipient(message);
+    await syncReminder(message);
     await notifyMessagesChanged(workspaceId, message.contactId);
     if (message.status !== previousStatus) await emitEvent(workspaceId, 'message.status_updated', { message: apiMessage(message), previous_status: previousStatus });
   }

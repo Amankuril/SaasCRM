@@ -29,6 +29,8 @@ import { memberRouter } from './member.routes.js';
 import { toPublicWorkspace } from './workspace.model.js';
 import { createWorkspace, listUserWorkspaces, workspaceContext } from './workspace.service.js';
 import { sheetsRouter } from '../integrations/sheets.routes.js';
+import { reminderRouter } from '../reminders/reminder.routes.js';
+import { rescheduleWorkspace } from '../reminders/reminder.service.js';
 import { dashboardRouter } from './dashboard.routes.js';
 import { cannedReplyRouter } from '../inbox/cannedReply.routes.js';
 
@@ -79,8 +81,11 @@ scoped.patch('/', requirePermission('workspace:update'), async (req, res) => {
   const changes = parse(updateSchema, req.body);
   const workspace = req.workspace!;
   const before = Object.fromEntries(Object.keys(changes).map((k) => [k, workspace.get(k)]));
+  const timezoneChanged = changes.timezone !== undefined && changes.timezone !== workspace.timezone;
   workspace.set(changes);
   await workspace.save();
+  // Reminder times are wall-clock times in the workspace timezone.
+  if (timezoneChanged) await rescheduleWorkspace(workspace);
   await audit(req, {
     workspaceId: workspace._id,
     action: 'workspace.updated',
@@ -120,3 +125,4 @@ scoped.use('/developer', developerRouter);
 scoped.use('/billing', billingRouter);
 scoped.use('/analytics', analyticsRouter);
 scoped.use('/dashboard', dashboardRouter);
+scoped.use('/reminders', reminderRouter);
