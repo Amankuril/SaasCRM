@@ -38,6 +38,21 @@ const platformSettingsSchema = new Schema(
     // On: business logins are refused (platform admins can still sign in).
     maintenanceMode: { type: Boolean, default: false },
     maintenanceMessage: { type: String, default: '', maxlength: 300 },
+    // Date (Reminder) module: visibility and the one-time unlock offer.
+    dateReminders: {
+      enabled: { type: Boolean, default: true },
+      // Off: free for every business.
+      paid: { type: Boolean, default: false },
+      title: { type: String, default: 'One-time unlock', maxlength: 60 },
+      // Paise.
+      price: { type: Number, default: 0, min: 0 },
+      comparePrice: { type: Number, default: 0, min: 0 },
+      currency: { type: String, default: 'INR' },
+      benefits: { type: [String], default: ['No subscription', 'Unlimited reminders', 'All businesses'] },
+      buttonLabel: { type: String, default: 'Unlock now', maxlength: 40 },
+      // workspace: one business. owner: every business of the person who pays.
+      scope: { type: String, enum: ['workspace', 'owner'], default: 'owner' },
+    },
   },
   { timestamps: true },
 );

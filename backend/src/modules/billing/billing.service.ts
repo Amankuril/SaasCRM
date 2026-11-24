@@ -232,7 +232,7 @@ export async function usageFor(workspaceId: Types.ObjectId, periodStart: Date): 
 // Payment provider events
 // ---------------------------------------------------------------------------
 
-async function nextInvoiceNumber(workspaceId: Types.ObjectId) {
+export async function nextInvoiceNumber(workspaceId: Types.ObjectId) {
   const count = await Invoice.countDocuments({ workspaceId });
   return `ZC-${workspaceId.toString().slice(-6).toUpperCase()}-${String(count + 1).padStart(4, '0')}`;
 }

@@ -14,6 +14,7 @@ import { WorkspaceMember } from '../workspaces/member.model.js';
 import { ACCESS_STATUSES, Invoice, LIMIT_KEYS, Plan, type PlanDoc, type SubscriptionDoc, type SubscriptionStatus } from './billing.model.js';
 import { addCycle, applyProviderEvent, getEntitlements, getPlan, usageFor } from './billing.service.js';
 import { ensurePlans } from './plans.js';
+import { completeUnlock } from '../reminders/unlock.service.js';
 import { RazorpayProvider, billingProvider, type BillingCycle } from './provider.js';
 
 /** Razorpay plans are created on first checkout, so any priced plan can be bought once the keys are set. */
@@ -220,5 +221,7 @@ billingWebhookRouter.post('/razorpay', express.raw({ type: '*/*', limit: '1mb' }
     const matched = await applyProviderEvent('razorpay', event);
     if (!matched) logger.warn({ eventId: event.eventId }, 'Unmatched Razorpay event');
   }
+  // One-time feature unlocks (safe to receive more than once).
+  for (const payment of provider.parseOrderPayments?.(raw) ?? []) await completeUnlock(payment);
   res.json({ ok: true });
 });

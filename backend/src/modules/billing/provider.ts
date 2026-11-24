@@ -32,10 +32,29 @@ export interface CheckoutProof {
   signature: string;
 }
 
+export interface OneTimeOrder {
+  orderId: string;
+  amount: number;
+  currency: string;
+}
+
+/** A captured one-time payment, confirmed by the browser or reported by webhook. */
+export interface OneTimePayment {
+  orderId: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+}
+
 export interface BillingProvider {
   readonly name: 'razorpay' | 'sandbox';
   createCheckout(args: { workspaceId: string; plan: PlanDoc; cycle: BillingCycle; email: string }): Promise<CheckoutSession>;
   cancel(providerSubscriptionId: string, atPeriodEnd: boolean): Promise<void>;
+  /** One-time purchase (feature unlocks). */
+  createOrder?(args: { amount: number; currency: string; receipt: string; notes: Record<string, string> }): Promise<OneTimeOrder>;
+  confirmOrder?(proof: { orderId: string; paymentId: string; signature: string }): Promise<OneTimePayment>;
+  /** Paid one-time orders inside a webhook whose signature parseWebhook() already checked. */
+  parseOrderPayments?(raw: Buffer): OneTimePayment[];
   /** Verifies the signature and normalizes the payload. Throws 401 on a bad signature. */
   parseWebhook(raw: Buffer, headers: Record<string, string | undefined>): BillingProviderEvent[];
 }
@@ -147,6 +166,30 @@ export class RazorpayProvider implements BillingProvider {
     };
   }
 
+  async createOrder({ amount, currency, receipt, notes }: { amount: number; currency: string; receipt: string; notes: Record<string, string> }): Promise<OneTimeOrder> {
+    const order = await this.call<{ id: string; amount: number; currency: string }>('/orders', { amount, currency, receipt: receipt.slice(0, 40), notes });
+    return { orderId: order.id, amount: order.amount, currency: order.currency };
+  }
+
+  /** razorpay_signature = hex HMAC-SHA256 of "order_id|payment_id" with the key secret. */
+  async confirmOrder(proof: { orderId: string; paymentId: string; signature: string }): Promise<OneTimePayment> {
+    if (!env.RAZORPAY_KEY_SECRET) throw new AppError(503, 'BILLING_NOT_CONFIGURED', 'Online payments are not set up yet. Contact support.');
+    const expected = createHmac('sha256', env.RAZORPAY_KEY_SECRET).update(`${proof.orderId}|${proof.paymentId}`).digest();
+    const received = Buffer.from(proof.signature, 'hex');
+    if (received.length !== expected.length || !timingSafeEqual(received, expected)) throw new AppError(400, 'PAYMENT_NOT_VERIFIED', 'This payment could not be verified. If money was deducted, it will be confirmed or refunded automatically.');
+    const pay = await this.call<{ amount?: number; currency?: string; status?: string; order_id?: string }>(`/payments/${encodeURIComponent(proof.paymentId)}`);
+    if (pay.status === 'failed' || pay.order_id !== proof.orderId) throw new AppError(402, 'PAYMENT_FAILED', 'The payment did not go through. Try again.');
+    return { orderId: proof.orderId, paymentId: proof.paymentId, amount: Number(pay.amount ?? 0), currency: String(pay.currency ?? 'INR') };
+  }
+
+  parseOrderPayments(raw: Buffer): OneTimePayment[] {
+    const body = JSON.parse(raw.toString('utf8')) as { event: string; payload?: { order?: { entity?: Record<string, unknown> }; payment?: { entity?: Record<string, unknown> } } };
+    const order = body.payload?.order?.entity;
+    const pay = body.payload?.payment?.entity;
+    if (body.event !== 'order.paid' || !order?.id || !pay?.id) return [];
+    return [{ orderId: String(order.id), paymentId: String(pay.id), amount: Number(pay.amount ?? order.amount ?? 0), currency: String(pay.currency ?? 'INR') }];
+  }
+
   parseWebhook(raw: Buffer, headers: Record<string, string | undefined>): BillingProviderEvent[] {
     if (!env.RAZORPAY_WEBHOOK_SECRET) throw new AppError(503, 'WEBHOOK_NOT_CONFIGURED', 'RAZORPAY_WEBHOOK_SECRET is not configured.');
     // X-Razorpay-Signature = hex HMAC-SHA256 of the raw body with the webhook secret.
@@ -204,6 +247,10 @@ export class SandboxBillingProvider implements BillingProvider {
 
   async cancel(id: string, atPeriodEnd: boolean): Promise<void> {
     this.cancelled.push({ id, atPeriodEnd });
+  }
+
+  async createOrder({ amount, currency }: { amount: number; currency: string }): Promise<OneTimeOrder> {
+    return { orderId: `sandbox_order_${randomBytes(8).toString('hex')}`, amount, currency };
   }
 
   parseWebhook(): BillingProviderEvent[] {
