@@ -1,13 +1,55 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/figtree';
 
+/*
+ * Zeta Connect visual system
+ * Neutral graphite surfaces, one green accent, message ticks as the signature detail.
+ * Every page takes its greys, radii, weights and shadows from here.
+ */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --color-brand-50: #ecfdf5;
-  --color-brand-100: #d1fae5;
-  --color-brand-500: #10b981;
-  --color-brand-600: #059669;
-  --color-brand-700: #047857;
-  --color-ink: #0f172a;
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Graphite ramp. `slate-*` keeps its name so every page follows this one definition. */
+  --color-slate-50: #fafafa;
+  --color-slate-100: #f4f4f5;
+  --color-slate-200: #e8e8ea;
+  --color-slate-300: #d4d4d8;
+  --color-slate-400: #74747b;
+  --color-slate-500: #62626a;
+  --color-slate-600: #4a4a51;
+  --color-slate-700: #37373d;
+  --color-slate-800: #242428;
+  --color-slate-900: #18181b;
+  --color-slate-950: #0f0f10;
+  --color-ink: #171719;
+
+  /* Brand green: 600 carries white text at 5:1. */
+  --color-brand-50: #eef8f3;
+  --color-brand-100: #d8efe4;
+  --color-brand-200: #b5dfcb;
+  --color-brand-500: #16a06f;
+  --color-brand-600: #0a7d55;
+  --color-brand-700: #07654a;
+
+  /* The read tick. */
+  --color-read: #1f8fd6;
+
+  /* Two working weights, 600 only for rare emphasis. */
+  --font-weight-semibold: 550;
+  --font-weight-bold: 600;
+
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.08);
+  --shadow-xl: 0 12px 32px rgb(0 0 0 / 0.1);
+
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html,
@@ -20,7 +62,45 @@ body {
   @apply bg-slate-50 text-slate-800 antialiased;
 }
 
-/* WhatsApp chat wallpaper behind template previews. */
+@layer base {
+  h1 {
+    letter-spacing: -0.01em;
+  }
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+  button,
+  [role='button'],
+  select,
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+  /* One visible keyboard focus everywhere; inputs draw their own ring. */
+  :is(a, button, summary, [role='tab'], [role='button'], [tabindex]):focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+  /* Quiet scrollbars, so menus and tables do not carry a grey bar. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-slate-300) transparent;
+  }
+}
+
+/* Selects: one chevron, same box as inputs. */
+.zc-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2374747b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 0.625rem center;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+
+/* WhatsApp chat wallpaper behind message previews. */
 .wa-wallpaper {
   background-color: #efeae2;
   background-image: radial-gradient(rgb(0 0 0 / 0.05) 1px, transparent 1px);
@@ -31,44 +111,38 @@ body {
 @keyframes slide-in-right {
   from {
     opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: translateX(8px);
   }
 }
 @keyframes slide-in-left {
   from {
     opacity: 0;
-    transform: translateX(-24px);
+    transform: translateX(-8px);
   }
-  to {
-    opacity: 1;
-    transform: none;
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
 .animate-slide-in-right {
-  animation: slide-in-right 0.28s ease-out;
+  animation: slide-in-right 0.3s var(--ease-out);
 }
 .animate-slide-in-left {
-  animation: slide-in-left 0.28s ease-out;
+  animation: slide-in-left 0.3s var(--ease-out);
+}
+.toast-in,
+.rise-in {
+  animation: rise-in 0.2s var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
-  .animate-slide-in-right,
-  .animate-slide-in-left {
-    animation: none;
+  *:not(.animate-spin),
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-.toast-in {
-  animation: toast-in 0.18s ease-out;
 }
 
 /* Horizontal tab strips scroll without showing a scrollbar. */
