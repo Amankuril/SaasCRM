@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { enqueue } from '../../jobs/queue.js';
+import { badRequest } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { AuditLog } from '../audit/auditLog.model.js';
 import { User } from '../auth/user.model.js';
@@ -8,6 +9,7 @@ import { Workspace } from '../workspaces/workspace.model.js';
 import { WebhookEvent } from '../whatsapp/webhookEvent.model.js';
 import { AdminAction } from './admin.model.js';
 import { adminLog, clearPlatformSettingsCache, platformSettings } from './admin.service.js';
+import { reminderOffer } from '../reminders/unlock.service.js';
 import { escapeRegex } from './adminUsers.routes.js';
 
 /** Mounted at /api/admin (settings, activity, audit search, ops actions). Platform admin only. */
@@ -21,6 +23,7 @@ function publicSettings(s: Awaited<ReturnType<typeof platformSettings>>) {
     signupsEnabled: s.signupsEnabled,
     maintenanceMode: s.maintenanceMode,
     maintenanceMessage: s.maintenanceMessage,
+    dateReminders: reminderOffer(s),
     updatedAt: s.updatedAt,
   };
 }
@@ -36,6 +39,18 @@ const settingsSchema = z
     signupsEnabled: z.boolean(),
     maintenanceMode: z.boolean(),
     maintenanceMessage: z.string().trim().max(300),
+    dateReminders: z
+      .object({
+        enabled: z.boolean(),
+        paid: z.boolean(),
+        title: z.string().trim().min(1, 'Add a title.').max(60),
+        price: z.number().int().min(0).max(100_000_000),
+        comparePrice: z.number().int().min(0).max(100_000_000),
+        benefits: z.array(z.string().trim().min(1).max(80)).max(8),
+        buttonLabel: z.string().trim().min(1, 'Add a button label.').max(40),
+        scope: z.enum(['workspace', 'owner']),
+      })
+      .partial(),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update.');
@@ -45,9 +60,11 @@ adminPlatformRouter.patch('/settings', async (req, res) => {
   clearPlatformSettingsCache();
   const s = await platformSettings();
   const before = publicSettings(s);
-  const { announcement, ...rest } = input;
+  const { announcement, dateReminders, ...rest } = input;
   s.set(rest);
   for (const [k, v] of Object.entries(announcement ?? {})) s.set(`announcement.${k}`, v);
+  for (const [k, v] of Object.entries(dateReminders ?? {})) s.set(`dateReminders.${k}`, v);
+  if (s.dateReminders?.paid && !((s.dateReminders.price ?? 0) >= 100)) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { dateReminders: ['Set a price of at least 1 before charging for the unlock.'] });
   await s.save();
   clearPlatformSettingsCache();
   const after = publicSettings(s);

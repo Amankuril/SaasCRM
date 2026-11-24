@@ -1,3 +1,4 @@
+import { grantUnlock, reminderAccess } from '../reminders/unlock.service.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
@@ -52,12 +53,22 @@ adminWorkspaceRouter.get('/', async (req, res) => {
     usage,
     counts,
     connection: connection ? toPublicConnection(connection) : null,
+    dateReminders: await reminderAccess(ws),
     invoices: invoices.map((i) => ({ id: i._id.toString(), number: i.number, planCode: i.planCode, cycle: i.cycle, amount: i.amount, currency: i.currency, status: i.status, provider: i.provider, providerPaymentId: i.providerPaymentId, failureReason: i.failureReason, paidAt: i.paidAt, createdAt: i.createdAt })),
     audit: auditRows.map((r) => {
       const u = r.actorUserId ? userById.get(r.actorUserId.toString()) : undefined;
       return { id: r._id.toString(), action: r.action, targetType: r.targetType, targetId: r.targetId, metadata: r.metadata, actor: u ? { name: u.name, email: u.email, isPlatformAdmin: u.isPlatformAdmin } : null, ip: r.ip, createdAt: r.createdAt };
     }),
   });
+});
+
+/** Gives a business the Date (Reminder) module for free, or takes a granted unlock back. */
+adminWorkspaceRouter.post('/date-reminders', async (req, res) => {
+  const { unlocked } = parse(z.object({ unlocked: z.boolean() }), req.body);
+  const ws = await loadWs((req.params as { id?: string }).id);
+  await grantUnlock(ws._id, unlocked);
+  await adminLog(req, { action: unlocked ? 'admin.date_reminders_granted' : 'admin.date_reminders_revoked', targetType: 'workspace', targetId: ws.id as string, workspace: { _id: ws._id, name: ws.name } });
+  res.json({ dateReminders: await reminderAccess(ws) });
 });
 
 const editSchema = z

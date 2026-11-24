@@ -89,7 +89,7 @@ adminRevenueRouter.get('/revenue', async (req, res) => {
     churned,
     trialsStarted,
     series,
-    byPlan: byPlan.map((p) => ({ planCode: p._id, planName: planOf.get(p._id)?.name ?? p._id, amount: p.amount, payments: p.n })),
+    byPlan: byPlan.map((p) => ({ planCode: p._id, planName: planOf.get(p._id)?.name ?? (p._id === 'date_reminders' ? 'Date reminders' : p._id), amount: p.amount, payments: p.n })),
     planMix: [...mix.entries()].map(([code, v]) => ({ planCode: code, planName: planOf.get(code)?.name ?? code, customers: v.customers, mrr: Math.round(v.mrr) })).sort((a, b) => b.mrr - a.mrr),
     renewals: renewals.map((r) => {
       const p = planOf.get(r.planCode);
@@ -145,7 +145,7 @@ adminRevenueRouter.get('/payments', async (req, res) => {
     workspaceId: (i.workspaceId as unknown as Types.ObjectId).toString(),
     workspaceName: nameOf.get((i.workspaceId as unknown as Types.ObjectId).toString()) ?? 'Deleted business',
     planCode: i.planCode,
-    planName: planName.get(i.planCode) ?? i.planCode,
+    planName: planName.get(i.planCode) ?? (i.planCode === 'date_reminders' ? 'Date reminders' : i.planCode),
     cycle: i.cycle,
     amount: i.amount,
     currency: i.currency,
