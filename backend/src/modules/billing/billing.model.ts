@@ -2,7 +2,7 @@ import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mong
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
 
 /** Numeric plan limits. `null` = unlimited. */
-export const LIMIT_KEYS = ['contacts', 'seats', 'monthlyMessages', 'activeFlows', 'forms', 'aiRepliesPerMonth', 'apiRequestsPerMinute'] as const;
+export const LIMIT_KEYS = ['contacts', 'seats', 'monthlyMessages', 'activeFlows', 'forms', 'aiRepliesPerMonth', 'apiRequestsPerMinute', 'sequenceContactsPerMonth'] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 export const FEATURE_KEYS = ['campaigns', 'flows', 'forms', 'ai', 'api'] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -88,7 +88,7 @@ subscriptionSchema.index({ providerSubscriptionId: 1 }, { sparse: true });
 export type SubscriptionDoc = HydratedDocument<InferSchemaType<typeof subscriptionSchema>>;
 export const Subscription = model('Subscription', subscriptionSchema);
 
-export const USAGE_METRICS = ['messages', 'ai_replies', 'api_requests'] as const;
+export const USAGE_METRICS = ['messages', 'ai_replies', 'api_requests', 'sequence_contacts'] as const;
 export type UsageMetric = (typeof USAGE_METRICS)[number];
 
 /** Aggregated usage per billing period (atomic increments). */

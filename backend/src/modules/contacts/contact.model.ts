@@ -1,5 +1,6 @@
 import { Schema, model, type HydratedDocument, type InferSchemaType } from 'mongoose';
 import { tenantScoped, workspaceIdField } from '../../db/tenantPlugin.js';
+import { publishDomainEvents, type DomainEvent } from '../events/domainEvents.js';
 
 export const CONSENT_STATUSES = ['unknown', 'opted_in', 'opted_out'] as const;
 
@@ -42,6 +43,55 @@ const contactSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// Document saves report tag / stage / list / field changes as domain events
+// (sequence triggers and goals). Bulk updates use contactEvents.ts instead.
+function snapshot(doc: { tags?: unknown[]; lists?: unknown[]; lifecycleStage?: string | null; customFields?: unknown }) {
+  return {
+    tags: (doc.tags ?? []).map(String),
+    lists: (doc.lists ?? []).map(String),
+    lifecycleStage: doc.lifecycleStage ?? null,
+    customFields: JSON.parse(JSON.stringify(doc.customFields ?? {})) as Record<string, unknown>,
+  };
+}
+contactSchema.post('init', function () {
+  this.$locals.original = snapshot(this);
+});
+contactSchema.pre('save', function () {
+  const orig = (this.$locals.original ?? {}) as Record<string, unknown>;
+  const events: DomainEvent[] = [];
+  const id = String(this._id);
+  if (this.isNew) events.push({ type: 'contact.created', contactId: id, source: this.source ?? null });
+  const ids = (v: unknown) => new Set(((v as unknown[] | undefined) ?? []).map(String));
+  if (this.isNew || this.isModified('tags')) {
+    const had = ids(orig.tags);
+    const added = [...ids(this.tags)].filter((t) => !had.has(t));
+    if (added.length) events.push({ type: 'tag.added', contactId: id, tagIds: added });
+  }
+  if (this.isNew || this.isModified('lists')) {
+    const had = ids(orig.lists);
+    const added = [...ids(this.lists)].filter((t) => !had.has(t));
+    if (added.length) events.push({ type: 'list.member_added', contactId: id, listIds: added });
+  }
+  if (!this.isNew && this.isModified('lifecycleStage') && orig.lifecycleStage !== this.lifecycleStage) {
+    events.push({ type: 'lifecycle.changed', contactId: id, from: (orig.lifecycleStage as string) ?? null, to: this.lifecycleStage });
+  }
+  if (this.isNew || this.isModified('customFields')) {
+    const before = (orig.customFields ?? {}) as Record<string, unknown>;
+    const after = (this.customFields ?? {}) as Record<string, unknown>;
+    for (const key of Object.keys(after)) {
+      if (JSON.stringify(after[key]) !== JSON.stringify(before[key]) && after[key] !== '' && after[key] != null) events.push({ type: 'field.changed', contactId: id, key, value: after[key] });
+    }
+  }
+  if (!this.isNew && this.isModified('consent.status') && this.consent?.status === 'opted_out') events.push({ type: 'contact.opted_out', contactId: id });
+  this.$locals.pendingEvents = events;
+});
+contactSchema.post('save', async function () {
+  const events = (this.$locals.pendingEvents ?? []) as DomainEvent[];
+  this.$locals.pendingEvents = [];
+  this.$locals.original = snapshot(this);
+  await publishDomainEvents(this.workspaceId, events);
+});
 
 contactSchema.plugin(tenantScoped);
 contactSchema.index({ workspaceId: 1, phoneE164: 1 }, { unique: true });

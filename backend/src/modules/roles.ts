@@ -23,6 +23,7 @@ const PERMISSIONS = {
   'tags:manage': ['owner', 'admin', 'manager'],
   'campaigns:manage': ['owner', 'admin', 'manager'],
   'flows:manage': ['owner', 'admin'],
+  'sequences:manage': ['owner', 'admin'],
   'ai:manage': ['owner', 'admin'],
   'forms:manage': ['owner', 'admin'],
   'developer:manage': ['owner', 'admin'],

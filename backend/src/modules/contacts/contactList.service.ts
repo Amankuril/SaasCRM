@@ -1,3 +1,4 @@
+import { publishDomainEvents, type DomainEvent } from '../events/domainEvents.js';
 import type { Types } from 'mongoose';
 import { z } from 'zod';
 import { badRequest } from '../../lib/errors.js';
@@ -67,6 +68,11 @@ export async function addToList(workspaceId: Types.ObjectId, list: ContactListDo
     );
     report.created = created.length;
     for (const c of created) if (c.tags.length) await onTagsAdded(workspaceId, c._id, c.tags);
+    await publishDomainEvents(workspaceId, created.flatMap((c): DomainEvent[] => [
+      { type: 'contact.created', contactId: String(c._id), source },
+      ...(c.tags.length ? [{ type: 'tag.added' as const, contactId: String(c._id), tagIds: c.tags.map(String) }] : []),
+      { type: 'list.member_added', contactId: String(c._id), listIds: [String(list._id)] },
+    ]));
   }
 
   const updates = rows.flatMap((r) => {
@@ -88,6 +94,17 @@ export async function addToList(workspaceId: Types.ObjectId, list: ContactListDo
     ];
   });
   if (updates.length) await Contact.bulkWrite(updates);
+  const events: DomainEvent[] = [];
+  for (const r of rows) {
+    const current = byPhone.get(r.phone);
+    if (!current) continue;
+    const id = String(current._id);
+    if (!(current.lists ?? []).some((l) => l.equals(list._id))) events.push({ type: 'list.member_added', contactId: id, listIds: [String(list._id)] });
+    const had = new Set((current.tags ?? []).map(String));
+    const added = tagsOf(r).map(String).filter((t) => !had.has(t));
+    if (added.length) events.push({ type: 'tag.added', contactId: id, tagIds: added });
+  }
+  await publishDomainEvents(workspaceId, events);
 }
 
 export async function importIntoList(workspaceId: Types.ObjectId, list: ContactListDoc, input: z.infer<typeof listImportSchema>): Promise<ListImportReport> {

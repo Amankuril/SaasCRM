@@ -22,6 +22,11 @@ export interface JobPayloads {
   'templates.reconcile': Record<string, never>;
   'reminders.tick': Record<string, never>;
   'pricing.rollup': Record<string, never>;
+  'domain.events': { workspaceId: string; events: import('../modules/events/domainEvents.js').DomainEvent[] };
+  'sequences.tick': Record<string, never>;
+  'sequences.daily': Record<string, never>;
+  'sequence.run': { workspaceId: string; enrollmentId: string; token?: string };
+  'sequence.retry': { workspaceId: string; sequenceMessageId: string };
 }
 export type JobName = keyof JobPayloads;
 
@@ -44,6 +49,11 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'templates.reconcile': 'templates-reconcile',
   'reminders.tick': 'reminders',
   'pricing.rollup': 'pricing-rollup',
+  'domain.events': 'domain-events',
+  'sequences.tick': 'sequences-tick',
+  'sequences.daily': 'sequences-daily',
+  'sequence.run': 'sequence-run',
+  'sequence.retry': 'sequence-retry',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -58,6 +68,11 @@ const CONCURRENCY: Record<JobName, number> = {
   'templates.reconcile': 1,
   'reminders.tick': 1,
   'pricing.rollup': 1,
+  'domain.events': 5,
+  'sequences.tick': 1,
+  'sequences.daily': 1,
+  'sequence.run': 10,
+  'sequence.retry': 2,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

@@ -5,6 +5,7 @@ import { enqueue } from '../../jobs/queue.js';
 import { Contact } from '../contacts/contact.model.js';
 import { countryOf, findOrCreateContact, isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
 import { invalidatePricingRollup } from '../reports/messagePricing.service.js';
+import { syncSequenceMessage } from '../sequences/sequence.engine.js';
 import { MessageTemplate, type TemplateDoc } from '../templates/template.model.js';
 import { checkSendValues, pinOfferExpiry, sendRequirements, toSendParams, type TemplateExtras } from '../templates/templateSend.js';
 import { Form } from '../forms/form.model.js';
@@ -245,6 +246,7 @@ export async function processSendJob(data: { workspaceId: string; messageId: str
     await message.save();
     await syncCampaignRecipient(message);
     await syncReminder(message);
+    if (message.source === 'sequence') await syncSequenceMessage(message);
     await notifyMessagesChanged(message.workspaceId, message.contactId);
   };
 
@@ -386,6 +388,7 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
     await message.save();
     await syncCampaignRecipient(message);
     await syncReminder(message);
+    if (message.source === 'sequence') await syncSequenceMessage(message);
     // A day already summed for the pricing report must be counted again.
     if (pricingAdded) await invalidatePricingRollup(workspaceId, message.createdAt);
     await notifyMessagesChanged(workspaceId, message.contactId);

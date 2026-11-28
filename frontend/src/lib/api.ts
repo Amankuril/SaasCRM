@@ -153,6 +153,7 @@ export type Permission =
   | 'tags:manage'
   | 'campaigns:manage'
   | 'flows:manage'
+  | 'sequences:manage'
   | 'ai:manage'
   | 'forms:manage'
   | 'developer:manage'
@@ -194,7 +195,7 @@ export interface WorkspaceContextPayload {
 }
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'cancelled' | 'expired';
-export type LimitKey = 'contacts' | 'seats' | 'monthlyMessages' | 'activeFlows' | 'forms' | 'aiRepliesPerMonth' | 'apiRequestsPerMinute';
+export type LimitKey = 'contacts' | 'seats' | 'monthlyMessages' | 'activeFlows' | 'forms' | 'aiRepliesPerMonth' | 'apiRequestsPerMinute' | 'sequenceContactsPerMonth';
 export type FeatureKey = 'campaigns' | 'flows' | 'forms' | 'ai' | 'api';
 
 export interface SubscriptionSummary {
@@ -1419,4 +1420,157 @@ export interface RateCard {
   validTo: string | null;
   note: string | null;
   updatedAt: string;
+}
+
+// ---- Sequences ----
+
+export type SequenceStatus = 'draft' | 'active' | 'paused' | 'archived';
+export type SequenceTriggerType = 'manual' | 'tag_added' | 'lifecycle_changed' | 'list_added' | 'new_contact' | 'field_changed' | 'date_field' | 'inactive';
+
+export interface SequenceTrigger {
+  type: SequenceTriggerType | null;
+  tagIds: string[];
+  stages: string[];
+  listIds: string[];
+  sources: string[];
+  fieldKey: string | null;
+  fieldOp: 'any' | 'equals';
+  fieldValue: string | null;
+  offsetDays: number;
+  direction: 'before' | 'on' | 'after';
+  time: string;
+  repeatYearly: boolean;
+  days: number;
+}
+
+export type SeqCondition =
+  | { kind: 'tag'; op: 'has' | 'not_has'; tagId: string }
+  | { kind: 'stage'; op: 'is' | 'is_not'; stage: string }
+  | { kind: 'field'; key: string; op: 'equals' | 'not_equals' | 'contains' | 'is_set' | 'not_set'; value: string }
+  | { kind: 'data'; key: string; op: 'equals' | 'not_equals' | 'contains' | 'is_set' | 'not_set'; value: string }
+  | { kind: 'last_message'; op: 'read' | 'delivered' | 'not_read' }
+  | { kind: 'replied'; op: 'replied' | 'not_replied' | 'contains'; value: string }
+  | { kind: 'split'; percent: number };
+
+export interface SeqVariable {
+  source: 'contact' | 'field' | 'data' | 'today' | 'text';
+  value: string;
+  fallback: string;
+}
+
+export type SeqStep =
+  | { id: string; type: 'message'; note: string; templateId: string | null; headerVariables: SeqVariable[]; bodyVariables: SeqVariable[]; mediaUrl: string | null; filter: SeqCondition[]; freeIfWindowOpen: boolean }
+  | { id: string; type: 'wait'; amount: number; unit: 'minutes' | 'hours' | 'days' | 'weeks' }
+  | { id: string; type: 'wait_until_date'; offsetDays: number; time: string }
+  | ({ id: string; type: 'action' } & (
+      | { action: 'add_tag' | 'remove_tag'; tagId: string }
+      | { action: 'set_lifecycle'; stage: string }
+      | { action: 'add_to_list'; listId: string }
+      | { action: 'start_sequence'; sequenceId: string }
+      | { action: 'assign_chat'; userId: string | null }
+      | { action: 'webhook'; url: string; secret: string | null }
+    ))
+  | { id: string; type: 'branch'; ways: { id: string; label: string; conditions: SeqCondition[]; steps: SeqStep[] }[] };
+
+export interface SeqOutcomeRule {
+  type: 'none' | 'replied' | 'tag_added' | 'lifecycle';
+  tagIds: string[];
+  stages: string[];
+}
+
+export interface SequenceRules {
+  joinOnce: boolean;
+  reentryDays: number;
+  maxEnrollments: number | null;
+  stopOnReply: boolean;
+  quietHours: { enabled: boolean; start: string; end: string };
+  days: number[];
+  timezone: 'workspace' | 'contact';
+  sendAfterDelivered: boolean;
+  retryEcosystemLimit: boolean;
+  maxPerContactPerDay: number;
+}
+
+export interface SequenceCounts {
+  inProgress: number;
+  needsAttention: number;
+  replied: number;
+  completed: number;
+  stopped: number;
+}
+
+export interface SequenceSummary {
+  id: string;
+  name: string;
+  status: SequenceStatus;
+  trigger: SequenceTrigger;
+  startingPoint: string | null;
+  published: boolean;
+  publishedAt: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  counts?: SequenceCounts;
+}
+
+export interface ChecklistItem {
+  key: string;
+  message: string;
+  stepId?: string;
+  publishOnly?: boolean;
+}
+
+export interface SequenceDetail extends SequenceSummary {
+  entryFilter: SeqCondition[];
+  dateMode: 'none' | 'fixed' | 'per_contact';
+  fixedDate: string | null;
+  dateKey: string | null;
+  goal: SeqOutcomeRule;
+  stopConditions: SeqOutcomeRule[];
+  rules: SequenceRules;
+  draftGraph: { steps: SeqStep[] };
+  live: { versionNo: number; publishedAt: string; changedSincePublish: boolean } | null;
+  checklist: ChecklistItem[];
+}
+
+export interface SequenceUsage {
+  used: number;
+  limit: number | null;
+  periodStart: string;
+  periodEnd: string;
+}
+
+export interface StartingPoint {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  summary: string[];
+  triggerType: SequenceTriggerType;
+}
+
+export type EnrollmentStatus = 'in_progress' | 'needs_attention' | 'completed' | 'dropped' | 'error';
+
+export interface SequenceContactRow {
+  enrollmentId: string;
+  contact: { id: string; name: string | null; phone: string } | null;
+  status: EnrollmentStatus;
+  outcome: string | null;
+  currentStep: string | null;
+  nextRunAt: string | null;
+  attention: { code: string; message: string; since: string } | null;
+  enrolledAt: string;
+  exitedAt: string | null;
+  exitReason: string | null;
+  joinedVia: string;
+}
+
+export interface SequenceFunnelStep {
+  stepId: string;
+  label: string;
+  sent: number;
+  delivered: number;
+  read: number;
+  replied: number;
+  failed: number;
 }

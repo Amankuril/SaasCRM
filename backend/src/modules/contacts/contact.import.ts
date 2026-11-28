@@ -1,3 +1,4 @@
+import { publishDomainEvents, type DomainEvent } from '../events/domainEvents.js';
 import type { Types } from 'mongoose';
 import { z } from 'zod';
 import { assertWithinLimit } from '../billing/billing.service.js';
@@ -128,12 +129,33 @@ export async function importContacts(workspaceId: Types.ObjectId, country: strin
     });
   }
 
+  const events: DomainEvent[] = [];
   if (inserts.length) {
-    await Contact.insertMany(inserts, { ordered: false });
+    const created = await Contact.insertMany(inserts, { ordered: false });
     report.created = inserts.length;
+    for (const c of created) {
+      const id = String(c._id);
+      events.push({ type: 'contact.created', contactId: id, source: 'import' });
+      if (c.tags.length) events.push({ type: 'tag.added', contactId: id, tagIds: c.tags.map(String) });
+      for (const [key, value] of Object.entries((c.customFields ?? {}) as Record<string, unknown>)) if (value !== '' && value != null) events.push({ type: 'field.changed', contactId: id, key, value });
+    }
   }
   const effective = updates.filter((u) => Object.keys(u.update).length);
   if (effective.length) await Contact.bulkWrite(effective.map((u) => ({ updateOne: u })));
+  for (const u of effective) {
+    const current = existing.find((c) => c._id.equals(u.filter._id as Types.ObjectId));
+    if (!current) continue;
+    const id = String(current._id);
+    const set = ((u.update as { $set?: Record<string, unknown> }).$set ?? {}) as Record<string, unknown>;
+    const addTags = (((u.update as { $addToSet?: { tags?: { $each: Types.ObjectId[] } } }).$addToSet?.tags?.$each) ?? []).map(String);
+    const had = new Set((current.tags ?? []).map(String));
+    const added = addTags.filter((t) => !had.has(t));
+    if (added.length) events.push({ type: 'tag.added', contactId: id, tagIds: added });
+    if (typeof set.lifecycleStage === 'string' && set.lifecycleStage !== current.lifecycleStage) events.push({ type: 'lifecycle.changed', contactId: id, from: current.lifecycleStage ?? null, to: set.lifecycleStage });
+    const custom = (current.customFields ?? {}) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(set)) if (k.startsWith('customFields.') && custom[k.slice(13)] !== v) events.push({ type: 'field.changed', contactId: id, key: k.slice(13), value: v });
+  }
+  await publishDomainEvents(workspaceId, events);
   report.updated = effective.length;
   report.skipped += updates.length - effective.length;
   return report;

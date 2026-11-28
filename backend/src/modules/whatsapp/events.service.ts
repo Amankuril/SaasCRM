@@ -8,6 +8,7 @@ import { recordAttribution } from '../audience/attribution.service.js';
 import { Contact } from '../contacts/contact.model.js';
 import { apiMessage, contactPayload } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
+import { publishDomainEvents, type DomainEvent } from '../events/domainEvents.js';
 import { onInboundMessage } from '../flows/triggers.js';
 import { handleFormReply } from '../forms/form.service.js';
 import { Workspace } from '../workspaces/workspace.model.js';
@@ -94,6 +95,11 @@ async function storeInboundMessage(workspaceId: Types.ObjectId, event: InboundMe
   await recordInboundOnConversation(workspaceId, contact._id, messagePreview(event.type, event.content), event.timestamp);
   await applyConsentKeyword(workspaceId, contact._id, event);
 
+  const domain: DomainEvent[] = [];
+  if (created) domain.push({ type: 'contact.created', contactId: String(contact._id), source: 'whatsapp_inbound' });
+  domain.push({ type: 'message.inbound', contactId: String(contact._id), text: String(event.content.text ?? event.content.title ?? '').slice(0, 1000) });
+  await publishDomainEvents(workspaceId, domain);
+
   if (created) await emitEvent(workspaceId, 'contact.created', async () => ({ contact: await contactPayload(workspaceId, contact._id) }));
   await emitEvent(workspaceId, 'message.received', async () => ({ message: apiMessage(stored), contact: await contactPayload(workspaceId, contact._id) }));
 
@@ -132,6 +138,7 @@ async function applyConsentKeyword(workspaceId: Types.ObjectId, contactId: Types
   if (!status) return;
   const before = await Contact.findOneAndUpdate({ _id: contactId, workspaceId }, { consent: { status, source: 'keyword', updatedAt: event.timestamp } });
   if (status === 'opted_out' && before?.consent?.status !== 'opted_out') {
+    await publishDomainEvents(workspaceId, [{ type: 'contact.opted_out', contactId: String(contactId) }]);
     await emitEvent(workspaceId, 'contact.opted_out', async () => ({ contact: await contactPayload(workspaceId, contactId), source: 'keyword' }));
   }
 }

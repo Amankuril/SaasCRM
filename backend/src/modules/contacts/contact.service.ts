@@ -1,6 +1,7 @@
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import type { Types } from 'mongoose';
 import { Contact, type ContactDoc } from './contact.model.js';
+import { publishDomainEvents } from '../events/domainEvents.js';
 
 /**
  * Normalizes user-entered numbers to E.164 ("+919812345678"). Numbers without a
@@ -59,11 +60,14 @@ export async function recordInboundContact(
 }
 
 export async function findOrCreateContact(workspaceId: Types.ObjectId, phoneE164: string, source: string): Promise<ContactDoc> {
-  return Contact.findOneAndUpdate(
+  const res = await Contact.findOneAndUpdate(
     { workspaceId, phoneE164 },
     { $setOnInsert: { workspaceId, phoneE164, source } },
-    { upsert: true, new: true },
-  ) as Promise<ContactDoc>;
+    { upsert: true, new: true, includeResultMetadata: true },
+  );
+  const contact = res.value as ContactDoc;
+  if (!res.lastErrorObject?.updatedExisting) await publishDomainEvents(workspaceId, [{ type: 'contact.created', contactId: String(contact._id), source }]);
+  return contact;
 }
 
 export const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;

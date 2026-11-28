@@ -1,3 +1,4 @@
+import { sequencePublicRouter } from '../sequences/sequence.publicApi.js';
 import { Router, type Request } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { Types } from 'mongoose';
@@ -444,6 +445,10 @@ publicApiRouter.post('/flows/:flowId/runs', requireScope('flows:run'), idempoten
   if (!exec) throw conflict('FLOW_BUSY', 'This contact is already in this flow.');
   res.status(202).json({ data: { id: exec.id as string, flow_id: flow.id as string, contact_id: contact.id as string, status: exec.status } });
 });
+
+// ---- sequences ----
+
+publicApiRouter.use(sequencePublicRouter);
 
 // ---- forms ----
 

@@ -27,6 +27,11 @@ import { DeveloperPage } from './pages/DeveloperPage';
 import { BillingPage } from './pages/BillingPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { MessagePricingPage } from './pages/reports/MessagePricingPage';
+import { SequenceBuilderPage } from './pages/sequences/SequenceBuilderPage';
+import { SequenceContactsPage } from './pages/sequences/SequenceContactsPage';
+import { SequenceGuidePage } from './pages/sequences/SequenceGuidePage';
+import { SequencesLayout } from './pages/sequences/SequencesLayout';
+import { SequencesListPage } from './pages/sequences/SequencesListPage';
 import { FormBuilderPage } from './pages/forms/FormBuilderPage';
 import { FormsListPage } from './pages/forms/FormsListPage';
 import { CampaignsPage } from './pages/CampaignsPage';
@@ -128,6 +133,12 @@ export function App() {
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
         <Route path="flows" element={<FlowsPage />} />
+        <Route path="sequences" element={<SequencesLayout />}>
+          <Route index element={<SequencesListPage />} />
+          <Route path="guide" element={<SequenceGuidePage />} />
+          <Route path=":sequenceId" element={<SequenceBuilderPage />} />
+          <Route path=":sequenceId/contacts" element={<SequenceContactsPage />} />
+        </Route>
         <Route path="reminders" element={<RemindersPage />} />
         <Route path="reminders/type/:categoryKey" element={<ReminderTypePage />} />
         <Route path="reminders/:setupId" element={<ReminderSetupPage />} />

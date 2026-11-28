@@ -1,29 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowUpRight,
-  Bot,
-  Building2,
-  Check,
-  ClipboardList,
-  Code2,
-  Contact,
-  Copy,
-  CreditCard,
-  Eye,
-  EyeOff,
-  Gauge,
-  LogIn,
-  Megaphone,
-  MessageSquare,
-  Minus,
-  Pencil,
-  PlayCircle,
-  Search,
-  ShieldOff,
-  Users,
-  Workflow,
-  type LucideIcon,
-} from 'lucide-react';
+import { ArrowUpRight, Bot, Building2, Check, ClipboardList, Code2, Contact, Copy, CreditCard, Eye, EyeOff, Gauge, ListOrdered, LogIn, Megaphone, MessageSquare, Minus, Pencil, PlayCircle, Search, ShieldOff, Users, Workflow, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AButton, ALink, ActionMenu, AdminHeader, Panel, Segmented, Switch, useConfirm } from '../components/admin';
@@ -447,6 +423,7 @@ export const LIMIT_LABEL: Record<LimitKey, string> = {
   forms: 'Forms',
   aiRepliesPerMonth: 'AI replies / period',
   apiRequestsPerMinute: 'API requests / min',
+  sequenceContactsPerMonth: 'Sequence contacts / period',
 };
 const LIMIT_ICON: Record<LimitKey, LucideIcon> = {
   monthlyMessages: MessageSquare,
@@ -456,6 +433,7 @@ const LIMIT_ICON: Record<LimitKey, LucideIcon> = {
   forms: ClipboardList,
   aiRepliesPerMonth: Bot,
   apiRequestsPerMinute: Gauge,
+  sequenceContactsPerMonth: ListOrdered,
 };
 export const FEATURES: FeatureKey[] = ['campaigns', 'flows', 'forms', 'ai', 'api'];
 export const FEATURE_INFO: Record<FeatureKey, { label: string; icon: LucideIcon }> = {

@@ -1,3 +1,4 @@
+import { addToSetWithEvents, setStageWithEvents } from '../contacts/contactEvents.js';
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
@@ -194,7 +195,7 @@ audienceRouter.post('/bulk', requirePermission('contacts:manage'), async (req, r
       await assertStage(workspaceId, input.stage, 'stage');
       // Record the stage history of the contacts that actually move.
       const moving = await Contact.find({ ...filter, lifecycleStage: { $ne: input.stage } }).select('_id lifecycleStage').lean();
-      updated = (await Contact.updateMany(filter, { lifecycleStage: input.stage })).modifiedCount;
+      updated = await setStageWithEvents(workspaceId, filter, input.stage);
       if (moving.length) {
         await ContactEvent.insertMany(moving.map((c) => ({ workspaceId: req.workspace!._id, contactId: c._id, type: 'stage_changed', from: c.lifecycleStage, to: input.stage, byUserId: req.user!._id })));
       }
@@ -207,7 +208,7 @@ audienceRouter.post('/bulk', requirePermission('contacts:manage'), async (req, r
       const tagIds = tags.map((t) => t._id);
       if (input.action === 'add_tags') {
         const before = await Contact.find({ ...filter, tags: { $not: { $all: tagIds } } }).select('_id tags').lean();
-        updated = (await Contact.updateMany(filter, { $addToSet: { tags: { $each: tagIds } } })).modifiedCount;
+        updated = await addToSetWithEvents(workspaceId, filter, 'tags', tagIds);
         // "Tag added" flows run for each contact that actually gained a tag.
         for (const c of before) await onTagsAdded(workspaceId, c._id, tagIds.filter((t) => !(c.tags ?? []).some((x) => x.equals(t))));
       } else {
@@ -224,7 +225,7 @@ audienceRouter.post('/bulk', requirePermission('contacts:manage'), async (req, r
     }
     case 'add_to_list': {
       if (!(await ContactList.exists({ workspaceId, _id: input.listId }))) throw notFound('List not found.');
-      updated = (await Contact.updateMany(filter, { $addToSet: { lists: new Types.ObjectId(input.listId) } })).modifiedCount;
+      updated = await addToSetWithEvents(workspaceId, filter, 'lists', [new Types.ObjectId(input.listId)]);
       break;
     }
     case 'delete': {

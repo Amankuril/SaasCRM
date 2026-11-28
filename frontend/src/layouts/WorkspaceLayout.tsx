@@ -13,6 +13,7 @@ import {
   Contact,
   FileText,
   LayoutDashboard,
+  ListOrdered,
   LogOut,
   Megaphone,
   Menu,
@@ -78,6 +79,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { to: 'auto-replies', label: 'Keyword triggers', icon: Zap },
       { to: 'flows', label: 'Flow builder', icon: Workflow },
+      { to: 'sequences', label: 'Sequences', icon: ListOrdered },
       { to: 'reminders', label: 'Date reminders', icon: CalendarClock },
       { to: 'forms', label: 'Forms', icon: ClipboardList },
       { to: 'ai', label: 'AI agent', icon: Bot },
@@ -113,7 +115,8 @@ export function WorkspaceLayout() {
   const templatesRoute = useMatch('/w/:workspaceId/templates/*');
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
   const audienceRoute = useMatch('/w/:workspaceId/audience/*');
-  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute;
+  const sequencesRoute = useMatch('/w/:workspaceId/sequences/*');
+  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute || sequencesRoute;
   const { pathname } = useLocation();
   useRealtime(workspaceId!);
 

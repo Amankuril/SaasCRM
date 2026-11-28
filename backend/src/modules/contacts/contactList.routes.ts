@@ -1,3 +1,4 @@
+import { addToSetWithEvents } from './contactEvents.js';
 import { Router, type Request } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
@@ -91,9 +92,9 @@ contactListRouter.post('/assign', requirePermission('contacts:manage'), async (r
   const workspaceId = req.workspace!._id;
   const lists = await ContactList.find({ workspaceId, _id: { $in: listIds } }).select('_id').lean();
   if (lists.length !== new Set(listIds).size) throw badRequest('VALIDATION_ERROR', 'Some fields are invalid.', { listIds: ['Unknown list.'] });
-  const result = await Contact.updateMany({ workspaceId, _id: { $in: contactIds } }, { $addToSet: { lists: { $each: lists.map((l) => l._id) } } });
+  const updated = await addToSetWithEvents(workspaceId, { _id: { $in: contactIds } }, 'lists', lists.map((l) => l._id));
   publish(req.workspace!.id as string, { type: 'contacts.changed' });
-  res.json({ updated: result.modifiedCount });
+  res.json({ updated });
 });
 
 contactListRouter.patch('/:listId', requirePermission('contacts:manage'), async (req, res) => {

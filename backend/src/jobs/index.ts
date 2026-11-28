@@ -8,6 +8,9 @@ import { pollSheets } from '../modules/integrations/sheets.service.js';
 import { processTemplateSync, reconcileTemplates } from '../modules/templates/templateSync.js';
 import { tickReminders } from '../modules/reminders/reminder.service.js';
 import { rollupRecentDays } from '../modules/reports/messagePricing.service.js';
+import { processDomainEvents } from '../modules/events/domainEvents.js';
+import { processSequenceRun, retrySequenceMessage, tickSequences } from '../modules/sequences/sequence.engine.js';
+import { runDailyTriggers } from '../modules/sequences/sequence.daily.js';
 import { env } from '../config/env.js';
 import { registerProcessor, registerRepeating } from './queue.js';
 
@@ -42,3 +45,15 @@ registerProcessor('pricing.rollup', async () => {
   await rollupRecentDays();
 });
 registerRepeating('pricing.rollup', 60 * 60 * 1000);
+// Sequences: contact events (triggers, goals, STOP), the due-time scheduler and date triggers.
+registerProcessor('domain.events', processDomainEvents);
+registerProcessor('sequence.run', processSequenceRun);
+registerProcessor('sequence.retry', retrySequenceMessage);
+registerProcessor('sequences.tick', async () => {
+  await tickSequences();
+});
+registerRepeating('sequences.tick', 30_000);
+registerProcessor('sequences.daily', async () => {
+  await runDailyTriggers();
+});
+registerRepeating('sequences.daily', 15 * 60_000);

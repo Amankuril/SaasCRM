@@ -1,3 +1,4 @@
+import { publishDomainEvents } from '../events/domainEvents.js';
 import type { Types } from 'mongoose';
 import { z } from 'zod';
 import { badRequest, conflict } from '../../lib/errors.js';
@@ -292,6 +293,7 @@ async function runAction(workspace: WorkspaceDoc, contact: ContactDoc, rule: Aut
       await send({ type: 'text', to, text: p(action.config.text) });
       const before = await Contact.findOneAndUpdate({ _id: contact._id, workspaceId: workspace._id }, { consent: { status: 'opted_out', source: 'auto_reply', updatedAt: new Date() } });
       if (before?.consent?.status !== 'opted_out') {
+        await publishDomainEvents(workspace._id, [{ type: 'contact.opted_out', contactId: String(contact._id) }]);
         await emitEvent(workspace._id, 'contact.opted_out', async () => ({ contact: await contactPayload(workspace._id, contact._id), source: 'auto_reply' }));
       }
       return true;

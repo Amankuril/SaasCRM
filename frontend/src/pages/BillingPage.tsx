@@ -30,6 +30,7 @@ const LIMITS: { key: Exclude<LimitKey, 'apiRequestsPerMinute'>; label: string; r
   { key: 'activeFlows', label: 'Live flows', rule: 'Published flows that are turned on.' },
   { key: 'forms', label: 'Forms', rule: 'All forms, drafts included.' },
   { key: 'aiRepliesPerMonth', label: 'AI replies this period', rule: 'Each AI answer attempt for customers (auto-reply, flows, inbox suggestions). Test chats are free.' },
+  { key: 'sequenceContactsPerMonth', label: 'Sequence contacts this period', rule: 'Each contact that joins a sequence (a contact in two sequences counts twice). Test runs are free. Resets each billing period.' },
 ];
 
 const FEATURE_LABEL: Record<string, string> = { campaigns: 'Broadcasts', flows: 'Flow builder', forms: 'WhatsApp Forms', ai: 'AI agent', api: 'API & webhooks' };

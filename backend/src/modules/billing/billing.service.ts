@@ -171,6 +171,7 @@ const LIMIT_NAMES: Record<LimitKey, string> = {
   forms: 'forms',
   aiRepliesPerMonth: 'AI replies this billing period',
   apiRequestsPerMinute: 'API requests per minute',
+  sequenceContactsPerMonth: 'contacts joining sequences this billing period',
 };
 
 export function limitError(e: Entitlements, key: LimitKey, used: number) {
@@ -190,7 +191,7 @@ export async function assertWithinLimit(workspaceId: Types.ObjectId, key: LimitK
 // Metered usage (messages, AI replies, API requests) per billing period
 // ---------------------------------------------------------------------------
 
-const METRIC_LIMIT: Partial<Record<UsageMetric, LimitKey>> = { messages: 'monthlyMessages', ai_replies: 'aiRepliesPerMonth' };
+const METRIC_LIMIT: Partial<Record<UsageMetric, LimitKey>> = { messages: 'monthlyMessages', ai_replies: 'aiRepliesPerMonth', sequence_contacts: 'sequenceContactsPerMonth' };
 
 /**
  * Counts usage for the current billing period. Metrics with a plan limit are
@@ -223,7 +224,7 @@ export async function track(workspaceId: Types.ObjectId, periodStart: Date, metr
 
 export async function usageFor(workspaceId: Types.ObjectId, periodStart: Date): Promise<Record<UsageMetric, number>> {
   const rows = await UsageCounter.find({ workspaceId, periodStart }).lean();
-  const out = { messages: 0, ai_replies: 0, api_requests: 0 } as Record<UsageMetric, number>;
+  const out = { messages: 0, ai_replies: 0, api_requests: 0, sequence_contacts: 0 } as Record<UsageMetric, number>;
   for (const r of rows) out[r.metric as UsageMetric] = r.count;
   return out;
 }

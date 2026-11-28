@@ -65,7 +65,7 @@ export async function usageSummary(workspaceId: Types.ObjectId, periodStart: Dat
     Flow.countDocuments({ workspaceId, status: 'active' }),
     Form.countDocuments({ workspaceId }),
   ]);
-  return { contacts, seats, monthlyMessages: metered.messages, activeFlows, forms, aiRepliesPerMonth: metered.ai_replies, apiRequests: metered.api_requests };
+  return { contacts, seats, monthlyMessages: metered.messages, activeFlows, forms, aiRepliesPerMonth: metered.ai_replies, sequenceContactsPerMonth: metered.sequence_contacts, apiRequests: metered.api_requests };
 }
 
 const checkoutSchema = z.object({ planCode: z.string().trim().min(1), cycle: z.enum(['monthly', 'yearly']) });
