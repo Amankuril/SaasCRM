@@ -21,6 +21,7 @@ export interface JobPayloads {
   'templates.sync': { workspaceId: string; source: string };
   'templates.reconcile': Record<string, never>;
   'reminders.tick': Record<string, never>;
+  'pricing.rollup': Record<string, never>;
 }
 export type JobName = keyof JobPayloads;
 
@@ -42,6 +43,7 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'templates.sync': 'templates-sync',
   'templates.reconcile': 'templates-reconcile',
   'reminders.tick': 'reminders',
+  'pricing.rollup': 'pricing-rollup',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -55,6 +57,7 @@ const CONCURRENCY: Record<JobName, number> = {
   'templates.sync': 4,
   'templates.reconcile': 1,
   'reminders.tick': 1,
+  'pricing.rollup': 1,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

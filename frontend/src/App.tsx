@@ -11,6 +11,7 @@ import { AdminContentPage } from './pages/admin/AdminContentPage';
 import { PublicPage } from './pages/PublicPage';
 import { AdminWorkspacePage } from './pages/admin/AdminWorkspacePage';
 import { AdminRevenuePage } from './pages/admin/AdminRevenuePage';
+import { AdminRatesPage } from './pages/admin/AdminRatesPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
@@ -25,6 +26,7 @@ import { AiAgentPage } from './pages/AiAgentPage';
 import { DeveloperPage } from './pages/DeveloperPage';
 import { BillingPage } from './pages/BillingPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { MessagePricingPage } from './pages/reports/MessagePricingPage';
 import { FormBuilderPage } from './pages/forms/FormBuilderPage';
 import { FormsListPage } from './pages/forms/FormsListPage';
 import { CampaignsPage } from './pages/CampaignsPage';
@@ -86,6 +88,7 @@ export function App() {
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="revenue" element={<AdminRevenuePage />} />
         <Route path="plans" element={<AdminPlansPage />} />
+        <Route path="rates" element={<AdminRatesPage />} />
         <Route path="operations" element={<AdminOperationsPage />} />
         <Route path="activity" element={<AdminActivityPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
@@ -139,6 +142,7 @@ export function App() {
         <Route path="developer" element={<DeveloperPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="reports/message-pricing" element={<MessagePricingPage />} />
         <Route
           path="flows/:flowId"
           element={

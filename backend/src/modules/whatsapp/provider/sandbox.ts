@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { parsePricing } from './metaWebhook.js';
 import {
   ProviderError,
   type NormalizedEvent,
@@ -155,8 +156,11 @@ export class SandboxProvider implements WhatsAppProvider {
   async sendMessage(creds: ProviderCredentials, message: OutboundMessage) {
     const providerMessageId = `wamid.sandbox.${randomBytes(12).toString('hex')}`;
     const at = (offsetMs: number) => new Date(Date.now() + offsetMs);
+    // Like Meta: templates are billed by their category, free-form replies fall in the free service window.
+    const category = message.type === 'template' ? (this.templates(creds.wabaId).find((t) => t.name === message.template.name)?.category ?? 'marketing').toLowerCase() : 'service';
+    const raw = { billable: category !== 'service', pricing_model: 'PMP', type: category === 'service' ? 'free_customer_service' : 'regular', category };
     const status = (s: 'sent' | 'delivered' | 'read' | 'failed', offsetMs: number, error: { code: string; title: string; message: string } | null = null) =>
-      ({ kind: 'status', phoneNumberId: creds.phoneNumberId, providerMessageId, status: s, timestamp: at(offsetMs), error }) as const;
+      ({ kind: 'status', phoneNumberId: creds.phoneNumberId, providerMessageId, status: s, timestamp: at(offsetMs), error, pricing: s === 'sent' ? parsePricing(raw) : null }) as const;
 
     if (message.type === 'flow') {
       // Simulate the customer filling in the form a few seconds later.

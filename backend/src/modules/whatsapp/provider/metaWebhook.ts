@@ -1,4 +1,4 @@
-import type { InboundMessageEvent, MessageStatus, NormalizedEvent } from './types.js';
+import type { InboundMessageEvent, MessageStatus, NormalizedEvent, StatusPricing } from './types.js';
 
 /* Shapes of the Meta webhook payload we read (everything else is ignored). */
 interface MetaMessage {
@@ -13,6 +13,7 @@ interface MetaStatus {
   status: string;
   timestamp: string;
   errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[];
+  pricing?: Record<string, unknown>;
 }
 interface MetaChange {
   field: string;
@@ -38,6 +39,21 @@ interface MetaPayload {
 }
 
 const STATUSES = new Set<MessageStatus>(['sent', 'delivered', 'read', 'failed']);
+
+const lower = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().toLowerCase() : null);
+
+/**
+ * Meta's status `pricing` object. Under per-message pricing (PMP, July 2025+)
+ * `type` decides the charge: only `regular` is billed; free_customer_service and
+ * free_entry_point are free. Older webhooks only have `billable`.
+ */
+export function parsePricing(pricing: unknown): StatusPricing | null {
+  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing)) return null;
+  const raw = pricing as Record<string, unknown>;
+  const type = lower(raw.type);
+  const billable = type ? type === 'regular' : typeof raw.billable === 'boolean' ? raw.billable : null;
+  return { billable, model: typeof raw.pricing_model === 'string' ? raw.pricing_model.toUpperCase() : null, type, category: lower(raw.category), raw };
+}
 
 /** Turns a Meta `whatsapp_business_account` webhook into provider-independent events. */
 export function parseMetaWebhook(payload: unknown): NormalizedEvent[] {
@@ -79,6 +95,7 @@ export function parseMetaWebhook(payload: unknown): NormalizedEvent[] {
             error: err
               ? { code: String(err.code), title: err.title ?? 'Error', message: err.error_data?.details ?? err.message ?? err.title ?? '' }
               : null,
+            pricing: parsePricing(s.pricing),
           });
         }
       }

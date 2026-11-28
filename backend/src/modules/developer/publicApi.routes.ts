@@ -305,7 +305,7 @@ publicApiRouter.post('/messages', requireScope('messages:send'), async (req, res
             cards: input.cards?.map((c) => ({ media: c.media, bodyParams: c.body_params, buttonParams: c.button_params })),
           }),
         };
-  const { message, duplicate } = await queueOutboundMessage(req.workspace!, null, send, scopedKey);
+  const { message, duplicate } = await queueOutboundMessage(req.workspace!, null, send, scopedKey, { source: 'api' });
   res.status(duplicate ? 200 : 202).json({ data: apiMessage(message) });
 });
 

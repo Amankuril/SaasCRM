@@ -278,6 +278,22 @@ export interface StatusEvent {
   status: MessageStatus;
   timestamp: Date;
   error: { code: string; title: string; message: string } | null;
+  /** Meta's `pricing` object, when this receipt carries one (usually sent/delivered). */
+  pricing?: StatusPricing | null;
+}
+
+/** What Meta says about how an outbound message is charged, normalized to lowercase. */
+export interface StatusPricing {
+  /** Null when Meta did not say. Derived from `type` under per-message pricing. */
+  billable: boolean | null;
+  /** PMP (per-message, from July 2025) or CBP (conversation-based, before). */
+  model: string | null;
+  /** regular | free_customer_service | free_entry_point … */
+  type: string | null;
+  /** marketing | utility | authentication | authentication_international | service … */
+  category: string | null;
+  /** The object exactly as Meta sent it, so it can be re-mapped later. */
+  raw: Record<string, unknown>;
 }
 
 export interface TemplateStatusEvent {

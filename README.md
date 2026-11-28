@@ -88,6 +88,7 @@ scripts/    dev.mjs: starts both apps together
 - Durable hourly billing job (BullMQ job scheduler): trial/grace/period transitions and reminder emails (each sent once)
 - Billing & usage page with quota bars and counting rules, app-wide banner for trials ending, failed payments and lapsed plans
 - Analytics page (7/30/90 days, workspace timezone): sends, delivery/read/failure rates, daily chart, inbox first-response and resolution times, agent workload, broadcasts, flow runs with drop-off steps, AI resolution rate
+- Message pricing report (Insights): incoming/outgoing counts and billable outgoing by Meta pricing type and category, from the `pricing` object on status webhooks (stored raw on each message); estimated INR cost from the Super Admin rate card (per recipient country + category, dated, plus an optional per-business fee %); daily/weekly/monthly chart, CSV export. Finished days are summed into `MessageDailyRollup` (hourly job + on demand) and recounted when late pricing arrives
 - Super Admin: plan editor, per-tenant plan/status overrides (audited), MRR estimate, operations view (queues, failures, backlogs, trials ending, overdue payments)
 
 **Date reminders (Automation → Date reminders)**

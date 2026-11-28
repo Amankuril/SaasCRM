@@ -6,6 +6,7 @@ import { notFound } from '../../lib/errors.js';
 import { objectId, parse } from '../../lib/validate.js';
 import { adminLog } from './admin.service.js';
 import { adminPlatformRouter } from './adminPlatform.routes.js';
+import { adminRatesRouter } from './adminRates.routes.js';
 import { adminRevenueRouter } from './adminRevenue.routes.js';
 import { adminUsersRouter, escapeRegex } from './adminUsers.routes.js';
 import { adminWorkspaceRouter } from './adminWorkspace.routes.js';
@@ -32,6 +33,7 @@ const listSchema = z.object({
 export const adminRouter = Router();
 adminRouter.use('/users', adminUsersRouter);
 adminRouter.use('/pages', adminPagesRouter);
+adminRouter.use('/rate-cards', adminRatesRouter);
 adminRouter.use('/workspaces/:id', adminWorkspaceRouter);
 adminRouter.use(adminPlatformRouter);
 adminRouter.use(adminRevenueRouter);

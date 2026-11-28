@@ -14,6 +14,8 @@ const workspaceSchema = new Schema(
     // `setup` until WhatsApp is connected and required settings are complete.
     status: { type: String, enum: WORKSPACE_STATUSES, default: 'setup', index: true },
     suspendedReason: { type: String, default: null },
+    // Super Admin: % added on top of Meta's rate in the message cost estimate (reseller billing).
+    pricingMarkupPct: { type: Number, min: 0, max: 500, default: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

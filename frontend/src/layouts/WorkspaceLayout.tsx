@@ -19,6 +19,7 @@ import {
   MessageCircle,
   MessageSquare,
   Plus,
+  ReceiptIndianRupee,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -56,7 +57,6 @@ const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Overview',
     items: [
       { to: '', label: 'Dashboard', icon: LayoutDashboard },
-      { to: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'conversations:view_all' },
     ],
   },
   {
@@ -82,6 +82,13 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: 'forms', label: 'Forms', icon: ClipboardList },
       { to: 'ai', label: 'AI agent', icon: Bot },
       { to: 'integrations', label: 'Integrations', icon: Blocks },
+    ],
+  },
+  {
+    section: 'Insights',
+    items: [
+      { to: 'analytics', label: 'Analytics', icon: BarChart3, permission: 'conversations:view_all' },
+      { to: 'reports/message-pricing', label: 'Message pricing', icon: ReceiptIndianRupee, permission: 'conversations:view_all' },
     ],
   },
   {

@@ -214,7 +214,7 @@ async function sendRow(workspace: WorkspaceDoc, campaign: SheetCampaignDoc, temp
   await consume(workspaceId, 'messages');
   let message;
   try {
-    message = await Message.create({ workspaceId, contactId: contact._id, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey });
+    message = await Message.create({ workspaceId, contactId: contact._id, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey, source: 'broadcast' });
   } catch (err) {
     await refund(workspaceId, 'messages');
     if ((err as { code?: number }).code !== 11000) throw err;

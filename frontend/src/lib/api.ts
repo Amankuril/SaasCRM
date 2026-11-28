@@ -1400,3 +1400,23 @@ export interface ReminderImportReport {
   invalid: { row: number; reason: string }[];
   sample: { row: number; phone: string; name: string; eventDate: string; eventTime: string | null; fields: Record<string, string> }[];
 }
+
+export interface MessagePricingReport {
+  range: { from: string; to: string; timezone: string; group: 'daily' | 'weekly' | 'monthly' };
+  currency: 'INR';
+  markupPct: number;
+  totals: { total: number; incoming: number; outgoing: number; billable: number; estCost: number; unpricedBillable: number };
+  series: { date: string; incoming: number; outgoing: number; billable: number; estCost: number }[];
+  breakdown: { type: string; category: string; total: number; billable: number; estCost: number; unpricedBillable: number }[];
+}
+
+export interface RateCard {
+  id: string;
+  market: string;
+  category: string;
+  priceInr: number;
+  validFrom: string;
+  validTo: string | null;
+  note: string | null;
+  updatedAt: string;
+}

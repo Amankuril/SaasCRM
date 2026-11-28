@@ -29,6 +29,11 @@ export function normalizeImportPhone(input: string, opts: { international: boole
   return null;
 }
 
+/** The country (ISO code, e.g. "IN") a number belongs to, or null when unknown. */
+export function countryOf(phoneE164: string): string | null {
+  return parsePhoneNumberFromString(phoneE164)?.country ?? null;
+}
+
 /** WhatsApp ids are E.164 digits without "+". */
 export function phoneFromWaId(waId: string): string {
   return `+${waId.replace(/\D/g, '')}`;

@@ -23,7 +23,20 @@ function niceMax(v: number) {
  * Multi-series line chart over days: one y-axis, 2px lines, recessive grid,
  * crosshair + tooltip on hover, legend, and a table view for exact numbers.
  */
-export function TrendChart({ days, series, title }: { days: string[]; series: TrendSeries[]; title: string }) {
+export function TrendChart({
+  days,
+  series,
+  title,
+  formatLabel,
+  firstColumn = 'Day',
+}: {
+  days: string[];
+  series: TrendSeries[];
+  title: string;
+  /** How an x value (YYYY-MM-DD) is shown; defaults to "12 Nov". */
+  formatLabel?: (d: string) => string;
+  firstColumn?: string;
+}) {
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
   const [hover, setHover] = useState<number | null>(null);
@@ -44,7 +57,7 @@ export function TrendChart({ days, series, title }: { days: string[]; series: Tr
   const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
   const ticks = [0, max / 4, max / 2, (3 * max) / 4, max];
   const labelEvery = Math.ceil(days.length / Math.max(2, Math.floor(innerW / 70)));
-  const short = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const short = formatLabel ?? ((d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }));
 
   function onMove(e: React.PointerEvent<SVGRectElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -73,7 +86,7 @@ export function TrendChart({ days, series, title }: { days: string[]; series: Tr
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-500">
               <tr>
-                <th className="px-3 py-1.5 font-medium">Day</th>
+                <th className="px-3 py-1.5 font-medium">{firstColumn}</th>
                 {series.map((s) => (
                   <th key={s.key} className="px-3 py-1.5 text-right font-medium">
                     {s.label}

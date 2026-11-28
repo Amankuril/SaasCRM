@@ -7,6 +7,7 @@ import { processBillingSweep } from '../modules/billing/billing.jobs.js';
 import { pollSheets } from '../modules/integrations/sheets.service.js';
 import { processTemplateSync, reconcileTemplates } from '../modules/templates/templateSync.js';
 import { tickReminders } from '../modules/reminders/reminder.service.js';
+import { rollupRecentDays } from '../modules/reports/messagePricing.service.js';
 import { env } from '../config/env.js';
 import { registerProcessor, registerRepeating } from './queue.js';
 
@@ -36,3 +37,8 @@ registerProcessor('reminders.tick', async () => {
   await tickReminders();
 });
 registerRepeating('reminders.tick', 30_000);
+// Message pricing report: sum up finished days so long ranges load fast.
+registerProcessor('pricing.rollup', async () => {
+  await rollupRecentDays();
+});
+registerRepeating('pricing.rollup', 60 * 60 * 1000);

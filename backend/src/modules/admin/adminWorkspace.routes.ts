@@ -41,7 +41,7 @@ adminWorkspaceRouter.get('/', async (req, res) => {
   const userById = new Map(users.map((u) => [u._id.toString(), u]));
 
   res.json({
-    workspace: { ...toPublicWorkspace(ws), suspendedReason: ws.suspendedReason, updatedAt: ws.updatedAt },
+    workspace: { ...toPublicWorkspace(ws), suspendedReason: ws.suspendedReason, pricingMarkupPct: ws.pricingMarkupPct, updatedAt: ws.updatedAt },
     members: members.map((m) => {
       const u = userById.get(m.userId.toString());
       return { id: m._id.toString(), userId: m.userId.toString(), name: u?.name ?? 'Unknown user', email: u?.email ?? null, userStatus: u?.status ?? null, lastLoginAt: u?.lastLoginAt ?? null, role: m.role, joinedAt: m.joinedAt };
@@ -79,6 +79,7 @@ const editSchema = z
     currency: z.string().trim().length(3).toUpperCase(),
     industry: z.string().trim().max(60).nullable(),
     status: z.enum(WORKSPACE_STATUSES),
+    pricingMarkupPct: z.number().min(0).max(500),
     reason: z.string().trim().max(500).optional(),
   })
   .partial()
@@ -94,7 +95,7 @@ adminWorkspaceRouter.patch('/', async (req, res) => {
   await ws.save();
   const action = changes.status && Object.keys(changes).length === 1 ? 'admin.workspace_status_changed' : 'admin.workspace_updated';
   await adminLog(req, { action, targetType: 'workspace', targetId: ws.id, workspace: ws, metadata: { before, change: changes, reason: reason ?? null } });
-  res.json({ workspace: { ...toPublicWorkspace(ws), suspendedReason: ws.suspendedReason } });
+  res.json({ workspace: { ...toPublicWorkspace(ws), suspendedReason: ws.suspendedReason, pricingMarkupPct: ws.pricingMarkupPct } });
 });
 
 // ---- Members ----

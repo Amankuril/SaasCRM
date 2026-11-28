@@ -164,6 +164,7 @@ export function statusPayload(
   status: 'sent' | 'delivered' | 'read' | 'failed',
   ts: number,
   error?: { code: number; title: string },
+  pricing?: Record<string, unknown>,
 ) {
   return {
     object: 'whatsapp_business_account',
@@ -175,7 +176,7 @@ export function statusPayload(
             field: 'messages',
             value: {
               metadata: { phone_number_id: phoneNumberId },
-              statuses: [{ id: providerMessageId, status, timestamp: String(ts), recipient_id: '919811112222', ...(error ? { errors: [error] } : {}) }],
+              statuses: [{ id: providerMessageId, status, timestamp: String(ts), recipient_id: '919811112222', ...(error ? { errors: [error] } : {}), ...(pricing ? { pricing } : {}) }],
             },
           },
         ],

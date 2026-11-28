@@ -13,7 +13,7 @@ import { money } from '../BillingPage';
 import { LogList, type LogItem } from './ActivityTab';
 
 interface Detail {
-  workspace: { id: string; name: string; slug: string; timezone: string; country: string; industry: string | null; currency: string; status: WorkspaceStatus; suspendedReason: string | null; createdAt: string; updatedAt: string };
+  workspace: { id: string; name: string; slug: string; timezone: string; country: string; industry: string | null; currency: string; status: WorkspaceStatus; suspendedReason: string | null; pricingMarkupPct: number; createdAt: string; updatedAt: string };
   members: { id: string; userId: string; name: string; email: string | null; userStatus: string | null; lastLoginAt: string | null; role: Role; joinedAt: string }[];
   subscription: { planCode: string; status: SubscriptionStatus; access: boolean; cycle: string; currentPeriodStart: string; currentPeriodEnd: string; trialEndsAt: string | null; graceEndsAt: string | null; cancelAtPeriodEnd: boolean; provider: string; providerSubscriptionId: string | null; lastPaymentAt: string | null };
   plan: { code: string; name: string; limits: Record<LimitKey, number | null>; features: Record<FeatureKey, boolean> };
@@ -163,14 +163,14 @@ function useRefresh(id: string) {
 function DetailsCard({ d }: { d: Detail }) {
   const refresh = useRefresh(d.workspace.id);
   const w = d.workspace;
-  const [form, setForm] = useState({ name: w.name, industry: w.industry ?? '', country: w.country, currency: w.currency, timezone: w.timezone });
+  const [form, setForm] = useState({ name: w.name, industry: w.industry ?? '', country: w.country, currency: w.currency, timezone: w.timezone, pricingMarkupPct: String(w.pricingMarkupPct ?? 0) });
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => api.patch(`/admin/workspaces/${w.id}`, body), onSuccess: () => void refresh() });
   return (
     <Panel
       title="Business details"
       description="Edit on the customer's behalf. The change shows in their audit log."
       actions={
-        <AButton size="sm" variant="primary" icon={Save} loading={save.isPending} onClick={() => save.mutate({ ...form, industry: form.industry.trim() || null })}>
+        <AButton size="sm" variant="primary" icon={Save} loading={save.isPending} onClick={() => save.mutate({ ...form, industry: form.industry.trim() || null, pricingMarkupPct: Number(form.pricingMarkupPct) || 0 })}>
           Save details
         </AButton>
       }
@@ -193,6 +193,9 @@ function DetailsCard({ d }: { d: Detail }) {
           </Field>
           <Field label="Currency (3 letters)" htmlFor="wd-cur">
             <Input id="wd-cur" maxLength={3} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+          </Field>
+          <Field label="Message cost fee (%)" htmlFor="wd-markup" hint="Added to Meta's rate in their cost estimate">
+            <Input id="wd-markup" type="number" min={0} max={500} step="0.1" value={form.pricingMarkupPct} onChange={(e) => setForm({ ...form, pricingMarkupPct: e.target.value })} />
           </Field>
         </div>
       </div>

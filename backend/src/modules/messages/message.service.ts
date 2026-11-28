@@ -3,7 +3,8 @@ import { AppError, badRequest, conflict } from '../../lib/errors.js';
 import type { JobContext } from '../../jobs/queue.js';
 import { enqueue } from '../../jobs/queue.js';
 import { Contact } from '../contacts/contact.model.js';
-import { findOrCreateContact, isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
+import { countryOf, findOrCreateContact, isInServiceWindow, normalizePhone } from '../contacts/contact.service.js';
+import { invalidatePricingRollup } from '../reports/messagePricing.service.js';
 import { MessageTemplate, type TemplateDoc } from '../templates/template.model.js';
 import { checkSendValues, pinOfferExpiry, sendRequirements, toSendParams, type TemplateExtras } from '../templates/templateSend.js';
 import { Form } from '../forms/form.model.js';
@@ -16,7 +17,7 @@ import { messagePreview, notifyMessagesChanged, recordOutboundOnConversation } f
 import { ReminderSend } from '../reminders/reminder.model.js';
 import { CampaignRecipient } from '../campaigns/campaign.model.js';
 import { Conversation } from '../inbox/conversation.model.js';
-import { Message, type MessageDoc, type MessageStatusValue } from './message.model.js';
+import { Message, type MessageDoc, type MessageSource, type MessageStatusValue } from './message.model.js';
 import { consume, refund } from '../billing/billing.service.js';
 import { apiMessage } from '../developer/serializers.js';
 import { emitEvent } from '../developer/webhook.service.js';
@@ -37,6 +38,8 @@ export type SendInput =
 export interface SendOptions {
   flowExecutionId?: Types.ObjectId;
   aiGenerated?: boolean;
+  /** Defaults to `inbox` when a person sends it, else `chatbot` (automations, AI, forms). */
+  source?: MessageSource;
 }
 
 /**
@@ -115,6 +118,7 @@ export async function queueOutboundMessage(
       sentBy: user?._id ?? null,
       flowExecutionId: options.flowExecutionId ?? null,
       aiGenerated: options.aiGenerated ?? false,
+      source: options.source ?? (user ? 'inbox' : 'chatbot'),
     });
     await recordOutboundOnConversation(workspace._id, contact._id, messagePreview(input.type, content), new Date());
     // A teammate's first reply since the conversation opened (bots and broadcasts don't count).
@@ -152,7 +156,7 @@ export async function queueCampaignMessage(
   if (!existing) await consume(workspaceId, 'messages');
   let message: MessageDoc;
   try {
-    message = await Message.create({ workspaceId, contactId, campaignId, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey });
+    message = await Message.create({ workspaceId, contactId, campaignId, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey, source: 'broadcast' });
   } catch (err) {
     if (!existing) await refund(workspaceId, 'messages');
     if ((err as { code?: number }).code !== 11000) throw err;
@@ -358,6 +362,13 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
   };
   setEarliest(TIMESTAMP_FIELD[event.status]);
   if (event.status === 'read') setEarliest('deliveredAt');
+  // Keep the first pricing Meta sends; later receipts repeat it.
+  const pricingAdded = !!event.pricing && !message.pricing?.raw;
+  if (pricingAdded) {
+    const contact = await Contact.findOne({ _id: message.contactId, workspaceId }).select('phoneE164').lean();
+    const { billable, model, type, category, raw } = event.pricing!;
+    message.pricing = { billable, model, type, category, raw, market: contact ? countryOf(contact.phoneE164) : null, receivedAt: new Date() };
+  }
 
   const current = message.status as MessageStatusValue;
   const previousStatus = message.status;
@@ -375,6 +386,8 @@ export async function applyStatusEvent(workspaceId: Types.ObjectId, event: Statu
     await message.save();
     await syncCampaignRecipient(message);
     await syncReminder(message);
+    // A day already summed for the pricing report must be counted again.
+    if (pricingAdded) await invalidatePricingRollup(workspaceId, message.createdAt);
     await notifyMessagesChanged(workspaceId, message.contactId);
     if (message.status !== previousStatus) await emitEvent(workspaceId, 'message.status_updated', { message: apiMessage(message), previous_status: previousStatus });
   }

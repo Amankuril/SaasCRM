@@ -345,7 +345,7 @@ async function sendReminder(row: ReminderSendDoc, now: Date): Promise<boolean> {
       return (await later(e.code ?? 'PLAN_LIMIT_REACHED', e.message), false);
     }
     try {
-      message = await Message.create({ workspaceId, contactId: contact._id, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey });
+      message = await Message.create({ workspaceId, contactId: contact._id, direction: 'outbound', type: 'template', content, status: 'queued', idempotencyKey, source: 'reminder' });
     } catch (err) {
       await refund(workspaceId, 'messages');
       if ((err as { code?: number }).code !== 11000) throw err;
