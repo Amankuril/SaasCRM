@@ -47,7 +47,7 @@ import {
 } from '../../lib/api';
 import { useMembers, useStages, useTags } from '../../lib/hooks';
 import { useWorkspace } from '../../layouts/workspaceContext';
-import { NEW_CONTACT_SOURCES, StatusBadge, TRIGGER_OPTIONS, newStepId, timingLabels, triggerSummary } from './shared';
+import { NEW_CONTACT_SOURCES, StatusBadge, TRIGGER_OPTIONS, messageNumbers, newStepId, timingLabels, triggerSummary } from './shared';
 
 type Draft = Pick<SequenceDetail, 'name' | 'trigger' | 'entryFilter' | 'dateMode' | 'fixedDate' | 'dateKey' | 'goal' | 'stopConditions' | 'rules' | 'draftGraph'>;
 type MessageStepT = Extract<SeqStep, { type: 'message' }>;
@@ -596,6 +596,29 @@ function ConditionsEditor({ conditions, onChange, refs, readOnly, kinds, empty }
               {!['is_set', 'not_set'].includes(c.op) && <Input aria-label="Value" className="w-36" disabled={readOnly} value={c.value} onChange={(e) => update(i, { ...c, value: e.target.value })} />}
             </>
           )}
+          {c.kind === 'last_message' && (
+            <Select aria-label="Last message" className="w-56" disabled={readOnly} value={c.op} onChange={(e) => update(i, { ...c, op: e.target.value as typeof c.op })}>
+              <option value="read">was read</option>
+              <option value="delivered">was delivered</option>
+              <option value="not_read">was not read</option>
+            </Select>
+          )}
+          {c.kind === 'replied' && (
+            <>
+              <Select aria-label="Reply" className="w-44" disabled={readOnly} value={c.op} onChange={(e) => update(i, { ...c, op: e.target.value as typeof c.op })}>
+                <option value="replied">has replied</option>
+                <option value="not_replied">has not replied</option>
+                <option value="contains">reply contains</option>
+              </Select>
+              {c.op === 'contains' && <Input aria-label="Words" className="w-40" disabled={readOnly} placeholder="yes, book" value={c.value} onChange={(e) => update(i, { ...c, value: e.target.value })} />}
+            </>
+          )}
+          {c.kind === 'split' && (
+            <span className="flex items-center gap-1.5 text-sm text-slate-600">
+              first
+              <Input aria-label="Percent" type="number" min={1} max={99} className="w-20" disabled={readOnly} value={c.percent} onChange={(e) => update(i, { ...c, percent: Math.min(99, Math.max(1, Number(e.target.value) || 1)) })} />% of contacts
+            </span>
+          )}
           {!readOnly && <RemoveButton onClick={() => onChange(conditions.filter((_, j) => j !== i))} />}
         </div>
       ))}
@@ -717,56 +740,48 @@ function RemoveButton({ onClick, label = 'Remove' }: { onClick: () => void; labe
 // ---------------------------------------------------------------------------
 // Steps
 
-const ADD_OPTIONS: { type: 'message' | 'wait' | 'wait_until_date' | 'action'; label: string; icon: LucideIcon }[] = [
+type AddType = 'message' | 'wait' | 'wait_until_date' | 'action' | 'branch';
+const ADD_OPTIONS: { type: AddType; label: string; icon: LucideIcon; hint?: string }[] = [
   { type: 'message', label: 'Message', icon: MessageSquare },
   { type: 'wait', label: 'Wait', icon: Clock },
   { type: 'wait_until_date', label: 'Wait until date', icon: CalendarClock },
   { type: 'action', label: 'Action', icon: Zap },
+  { type: 'branch', label: 'Branch', icon: GitBranch, hint: 'Different steps for different contacts' },
 ];
+/** A branch may sit inside one other branch at most. */
+const MAX_BRANCH_DEPTH = 2;
 
-function newStep(type: (typeof ADD_OPTIONS)[number]['type']): SeqStep {
+function newStep(type: AddType): SeqStep {
+  if (type === 'branch') {
+    return {
+      id: newStepId('b'),
+      type: 'branch',
+      ways: [
+        { id: newStepId('y'), label: 'Way 1', conditions: [{ kind: 'tag', op: 'has', tagId: '' }], steps: [] },
+        { id: newStepId('y'), label: 'Everyone else', conditions: [], steps: [] },
+      ],
+    };
+  }
   if (type === 'message') return { id: newStepId('m'), type, note: '', templateId: null, headerVariables: [], bodyVariables: [], mediaUrl: null, filter: [], freeIfWindowOpen: false };
   if (type === 'wait') return { id: newStepId('w'), type, amount: 1, unit: 'days' };
   if (type === 'wait_until_date') return { id: newStepId('d'), type, offsetDays: -1, time: '10:00' };
   return { id: newStepId('a'), type: 'action', action: 'add_tag', tagId: '' };
 }
 
+interface ListCtx {
+  timing: Map<string, string>;
+  numbers: Map<string, number>;
+  checklist: ChecklistItem[];
+  refs: Refs;
+  readOnly: boolean;
+  selfId: string;
+}
+
 function StepList({ steps, onChange, refs, readOnly, checklist, selfId }: { steps: SeqStep[]; onChange: (s: SeqStep[]) => void; refs: Refs; readOnly: boolean; checklist: ChecklistItem[]; selfId: string }) {
-  const timing = timingLabels(steps);
-  const insert = (at: number, type: (typeof ADD_OPTIONS)[number]['type']) => onChange([...steps.slice(0, at), newStep(type), ...steps.slice(at)]);
-  const move = (i: number, by: number) => {
-    const next = [...steps];
-    const [s] = next.splice(i, 1);
-    next.splice(i + by, 0, s!);
-    onChange(next);
-  };
-  let messageNo = 0;
+  const ctx: ListCtx = { timing: timingLabels(steps), numbers: messageNumbers(steps), checklist, refs, readOnly, selfId };
   return (
     <div>
-      {!readOnly && <AddStep onAdd={(t) => insert(0, t)} first={!steps.length} />}
-      {steps.map((step, i) => {
-        if (step.type === 'message') messageNo++;
-        const problems = checklist.filter((c) => c.stepId === step.id);
-        return (
-          <div key={step.id}>
-            <StepCard
-              step={step}
-              index={step.type === 'message' ? messageNo : null}
-              timing={timing.get(step.id) ?? null}
-              problems={problems}
-              onChange={(s) => onChange(steps.map((x) => (x.id === step.id ? s : x)))}
-              onRemove={() => onChange(steps.filter((x) => x.id !== step.id))}
-              onMove={(by) => move(i, by)}
-              canUp={i > 0}
-              canDown={i < steps.length - 1}
-              refs={refs}
-              readOnly={readOnly}
-              selfId={selfId}
-            />
-            {!readOnly ? <AddStep onAdd={(t) => insert(i + 1, t)} /> : <Connector />}
-          </div>
-        );
-      })}
+      <Steps steps={steps} onChange={onChange} ctx={ctx} depth={0} />
       <div className="flex items-center justify-center gap-2 py-2 text-xs font-medium text-slate-400">
         <span className="h-px w-10 bg-slate-200" /> Done: the contact has had every message <span className="h-px w-10 bg-slate-200" />
       </div>
@@ -774,9 +789,49 @@ function StepList({ steps, onChange, refs, readOnly, checklist, selfId }: { step
   );
 }
 
+/** One list of steps (the main path, or one way of a branch). */
+function Steps({ steps, onChange, ctx, depth }: { steps: SeqStep[]; onChange: (s: SeqStep[]) => void; ctx: ListCtx; depth: number }) {
+  const { readOnly } = ctx;
+  const allowBranch = depth < MAX_BRANCH_DEPTH;
+  const insert = (at: number, type: AddType) => onChange([...steps.slice(0, at), newStep(type), ...steps.slice(at)]);
+  const move = (i: number, by: number) => {
+    const next = [...steps];
+    const [s] = next.splice(i, 1);
+    next.splice(i + by, 0, s!);
+    onChange(next);
+  };
+  return (
+    <div>
+      {!readOnly && <AddStep onAdd={(t) => insert(0, t)} first={!steps.length} firstLabel={depth === 0 ? 'Add the first step' : 'Add a step to this way'} allowBranch={allowBranch} />}
+      {readOnly && !steps.length && depth > 0 && <p className="py-2 text-center text-xs text-slate-400">No steps: goes straight on</p>}
+      {steps.map((step, i) => (
+        <div key={step.id}>
+          <StepCard
+            step={step}
+            index={ctx.numbers.get(step.id) ?? null}
+            timing={ctx.timing.get(step.id) ?? null}
+            problems={ctx.checklist.filter((c) => c.stepId === step.id)}
+            onChange={(s) => onChange(steps.map((x) => (x.id === step.id ? s : x)))}
+            onRemove={() => onChange(steps.filter((x) => x.id !== step.id))}
+            onMove={(by) => move(i, by)}
+            canUp={i > 0}
+            canDown={i < steps.length - 1}
+            refs={ctx.refs}
+            readOnly={readOnly}
+            selfId={ctx.selfId}
+            ctx={ctx}
+            depth={depth}
+          />
+          {!readOnly ? <AddStep onAdd={(t) => insert(i + 1, t)} allowBranch={allowBranch} /> : <Connector />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const Connector = () => <div className="mx-auto h-5 w-px bg-slate-300" />;
 
-function AddStep({ onAdd, first }: { onAdd: (t: (typeof ADD_OPTIONS)[number]['type']) => void; first?: boolean }) {
+function AddStep({ onAdd, first, firstLabel = 'Add the first step', allowBranch = true }: { onAdd: (t: AddType) => void; first?: boolean; firstLabel?: string; allowBranch?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -795,12 +850,12 @@ function AddStep({ onAdd, first }: { onAdd: (t: (typeof ADD_OPTIONS)[number]['ty
         aria-label="Add a step"
       >
         <Plus className="size-4" />
-        {first && 'Add the first step'}
+        {first && firstLabel}
       </button>
       <div className="h-3 w-px bg-slate-300" />
       {open && (
         <div className="absolute top-9 z-20 w-52 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-          {ADD_OPTIONS.map((o) => (
+          {ADD_OPTIONS.filter((o) => allowBranch || o.type !== 'branch').map((o) => (
             <button
               key={o.type}
               type="button"
@@ -810,7 +865,11 @@ function AddStep({ onAdd, first }: { onAdd: (t: (typeof ADD_OPTIONS)[number]['ty
               }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
             >
-              <o.icon className="size-4 text-slate-400" strokeWidth={1.5} /> {o.label}
+              <o.icon className="size-4 shrink-0 text-slate-400" strokeWidth={1.5} />
+              <span>
+                {o.label}
+                {o.hint && <span className="block text-xs text-slate-400">{o.hint}</span>}
+              </span>
             </button>
           ))}
         </div>
@@ -840,7 +899,11 @@ function StepCard({
   refs,
   readOnly,
   selfId,
+  ctx,
+  depth,
 }: {
+  ctx: ListCtx;
+  depth: number;
   step: SeqStep;
   index: number | null;
   timing: string | null;
@@ -911,16 +974,7 @@ function StepCard({
             </div>
           )}
           {step.type === 'action' && <ActionEditor step={step} onChange={onChange} refs={refs} readOnly={readOnly} selfId={selfId} />}
-          {step.type === 'branch' && (
-            <div className="space-y-1.5 text-sm text-slate-600">
-              {step.ways.map((w, i) => (
-                <p key={w.id}>
-                  <span className="font-medium text-slate-800">{w.label || `Way ${i + 1}`}</span>: {w.conditions.length ? `${w.conditions.length} condition(s)` : 'everyone else'}, {w.steps.length} step(s)
-                </p>
-              ))}
-              <p className="text-xs text-slate-500">Branches are set up through the API for now; editing them here is coming next.</p>
-            </div>
-          )}
+          {step.type === 'branch' && <BranchEditor step={step} onChange={onChange} ctx={ctx} depth={depth} />}
           {problems.length > 0 && (
             <ul className="mt-3 space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {problems.map((p, i) => (
@@ -931,6 +985,56 @@ function StepCard({
         </div>
       </div>
     </Card>
+  );
+}
+
+const WAY_COLORS = ['border-violet-400', 'border-sky-400', 'border-amber-400', 'border-emerald-400', 'border-rose-400'];
+const BRANCH_KINDS: CondKind[] = ['tag', 'stage', 'field', 'data', 'last_message', 'replied', 'split'];
+
+/**
+ * Ways are checked top to bottom; the first that matches wins. The last way is
+ * always "Everyone else". After any way, contacts continue with the step below the branch.
+ */
+function BranchEditor({ step, onChange, ctx, depth }: { step: Extract<SeqStep, { type: 'branch' }>; onChange: (s: SeqStep) => void; ctx: ListCtx; depth: number }) {
+  const { readOnly, refs } = ctx;
+  const ways = step.ways;
+  const setWay = (i: number, patch: Partial<(typeof ways)[number]>) => onChange({ ...step, ways: ways.map((w, j) => (j === i ? { ...w, ...patch } : w)) });
+  const addWay = () => {
+    const at = ways.length - 1;
+    const way = { id: newStepId('y'), label: `Way ${at + 1}`, conditions: [{ kind: 'tag', op: 'has', tagId: '' } as SeqCondition], steps: [] };
+    onChange({ ...step, ways: [...ways.slice(0, at), way, ways[at]!] });
+  };
+  const removeWay = (i: number) => onChange({ ...step, ways: ways.filter((_, j) => j !== i) });
+  const splitUsed = ways.some((w) => w.conditions.some((c) => c.kind === 'split'));
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-slate-500">Ways are checked from the top; a contact takes the first one that matches. Afterwards everyone continues with the step below the branch.</p>
+      {ways.map((way, i) => {
+        const last = i === ways.length - 1;
+        return (
+          <div key={way.id} className={cn('rounded-lg border-l-4 bg-slate-50/70 py-3 pr-3 pl-4', WAY_COLORS[i % WAY_COLORS.length])}>
+            <div className="mb-2 flex items-center gap-2">
+              <Input aria-label="Way name" className="h-8 max-w-56 bg-white text-sm font-medium" maxLength={60} disabled={readOnly} value={way.label} onChange={(e) => setWay(i, { label: e.target.value })} />
+              {!last && !readOnly && ways.length > 2 && <RemoveButton onClick={() => removeWay(i)} label="Remove way" />}
+            </div>
+            {last ? (
+              <p className="mb-1 text-xs text-slate-500">Everyone else: contacts that match none of the ways above.</p>
+            ) : (
+              <div className="mb-1">
+                <ConditionsEditor conditions={way.conditions} onChange={(conditions) => setWay(i, { conditions })} refs={refs} readOnly={readOnly} kinds={BRANCH_KINDS} empty="Add at least one condition (all must match)." />
+              </div>
+            )}
+            <Steps steps={way.steps} onChange={(steps) => setWay(i, { steps })} ctx={ctx} depth={depth + 1} />
+          </div>
+        );
+      })}
+      {!readOnly && ways.length < 5 && (
+        <button type="button" onClick={addWay} className="text-sm font-medium text-brand-700 hover:underline">
+          + Add a way
+        </button>
+      )}
+      {splitUsed && <p className="text-xs text-slate-500">Split tests count from the top: one way with "first 50%" plus Everyone else splits half and half; "first 33%", "first 66%", then Everyone else splits in three. Each contact always lands in the same way.</p>}
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import type { Types } from 'mongoose';
 import { MessageTemplate } from '../templates/template.model.js';
 import { sendRequirements } from '../templates/templateSend.js';
-import { allSteps, graphSchema, type Graph, type MessageStep } from './sequence.graph.js';
+import { allSteps, graphSchema, type Condition, type Graph, type MessageStep } from './sequence.graph.js';
 import type { SequenceDoc } from './sequence.model.js';
 
 /** One open item on the builder's "Things left" list. `stepId` lets the UI jump to it. */
@@ -62,7 +62,12 @@ export async function checklist(seq: SequenceDoc, workspaceId: Types.ObjectId): 
     if (req.headerMedia && !m.mediaUrl) add('media', `${label}: add a link to the header ${req.headerMedia.toLowerCase()}.`, { stepId: m.id });
   });
 
+  const incomplete = (c: Condition) =>
+    (c.kind === 'tag' && !c.tagId) || (c.kind === 'stage' && !c.stage) || ((c.kind === 'field' || c.kind === 'data') && (!c.key || (!['is_set', 'not_set'].includes(c.op) && !c.value.trim()))) || (c.kind === 'replied' && c.op === 'contains' && !c.value.trim());
+  if (((seq.entryFilter ?? []) as Condition[]).some(incomplete)) add('filter', '"Only these contacts" has a condition that is not filled in.');
   for (const s of steps) {
+    if (s.type === 'message' && s.filter.some(incomplete)) add('filter', 'A message filter has a condition that is not filled in.', { stepId: s.id });
+    if (s.type === 'branch' && s.ways.some((w) => w.conditions.some(incomplete))) add('branch', 'A way of this branch has a condition that is not filled in.', { stepId: s.id });
     if (s.type === 'action') {
       const missing =
         ((s.action === 'add_tag' || s.action === 'remove_tag') && !s.tagId) ||

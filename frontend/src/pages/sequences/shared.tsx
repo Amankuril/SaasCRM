@@ -68,9 +68,22 @@ const UNIT_MS = { minutes: 60_000, hours: 3_600_000, days: 86_400_000, weeks: 7 
 /** Labels like "Right away", "After 3 hours", "Day 3" for each step, counting waits before it. */
 export function timingLabels(steps: SeqStep[]): Map<string, string> {
   const out = new Map<string, string>();
-  let ms = 0;
-  let dated: string | null = null;
+  walkTiming(steps, { ms: 0, dated: null }, out);
+  return out;
+}
+
+/** Ways of a branch start from the same point; after the branch the longest way counts. */
+function walkTiming(steps: SeqStep[], start: { ms: number; dated: string | null }, out: Map<string, string>): { ms: number; dated: string | null } {
+  let { ms, dated } = start;
   for (const s of steps) {
+    if (s.type === 'branch') {
+      out.set(s.id, label(ms, dated));
+      const ends = s.ways.map((w) => walkTiming(w.steps, { ms, dated }, out));
+      const longest = ends.reduce((a, b) => (b.ms > a.ms ? b : a), { ms, dated });
+      ms = longest.ms;
+      dated = longest.dated;
+      continue;
+    }
     if (s.type === 'wait') {
       ms += s.amount * UNIT_MS[s.unit];
       dated = null;
@@ -80,13 +93,32 @@ export function timingLabels(steps: SeqStep[]): Map<string, string> {
       dated = s.offsetDays === 0 ? `On the day, ${s.time}` : `${Math.abs(s.offsetDays)} day${Math.abs(s.offsetDays) === 1 ? '' : 's'} ${s.offsetDays < 0 ? 'before' : 'after'}, ${s.time}`;
       continue;
     }
-    if (dated) out.set(s.id, dated);
-    else if (ms === 0) out.set(s.id, 'Right away');
-    else if (ms < 86_400_000) {
-      const h = ms / 3_600_000;
-      out.set(s.id, h < 1 ? `After ${Math.round(ms / 60_000)} min` : `After ${Number.isInteger(h) ? h : h.toFixed(1)} hour${h === 1 ? '' : 's'}`);
-    } else out.set(s.id, `Day ${Math.floor(ms / 86_400_000) + 1}`);
+    out.set(s.id, label(ms, dated));
   }
+  return { ms, dated };
+}
+
+function label(ms: number, dated: string | null): string {
+  if (dated) return dated;
+  if (ms === 0) return 'Right away';
+  if (ms < 86_400_000) {
+    const h = ms / 3_600_000;
+    return h < 1 ? `After ${Math.round(ms / 60_000)} min` : `After ${Number.isInteger(h) ? h : h.toFixed(1)} hour${h === 1 ? '' : 's'}`;
+  }
+  return `Day ${Math.floor(ms / 86_400_000) + 1}`;
+}
+
+/** Messages numbered in reading order, including inside branches. */
+export function messageNumbers(steps: SeqStep[]): Map<string, number> {
+  const out = new Map<string, number>();
+  let n = 0;
+  const walk = (list: SeqStep[]) => {
+    for (const s of list) {
+      if (s.type === 'message') out.set(s.id, ++n);
+      if (s.type === 'branch') for (const w of s.ways) walk(w.steps);
+    }
+  };
+  walk(steps);
   return out;
 }
 

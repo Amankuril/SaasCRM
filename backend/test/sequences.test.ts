@@ -407,4 +407,36 @@ describe('sequences', () => {
     const exit = await api().post(`/api/v1/sequences/${id}/exit`).set(h).send({ phone: '+919811110000', reason: 'order_cancelled' }).expect(200);
     expect(exit.body.data.exited).toBe(true);
   });
+
+  it('branches: first matching way wins, then everyone continues after the branch', async () => {
+    const ctx = await setup();
+    const vip = await ctx.tag('VIP');
+    const branch = (tagId: string) => ({
+      id: 'b1',
+      type: 'branch',
+      ways: [
+        { id: 'y1', label: 'VIPs', conditions: [{ kind: 'tag', op: 'has', tagId }], steps: [msg('mv', ctx.templates.offer)] },
+        { id: 'y2', label: 'Everyone else', conditions: [], steps: [msg('me', ctx.templates.reminder, [{ source: 'text', value: 'Friday', fallback: '' }])] },
+      ],
+    });
+    const created = await api().post(ctx.seqs).set(auth(ctx.owner)).send({ name: 'Branchy' }).expect(201);
+    const id = created.body.sequence.id;
+    const incomplete = await api().patch(`${ctx.seqs}/${id}`).set(auth(ctx.owner)).send({ rules: OPEN_RULES, trigger: { type: 'manual' }, draftGraph: { steps: [branch('')] } }).expect(200);
+    expect(incomplete.body.sequence.checklist).toEqual([expect.objectContaining({ key: 'branch', stepId: 'b1' })]);
+    await api()
+      .patch(`${ctx.seqs}/${id}`)
+      .set(auth(ctx.owner))
+      .send({ draftGraph: { steps: [branch(vip), msg('m9', ctx.templates.welcome, [nameVar])] } })
+      .expect(200);
+    await api().post(`${ctx.seqs}/${id}/publish`).set(auth(ctx.owner)).expect(200);
+    await ctx.contact('+919811112222', { tags: [vip] });
+    await api().post(`${ctx.seqs}/${id}/enroll`).set(auth(ctx.owner)).send({ phones: ['+919811112222', '+919811113333'] }).expect(200);
+    await advance();
+    const byPhone = (p: string) => fake.sent.filter((x) => x.message.to === p).map((x) => (x.message.type === 'template' ? x.message.template.name : ''));
+    expect(byPhone('+919811112222')).toEqual(['offer', 'welcome']);
+    expect(byPhone('+919811113333')).toEqual(['reminder', 'welcome']);
+    const e = await SequenceEnrollment.findOne({ workspaceId: ctx.ws.id, status: 'completed' });
+    const took = await SequenceEvent.findOne({ workspaceId: ctx.ws.id, enrollmentId: e!._id, type: 'branch' });
+    expect(['VIPs', 'Everyone else']).toContain(took!.reason);
+  });
 });
