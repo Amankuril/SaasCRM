@@ -27,6 +27,8 @@ export interface JobPayloads {
   'sequences.daily': Record<string, never>;
   'sequence.run': { workspaceId: string; enrollmentId: string; token?: string };
   'sequence.retry': { workspaceId: string; sequenceMessageId: string };
+  'fbads.sync': { workspaceId: string };
+  'fbads.autosync': Record<string, never>;
 }
 export type JobName = keyof JobPayloads;
 
@@ -54,6 +56,8 @@ const QUEUE_NAMES: Record<JobName, string> = {
   'sequences.daily': 'sequences-daily',
   'sequence.run': 'sequence-run',
   'sequence.retry': 'sequence-retry',
+  'fbads.sync': 'fbads-sync',
+  'fbads.autosync': 'fbads-autosync',
 };
 
 const CONCURRENCY: Record<JobName, number> = {
@@ -73,6 +77,8 @@ const CONCURRENCY: Record<JobName, number> = {
   'sequences.daily': 1,
   'sequence.run': 10,
   'sequence.retry': 2,
+  'fbads.sync': 3,
+  'fbads.autosync': 1,
 };
 
 const DEFAULT_JOB_OPTIONS: JobsOptions = {

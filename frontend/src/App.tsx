@@ -28,6 +28,10 @@ import { BillingPage } from './pages/BillingPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { MessagePricingPage } from './pages/reports/MessagePricingPage';
 import { SequenceBuilderPage } from './pages/sequences/SequenceBuilderPage';
+import { FacebookLayout } from './pages/facebook/FacebookLayout';
+import { AdsHomePage } from './pages/facebook/AdsHomePage';
+import { AdsListPage } from './pages/facebook/AdsListPage';
+import { NewAdSetPage, NewCampaignPage, NewCreativePage } from './pages/facebook/AdsCreatePages';
 import { SequenceContactsPage } from './pages/sequences/SequenceContactsPage';
 import { SequenceGuidePage } from './pages/sequences/SequenceGuidePage';
 import { SequencesLayout } from './pages/sequences/SequencesLayout';
@@ -133,6 +137,14 @@ export function App() {
         <Route path="auto-replies/new" element={<AutoReplyEditorPage />} />
         <Route path="auto-replies/:autoReplyId" element={<AutoReplyEditorPage />} />
         <Route path="flows" element={<FlowsPage />} />
+        <Route path="facebook" element={<FacebookLayout />}>
+          <Route index element={<Navigate to="ads" replace />} />
+          <Route path="ads" element={<AdsHomePage />} />
+          <Route path="ads/campaigns/new" element={<NewCampaignPage />} />
+          <Route path="ads/adsets/new" element={<NewAdSetPage />} />
+          <Route path="ads/creatives/new" element={<NewCreativePage />} />
+          <Route path="ads/:section" element={<AdsListPage />} />
+        </Route>
         <Route path="sequences" element={<SequencesLayout />}>
           <Route index element={<SequencesListPage />} />
           <Route path="guide" element={<SequenceGuidePage />} />

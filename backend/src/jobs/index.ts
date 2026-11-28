@@ -11,6 +11,8 @@ import { rollupRecentDays } from '../modules/reports/messagePricing.service.js';
 import { processDomainEvents } from '../modules/events/domainEvents.js';
 import { processSequenceRun, retrySequenceMessage, tickSequences } from '../modules/sequences/sequence.engine.js';
 import { runDailyTriggers } from '../modules/sequences/sequence.daily.js';
+import { autoSync, runSync } from '../modules/fbads/fbads.service.js';
+import { Types } from 'mongoose';
 import { env } from '../config/env.js';
 import { registerProcessor, registerRepeating } from './queue.js';
 
@@ -57,3 +59,11 @@ registerProcessor('sequences.daily', async () => {
   await runDailyTriggers();
 });
 registerRepeating('sequences.daily', 15 * 60_000);
+// Facebook Ads: sync jobs, and an automatic sync every 6 hours.
+registerProcessor('fbads.sync', async (data) => {
+  await runSync(new Types.ObjectId(data.workspaceId));
+});
+registerProcessor('fbads.autosync', async () => {
+  await autoSync();
+});
+registerRepeating('fbads.autosync', 60 * 60_000);

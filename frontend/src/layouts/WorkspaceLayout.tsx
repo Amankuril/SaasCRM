@@ -23,6 +23,7 @@ import {
   ReceiptIndianRupee,
   ScrollText,
   Settings,
+  Target,
   ShieldCheck,
   UserRound,
   Workflow,
@@ -80,6 +81,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
       { to: 'auto-replies', label: 'Keyword triggers', icon: Zap },
       { to: 'flows', label: 'Flow builder', icon: Workflow },
       { to: 'sequences', label: 'Sequences', icon: ListOrdered },
+      { to: 'facebook', label: 'Facebook Leads', icon: Target, permission: 'ads:view' },
       { to: 'reminders', label: 'Date reminders', icon: CalendarClock },
       { to: 'forms', label: 'Forms', icon: ClipboardList },
       { to: 'ai', label: 'AI agent', icon: Bot },
@@ -116,7 +118,8 @@ export function WorkspaceLayout() {
   const broadcastRoute = useMatch('/w/:workspaceId/broadcast/*');
   const audienceRoute = useMatch('/w/:workspaceId/audience/*');
   const sequencesRoute = useMatch('/w/:workspaceId/sequences/*');
-  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute || sequencesRoute;
+  const facebookRoute = useMatch('/w/:workspaceId/facebook/*');
+  const fullBleed = inboxRoute || builderRoute || formBuilderRoute || templatesRoute || broadcastRoute || audienceRoute || sequencesRoute || facebookRoute;
   const { pathname } = useLocation();
   useRealtime(workspaceId!);
 

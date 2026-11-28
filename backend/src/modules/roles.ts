@@ -24,6 +24,8 @@ const PERMISSIONS = {
   'campaigns:manage': ['owner', 'admin', 'manager'],
   'flows:manage': ['owner', 'admin'],
   'sequences:manage': ['owner', 'admin'],
+  'ads:view': ['owner', 'admin', 'manager', 'analyst'],
+  'ads:manage': ['owner', 'admin'],
   'ai:manage': ['owner', 'admin'],
   'forms:manage': ['owner', 'admin'],
   'developer:manage': ['owner', 'admin'],

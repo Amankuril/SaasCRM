@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestContext.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { publicPagesRouter } from './modules/admin/sitePages.js';
+import { fbOAuthRouter } from './modules/fbads/fbads.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { billingWebhookRouter } from './modules/billing/billing.routes.js';
 import { publicApiRouter } from './modules/developer/publicApi.routes.js';
@@ -57,6 +58,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/pages', publicPagesRouter);
   app.use('/api/integrations', googleCallbackRouter);
+  app.use('/api/facebook-ads', fbOAuthRouter);
   app.use('/api/invitations', publicInvitationRouter);
   app.use('/api/workspaces', requireAuth, workspacesRouter);
   app.use('/api/admin', requireAuth, requirePlatformAdmin, adminRouter);

@@ -64,6 +64,10 @@ const envSchema = z.object({
   META_APP_ID: optionalString,
   META_ES_CONFIG_ID: optionalString,
   META_WEBHOOK_VERIFY_TOKEN: optionalString,
+  // Facebook Ads: `sandbox` fakes an ad account (development and tests). With `meta`, businesses
+  // log in with Facebook (Facebook Login for Business config id if set, else plain OAuth scopes).
+  ADS_PROVIDER: z.enum(['meta', 'sandbox']).default('meta'),
+  META_ADS_CONFIG_ID: optionalString,
 
   // Outgoing email (login codes). Without SMTP_HOST, development logs codes to the console;
   // production refuses business logins until it is set.

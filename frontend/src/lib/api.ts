@@ -154,6 +154,8 @@ export type Permission =
   | 'campaigns:manage'
   | 'flows:manage'
   | 'sequences:manage'
+  | 'ads:view'
+  | 'ads:manage'
   | 'ai:manage'
   | 'forms:manage'
   | 'developer:manage'
@@ -1573,4 +1575,64 @@ export interface SequenceFunnelStep {
   read: number;
   replied: number;
   failed: number;
+}
+
+// ---- Facebook Ads ----
+
+export type FbKind = 'campaign' | 'adset' | 'ad' | 'creative' | 'audience' | 'pixel';
+
+export interface FbConnectionInfo {
+  status: 'pending' | 'connected' | 'error';
+  fbUserName: string | null;
+  adAccountId: string | null;
+  adAccountName: string | null;
+  currency: string | null;
+  timezone: string | null;
+  accountStatus: number | null;
+  tokenExpiresAt: string | null;
+  lastError: string | null;
+  connectedAt: string | null;
+  lastVerifiedAt: string | null;
+  sync: { status: 'idle' | 'queued' | 'running' | 'failed'; startedAt: string | null; finishedAt: string | null; error: string | null };
+}
+
+export interface FbAdsHome {
+  connection: FbConnectionInfo | null;
+  counts: { campaigns: number; activeCampaigns: number; adsets: number; ads: number; rejectedAds: number };
+  provider: 'meta' | 'sandbox';
+}
+
+export interface FbAdAccount {
+  id: string;
+  name: string;
+  currency: string;
+  timezone: string;
+  status: number;
+}
+
+export interface FbRow {
+  id: string;
+  kind: FbKind;
+  name: string;
+  status: string | null;
+  effectiveStatus: string | null;
+  deleted: boolean;
+  objective: string | null;
+  buyingType: string | null;
+  dailyBudget: number | null;
+  lifetimeBudget: number | null;
+  campaign: { id: string; name: string | null } | null;
+  adset: { id: string; name: string | null } | null;
+  creative: { id: string; name: string | null } | null;
+  optimizationGoal: string | null;
+  targetingSummary: string | null;
+  reviewStatus: string | null;
+  thumbnailUrl: string | null;
+  creativeType: string | null;
+  headline: string | null;
+  callToAction: string | null;
+  subtype: string | null;
+  approxCount: number | null;
+  lastFiredAt: string | null;
+  updatedAt: string;
 }
